@@ -1,10 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
+using System.IO;
 using System.Net;
-using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace Kurome
@@ -13,11 +13,11 @@ namespace Kurome
     {
         object _lock = new(); // sync lock 
         List<Task> _connections = new();
-        private List<TcpClient> _connectedTcpClients { get; set; } = new();
+        private List<TcpClient> ConnectedTcpClients { get; set; } = new();
+
         public async void StartServer()
         {
             IPAddress ipAddress = IPAddress.Any;
-            IPEndPoint localEndPoint = new IPEndPoint(ipAddress, 33587);
             try
             {
                 TcpListener tcpListener = TcpListener.Create(33587);
@@ -26,10 +26,8 @@ namespace Kurome
                 {
                     TcpClient client = await tcpListener.AcceptTcpClientAsync();
                     Console.WriteLine("[Server]: Client has connected");
-                    _connectedTcpClients.Add(client);
-                    var task = StartHandleConnectionAsync(client);
-                    if (task.IsFaulted)
-                        await task;
+                    ConnectedTcpClients.Add(client);
+                    StartHandleConnectionAsync(client);
                 }
             }
             catch (Exception e)
@@ -41,7 +39,7 @@ namespace Kurome
             Console.ReadKey();
         }
 
-        private async Task StartHandleConnectionAsync(TcpClient tcpClient)
+        private async void StartHandleConnectionAsync(TcpClient tcpClient)
         {
             // start the new connection task
             var connectionTask = HandleConnectionAsync(tcpClient);
@@ -66,7 +64,7 @@ namespace Kurome
                 // remove pending task
                 lock (_lock) _connections.Remove(connectionTask);
                 tcpClient.Close();
-                _connectedTcpClients.Remove(tcpClient);
+                ConnectedTcpClients.Remove(tcpClient);
             }
         }
 
@@ -75,24 +73,34 @@ namespace Kurome
             await Task.Yield();
             // continue asynchronously on another threads
 
-            using (var networkStream = tcpClient.GetStream())
+            var networkStream = tcpClient.GetStream();
+            var buffer = new byte[4096];
+            Console.WriteLine("[Server] Reading from client");
+            while (true)
             {
-                var buffer = new byte[4096];
-                Console.WriteLine("[Server] Reading from client");
-                while (true)
+                if (networkStream.DataAvailable)
                 {
                     var byteCount = await networkStream.ReadAsync(buffer, 0, buffer.Length);
                     var request = Encoding.UTF8.GetString(buffer, 0, byteCount);
-                    Console.WriteLine("[Server]: Client wrote {0}", request);
+                    Console.Write("[Server]: Client wrote {0}", request);
                 }
             }
         }
 
         public async void Send(string message, int tcpClientIndex)
         {
-            var messageBytes = Encoding.UTF8.GetBytes(message);
-            await _connectedTcpClients[tcpClientIndex].GetStream().WriteAsync(messageBytes, 0, messageBytes.Length);
-            await _connectedTcpClients[tcpClientIndex].GetStream().FlushAsync();
+            try
+            {
+                var messageBytes = Encoding.UTF8.GetBytes(message);
+                var networkStream = ConnectedTcpClients[0].GetStream();
+                await networkStream.WriteAsync(messageBytes, 0, messageBytes.Length);
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine(e);
+            }
         }
+
+
     }
 }

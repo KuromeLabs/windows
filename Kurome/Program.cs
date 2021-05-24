@@ -12,18 +12,19 @@ namespace Kurome
     class Program
     {
         public static readonly string UDP_SUBNET = "235.132.20.12";
+        public static readonly int PORT = 33586;
 
         static void Main(string[] args)
         {
             var address = IPAddress.Parse(UDP_SUBNET);
-            var ipEndPoint = new IPEndPoint(address, 33586);
+            var ipEndPoint = new IPEndPoint(address, PORT);
             CastUdpInfo(address, ipEndPoint, GetLocalIpAddress());
             KuromeTcpServer server = new KuromeTcpServer();
             server.StartServer();
             while (true)
             {
                 String message = Console.ReadLine();
-                server.Send(message, 0);
+                server.Send(message + '\n', 0);
             }
         }
 
@@ -34,7 +35,7 @@ namespace Kurome
                 String message = "kurome:" + interfaceIp + ":" + Environment.MachineName;
                 var data = Encoding.Default.GetBytes(message);
                 using var udpClient = new UdpClient(AddressFamily.InterNetwork);
-                udpClient.Client.Bind(new IPEndPoint(IPAddress.Parse(interfaceIp), 33586));
+                udpClient.Client.Bind(new IPEndPoint(IPAddress.Parse(interfaceIp), PORT));
                 udpClient.JoinMulticastGroup(address);
                 udpClient.Ttl = 32;
                 udpClient.Send(data, data.Length, endpoint);
