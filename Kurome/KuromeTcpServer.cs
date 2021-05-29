@@ -11,13 +11,11 @@ namespace Kurome
 {
     public class KuromeTcpServer
     {
-        object _lock = new(); // sync lock 
-        List<Task> _connections = new();
-        private List<TcpClient> ConnectedTcpClients { get; set; } = new();
+        readonly object _lock = new(); // sync lock 
+        private List<TcpClient> ConnectedTcpClients { get; } = new();
 
         public async void StartServer()
         {
-            IPAddress ipAddress = IPAddress.Any;
             try
             {
                 TcpListener tcpListener = TcpListener.Create(33587);
@@ -26,8 +24,8 @@ namespace Kurome
                 {
                     TcpClient client = await tcpListener.AcceptTcpClientAsync();
                     Console.WriteLine("[Server]: Client has connected");
-                    ConnectedTcpClients.Add(client);
-                    StartHandleConnectionAsync(client);
+                    lock (_lock) ConnectedTcpClients.Add(client);
+                    HandleConnectionAsync(client);
                 }
             }
             catch (Exception e)
@@ -39,61 +37,34 @@ namespace Kurome
             Console.ReadKey();
         }
 
-        private async void StartHandleConnectionAsync(TcpClient tcpClient)
+        private async void HandleConnectionAsync(TcpClient tcpClient)
         {
-            // start the new connection task
-            var connectionTask = HandleConnectionAsync(tcpClient);
-
-            // add it to the list of pending task 
-            lock (_lock)
-                _connections.Add(connectionTask);
-
-            // catch all errors of HandleConnectionAsync
-            try
-            {
-                await connectionTask;
-                // we may be on another thread after "await"
-            }
-            catch (Exception ex)
-            {
-                // log the error
-                Console.WriteLine(ex.ToString());
-            }
-            finally
-            {
-                // remove pending task
-                lock (_lock) _connections.Remove(connectionTask);
-                tcpClient.Close();
-                ConnectedTcpClients.Remove(tcpClient);
-            }
-        }
-
-        private async Task HandleConnectionAsync(TcpClient tcpClient)
-        {
-            await Task.Yield();
-            // continue asynchronously on another threads
-
-            var networkStream = tcpClient.GetStream();
+            
             var buffer = new byte[4096];
             Console.WriteLine("[Server] Reading from client");
             while (true)
             {
-                if (networkStream.DataAvailable)
-                {
-                    var byteCount = await networkStream.ReadAsync(buffer, 0, buffer.Length);
-                    var request = Encoding.UTF8.GetString(buffer, 0, byteCount);
-                    Console.Write("[Server]: Client wrote {0}", request);
-                }
+                var networkStream = tcpClient.GetStream();
+                if (!IsTcpClientAlive(tcpClient).Result) break;
+                var byteCount = await networkStream.ReadAsync(buffer, 0, buffer.Length);
+                if (byteCount == 0) break;
+                var request = Encoding.UTF8.GetString(buffer, 0, byteCount);
+                Console.Write("[Server]: Client wrote {0}", request);
             }
+            lock (_lock) ConnectedTcpClients.Remove(tcpClient);
+            tcpClient.Close();
+            Console.WriteLine("Client disconnected");
         }
 
         public async void Send(string message, int tcpClientIndex)
         {
             try
             {
+                IsTcpClientAlive(ConnectedTcpClients[0]);
+                var token = new CancellationTokenSource(1000);
                 var messageBytes = Encoding.UTF8.GetBytes(message);
                 var networkStream = ConnectedTcpClients[0].GetStream();
-                await networkStream.WriteAsync(messageBytes, 0, messageBytes.Length);
+                await networkStream.WriteAsync(messageBytes, 0, messageBytes.Length, token.Token);
             }
             catch (Exception e)
             {
@@ -101,6 +72,27 @@ namespace Kurome
             }
         }
 
+        private async Task<bool> IsTcpClientAlive(TcpClient tcpClient)
+        {
+            var buffer = new byte[4096];
+            var networkStream = tcpClient.GetStream();
+            await networkStream.WriteAsync(Encoding.UTF8.GetBytes("are you alive"));
+            var readTask = networkStream.ReadAsync(buffer, 0, buffer.Length);
+            await Task.WhenAny(readTask, Task.Delay(TimeSpan.FromSeconds(10)));
+            if (!readTask.IsCompleted)
+            {
+                Console.WriteLine("Connection timed out");
+                return false;
+            }
+            var request = Encoding.UTF8.GetString(buffer, 0, readTask.Result);
+            if (request != "yes")
+            {
+                Console.WriteLine("Connection attestation failed");
+                return false;
+            }
+            Console.WriteLine("Connection attestation succeeded");
+            return true;
 
+        }
     }
 }
