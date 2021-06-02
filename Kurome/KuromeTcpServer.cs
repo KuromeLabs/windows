@@ -1,11 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Net;
+using System.Linq;
 using System.Net.Sockets;
-using System.Text;
-using System.Threading;
 using System.Threading.Tasks;
+using DokanNet;
 
 namespace Kurome
 {
@@ -39,60 +38,21 @@ namespace Kurome
 
         private async void HandleConnectionAsync(TcpClient tcpClient)
         {
-            
-            var buffer = new byte[4096];
-            Console.WriteLine("[Server] Reading from client");
-            while (true)
+            try
             {
-                var networkStream = tcpClient.GetStream();
-                if (!IsTcpClientAlive(tcpClient).Result) break;
-                var byteCount = await networkStream.ReadAsync(buffer, 0, buffer.Length);
-                if (byteCount == 0) break;
-                var request = Encoding.UTF8.GetString(buffer, 0, byteCount);
-                Console.Write("[Server]: Client wrote {0}", request);
+               var list = Enumerable.Range('A', 'Z' - 'A' + 1).Select(i => (char) i + ":")
+                    .Except(DriveInfo.GetDrives().Select(s => s.Name.Replace("\\", ""))).ToList();
+               var rfs = new KuromeVirtualDisk(tcpClient);
+                await Task.Run(() => rfs.Mount(list[ConnectedTcpClients.Count] + "\\", DokanOptions.DebugMode | DokanOptions.StderrOutput));
+                Console.WriteLine(@"Success");
+            }
+            catch (DokanException ex)
+            {
+                Console.WriteLine(@"Error: " + ex.Message);
             }
             lock (_lock) ConnectedTcpClients.Remove(tcpClient);
             tcpClient.Close();
             Console.WriteLine("Client disconnected");
-        }
-
-        public async void Send(string message, int tcpClientIndex)
-        {
-            try
-            {
-                IsTcpClientAlive(ConnectedTcpClients[0]);
-                var token = new CancellationTokenSource(1000);
-                var messageBytes = Encoding.UTF8.GetBytes(message);
-                var networkStream = ConnectedTcpClients[0].GetStream();
-                await networkStream.WriteAsync(messageBytes, 0, messageBytes.Length, token.Token);
-            }
-            catch (Exception e)
-            {
-                Console.WriteLine(e);
-            }
-        }
-
-        private async Task<bool> IsTcpClientAlive(TcpClient tcpClient)
-        {
-            var buffer = new byte[4096];
-            var networkStream = tcpClient.GetStream();
-            await networkStream.WriteAsync(Encoding.UTF8.GetBytes("are you alive"));
-            var readTask = networkStream.ReadAsync(buffer, 0, buffer.Length);
-            await Task.WhenAny(readTask, Task.Delay(TimeSpan.FromSeconds(10)));
-            if (!readTask.IsCompleted)
-            {
-                Console.WriteLine("Connection timed out");
-                return false;
-            }
-            var request = Encoding.UTF8.GetString(buffer, 0, readTask.Result);
-            if (request != "yes")
-            {
-                Console.WriteLine("Connection attestation failed");
-                return false;
-            }
-            Console.WriteLine("Connection attestation succeeded");
-            return true;
-
         }
     }
 }

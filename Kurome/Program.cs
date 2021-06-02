@@ -6,6 +6,7 @@ using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using System.Text;
 using System.Threading.Tasks;
+using DokanNet;
 
 namespace Kurome
 {
@@ -16,16 +17,13 @@ namespace Kurome
 
         static void Main(string[] args)
         {
+            
             var address = IPAddress.Parse(UDP_SUBNET);
             var ipEndPoint = new IPEndPoint(address, PORT);
             CastUdpInfo(address, ipEndPoint, GetLocalIpAddress());
             KuromeTcpServer server = new KuromeTcpServer();
             server.StartServer();
-            while (true)
-            {
-                String message = Console.ReadLine();
-                server.Send(message + '\n', 0);
-            }
+            Console.Read();
         }
 
         private static void CastUdpInfo(IPAddress address, IPEndPoint endpoint, IEnumerable<string> localIpAddresses)
