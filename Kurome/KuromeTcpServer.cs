@@ -40,10 +40,10 @@ namespace Kurome
         {
             try
             {
-               var list = Enumerable.Range('A', 'Z' - 'A' + 1).Select(i => (char) i + ":")
+               var list = Enumerable.Range('C', 'Z' - 'C').Select(i => (char) i + ":")
                     .Except(DriveInfo.GetDrives().Select(s => s.Name.Replace("\\", ""))).ToList();
                var rfs = new KuromeVirtualDisk(tcpClient);
-                await Task.Run(() => rfs.Mount(list[ConnectedTcpClients.Count] + "\\", DokanOptions.DebugMode | DokanOptions.StderrOutput));
+               await Task.Run(() => rfs.Mount(list[ConnectedTcpClients.Count - 1] + "\\", DokanOptions.DebugMode | DokanOptions.StderrOutput));
                 Console.WriteLine(@"Success");
             }
             catch (DokanException ex)
