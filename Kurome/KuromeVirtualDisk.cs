@@ -13,15 +13,19 @@ namespace Kurome
     public class KuromeVirtualDisk : IDokanOperations
     {
         private TcpClient _tcpClient { get; }
+        private string _deviceName;
+        private char DriveLetter;
         private const long KiB = 1024;
         private const long MiB = 1024 * KiB;
         private const long GiB = 1024 * MiB;
         private const long TiB = 1024 * GiB;
 
 
-        public KuromeVirtualDisk(TcpClient tcpClient)
+        public KuromeVirtualDisk(TcpClient tcpClient, string deviceName, char driveLetter)
         {
             _tcpClient = tcpClient;
+            _deviceName = deviceName;
+            DriveLetter = driveLetter;
         }
 
         public NtStatus CreateFile(
@@ -135,8 +139,14 @@ namespace Kurome
         {
             _tcpClient.GetStream().Write(Encoding.UTF8.GetBytes("request:info:space"));
             var buffer = new byte[4096];
-            var byteCount = _tcpClient.GetStream().Read(buffer, 0, buffer.Length);
-            var request = Encoding.UTF8.GetString(buffer, 0, byteCount);
+            var readTask = _tcpClient.GetStream().ReadAsync(buffer, 0, buffer.Length);
+            Task.WaitAny(readTask, Task.Delay(TimeSpan.FromSeconds(5)));
+            if (!readTask.IsCompleted || readTask.Result == 0)
+            {
+                Console.WriteLine("Connection timed out or client disconnected");
+                Dokan.Unmount(DriveLetter);
+            }
+            var request = Encoding.UTF8.GetString(buffer, 0, readTask.Result);
             string[] spaces = request.Split(':');
             
             long totalSizeGb = long.Parse(spaces[0]);
@@ -151,7 +161,12 @@ namespace Kurome
             out string fileSystemName,
             out uint maximumComponentLength, IDokanFileInfo info)
         {
-            throw new NotImplementedException();
+            
+            volumeLabel = _deviceName;
+            features = FileSystemFeatures.UnicodeOnDisk  | FileSystemFeatures.CasePreservedNames;
+            fileSystemName = "Generic hierarchical";
+            maximumComponentLength = 255;
+            return DokanResult.Success;
         }
 
         public NtStatus GetFileSecurity(string fileName, out FileSystemSecurity security,

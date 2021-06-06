@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Net.Sockets;
+using System.Text;
 using System.Threading.Tasks;
 using DokanNet;
 
@@ -40,10 +41,17 @@ namespace Kurome
         {
             try
             {
-               var list = Enumerable.Range('C', 'Z' - 'C').Select(i => (char) i + ":")
+                var buffer = new byte[4096];
+                var byteCount = tcpClient.GetStream().Read(buffer, 0, buffer.Length);
+                var request = Encoding.UTF8.GetString(buffer, 0, byteCount);
+                
+                
+                //list drive letters starting from C and excluding those already in use
+                var list = Enumerable.Range('C', 'Z' - 'C').Select(i => (char) i + ":")
                     .Except(DriveInfo.GetDrives().Select(s => s.Name.Replace("\\", ""))).ToList();
-               var rfs = new KuromeVirtualDisk(tcpClient);
-               await Task.Run(() => rfs.Mount(list[ConnectedTcpClients.Count - 1] + "\\", DokanOptions.DebugMode | DokanOptions.StderrOutput));
+                char letter = list[ConnectedTcpClients.Count - 1][0];
+                var rfs = new KuromeVirtualDisk(tcpClient, request, letter);
+               await Task.Run(() => rfs.Mount(letter + ":\\", DokanOptions.DebugMode | DokanOptions.StderrOutput));
                 Console.WriteLine(@"Success");
             }
             catch (DokanException ex)
