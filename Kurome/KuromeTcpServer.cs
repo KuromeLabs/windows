@@ -42,7 +42,7 @@ namespace Kurome
             try
             {
                 var buffer = new byte[4096];
-                var byteCount = tcpClient.GetStream().Read(buffer, 0, buffer.Length);
+                var byteCount = await tcpClient.GetStream().ReadAsync(buffer, 0, buffer.Length);
                 var request = Encoding.UTF8.GetString(buffer, 0, byteCount);
                 
                 
@@ -51,7 +51,7 @@ namespace Kurome
                     .Except(DriveInfo.GetDrives().Select(s => s.Name.Replace("\\", ""))).ToList();
                 char letter = list[ConnectedTcpClients.Count - 1][0];
                 var rfs = new KuromeVirtualDisk(tcpClient, request, letter);
-               await Task.Run(() => rfs.Mount(letter + ":\\", DokanOptions.DebugMode | DokanOptions.StderrOutput));
+                rfs.Mount(letter + ":\\");
                 Console.WriteLine(@"Success");
             }
             catch (DokanException ex)
@@ -60,7 +60,7 @@ namespace Kurome
             }
             lock (_lock) ConnectedTcpClients.Remove(tcpClient);
             tcpClient.Close();
-            Console.WriteLine("Client disconnected");
+            Console.WriteLine("Server TCP Connection closed");
         }
     }
 }

@@ -4,6 +4,7 @@ using System.IO;
 using System.Net.Sockets;
 using System.Security.AccessControl;
 using System.Text;
+using System.Text.Json;
 using System.Threading.Tasks;
 using DokanNet;
 using FileAccess = DokanNet.FileAccess;
@@ -44,12 +45,12 @@ namespace Kurome
 
         public void Cleanup(string fileName, IDokanFileInfo info)
         {
-            throw new NotImplementedException();
+            //throw new NotImplementedException();
         }
 
         public void CloseFile(string fileName, IDokanFileInfo info)
         {
-            throw new NotImplementedException();
+            //throw new NotImplementedException();
         }
 
         public NtStatus ReadFile(string fileName, byte[] buffer, out int bytesRead, long offset, IDokanFileInfo info)
@@ -70,7 +71,12 @@ namespace Kurome
 
         public NtStatus GetFileInformation(string fileName, out FileInformation fileInfo, IDokanFileInfo info)
         {
-            throw new NotImplementedException();
+            //TODO: implement
+            fileInfo = new FileInformation
+            {
+
+            };
+            return DokanResult.Unsuccessful;
         }
 
         public NtStatus FindFiles(string fileName, out IList<FileInformation> files, IDokanFileInfo info)
@@ -81,7 +87,35 @@ namespace Kurome
         public NtStatus FindFilesWithPattern(string fileName, string searchPattern, out IList<FileInformation> files,
             IDokanFileInfo info)
         {
-            throw new NotImplementedException();
+            files = null;
+            if (fileName == "\\")
+            {
+                files = new List<FileInformation>();
+                var request = SendReceiveTcpWithTimeout("request:info:directory", 15);
+                if (request == null)
+                    return DokanResult.Unsuccessful;
+                Console.WriteLine(request);
+                var fileInfos = JsonSerializer.Deserialize<List<FileData>>(request);
+                if (fileInfos == null)
+                    return DokanResult.Unsuccessful;
+                foreach (var fileData in fileInfos)
+                {
+                    var finfo = new FileInformation
+                    {
+                        FileName = fileData.fileName,
+                        Attributes = fileData.isDirectory ? FileAttributes.Directory : FileAttributes.Normal,
+                        LastAccessTime = DateTime.Now,
+                        LastWriteTime = null,
+                        CreationTime = null,
+                        Length = fileData.size
+                    };
+                    files.Add(finfo);
+                }
+
+                return DokanResult.Success;
+            }
+
+            return DokanResult.Unsuccessful;
         }
 
         public NtStatus SetFileAttributes(string fileName, FileAttributes attributes, IDokanFileInfo info)
@@ -137,18 +171,10 @@ namespace Kurome
             out long totalNumberOfFreeBytes,
             IDokanFileInfo info)
         {
-            _tcpClient.GetStream().Write(Encoding.UTF8.GetBytes("request:info:space"));
-            var buffer = new byte[4096];
-            var readTask = _tcpClient.GetStream().ReadAsync(buffer, 0, buffer.Length);
-            Task.WaitAny(readTask, Task.Delay(TimeSpan.FromSeconds(5)));
-            if (!readTask.IsCompleted || readTask.Result == 0)
-            {
-                Console.WriteLine("Connection timed out or client disconnected");
-                Dokan.Unmount(DriveLetter);
-            }
-            var request = Encoding.UTF8.GetString(buffer, 0, readTask.Result);
+            string request = SendReceiveTcpWithTimeout("request:info:space", 15);
+            Console.WriteLine(request);
             string[] spaces = request.Split(':');
-            
+
             long totalSizeGb = long.Parse(spaces[0]);
             long freeSpaceGb = long.Parse(spaces[1]);
             totalNumberOfBytes = totalSizeGb;
@@ -161,9 +187,8 @@ namespace Kurome
             out string fileSystemName,
             out uint maximumComponentLength, IDokanFileInfo info)
         {
-            
             volumeLabel = _deviceName;
-            features = FileSystemFeatures.UnicodeOnDisk  | FileSystemFeatures.CasePreservedNames;
+            features = FileSystemFeatures.UnicodeOnDisk | FileSystemFeatures.CasePreservedNames;
             fileSystemName = "Generic hierarchical";
             maximumComponentLength = 255;
             return DokanResult.Success;
@@ -196,5 +221,30 @@ namespace Kurome
         {
             throw new NotImplementedException();
         }
+
+        private string SendReceiveTcpWithTimeout(string message, int timeout)
+        {
+
+            _tcpClient.GetStream().Write(Encoding.UTF8.GetBytes(message));
+            var buffer = new byte[4096];
+            var readTask = _tcpClient.GetStream().ReadAsync(buffer, 0, buffer.Length);
+            
+            Task.WaitAny(readTask, Task.Delay(TimeSpan.FromSeconds(timeout)));
+            if (!readTask.IsCompleted || readTask.Result == 0)
+            {
+                Console.WriteLine("Client disconnected");
+                Dokan.Unmount(DriveLetter);
+                return null;
+            }
+
+            return Encoding.UTF8.GetString(buffer, 0, readTask.Result);
+        }
+    }
+
+    public class FileData
+    {
+        public string fileName { get; set; }
+        public bool isDirectory { get; set; }
+        public long size { get; set; }
     }
 }
