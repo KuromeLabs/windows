@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Net.Sockets;
@@ -16,6 +17,7 @@ namespace Kurome
         private TcpClient _tcpClient { get; }
         private string _deviceName;
         private char DriveLetter;
+        private readonly object _lock = new();
         private const long KiB = 1024;
         private const long MiB = 1024 * KiB;
         private const long GiB = 1024 * MiB;
@@ -74,7 +76,6 @@ namespace Kurome
             //TODO: implement
             fileInfo = new FileInformation
             {
-
             };
             return DokanResult.Unsuccessful;
         }
@@ -224,20 +225,21 @@ namespace Kurome
 
         private string SendReceiveTcpWithTimeout(string message, int timeout)
         {
-
-            _tcpClient.GetStream().Write(Encoding.UTF8.GetBytes(message));
-            var buffer = new byte[4096];
-            var readTask = _tcpClient.GetStream().ReadAsync(buffer, 0, buffer.Length);
-            
-            Task.WaitAny(readTask, Task.Delay(TimeSpan.FromSeconds(timeout)));
-            if (!readTask.IsCompleted || readTask.Result == 0)
+            lock (_lock) //Maybe use a queue
             {
-                Console.WriteLine("Client disconnected");
-                Dokan.Unmount(DriveLetter);
-                return null;
-            }
+                _tcpClient.GetStream().Write(Encoding.UTF8.GetBytes(message));
+                var buffer = new byte[4096];
+                var readTask = _tcpClient.GetStream().ReadAsync(buffer, 0, buffer.Length);
+                Task.WaitAny(readTask, Task.Delay(TimeSpan.FromSeconds(timeout)));
+                if (!readTask.IsCompleted || readTask.Result == 0)
+                {
+                    Console.WriteLine("Client disconnected");
+                    Dokan.Unmount(DriveLetter);
+                    return null;
+                }
 
-            return Encoding.UTF8.GetString(buffer, 0, readTask.Result);
+                return Encoding.UTF8.GetString(buffer, 0, readTask.Result);
+            }
         }
     }
 
