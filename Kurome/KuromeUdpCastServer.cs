@@ -21,12 +21,13 @@ namespace Kurome
             var ipEndPoint = new IPEndPoint(address, PORT);
             while (true)
             {
-                CastUdpInfo(address, ipEndPoint, GetLocalIpAddress());
+                CastUdpInfo(address, ipEndPoint);
                 await Task.Delay(interval, token);
             }
         }
-        private static async void CastUdpInfo(IPAddress address, IPEndPoint endpoint, IEnumerable<string> localIpAddresses)
+        private static async void CastUdpInfo(IPAddress address, IPEndPoint endpoint)
         {
+            var localIpAddresses = GetLocalIpAddress();
             foreach (var interfaceIp in localIpAddresses)
             {
                 String message = "kurome:" + interfaceIp + ":" + Environment.MachineName;
@@ -36,7 +37,7 @@ namespace Kurome
                 udpClient.JoinMulticastGroup(address);
                 udpClient.Ttl = 32;
                 await udpClient.SendAsync(data, data.Length, endpoint);
-                Console.WriteLine("Broadcast: \"{0}\" to {1}", message, interfaceIp);
+               // Console.WriteLine("Broadcast: \"{0}\" to {1}", message, interfaceIp);
                 udpClient.Close();
             }
         }
