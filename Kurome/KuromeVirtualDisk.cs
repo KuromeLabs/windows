@@ -2,6 +2,7 @@
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Net.Sockets;
 using System.Security.AccessControl;
 using System.Text;
@@ -173,9 +174,10 @@ namespace Kurome
             IDokanFileInfo info)
         {
             string request = SendReceiveTcpWithTimeout("request:info:space", 15);
+            totalNumberOfBytes = freeBytesAvailable = totalNumberOfFreeBytes = 0;
+            if (request == null) return DokanResult.Unsuccessful;
             Console.WriteLine(request);
             string[] spaces = request.Split(':');
-
             long totalSizeGb = long.Parse(spaces[0]);
             long freeSpaceGb = long.Parse(spaces[1]);
             totalNumberOfBytes = totalSizeGb;
@@ -231,14 +233,12 @@ namespace Kurome
                 var buffer = new byte[4096];
                 var readTask = _tcpClient.GetStream().ReadAsync(buffer, 0, buffer.Length);
                 Task.WaitAny(readTask, Task.Delay(TimeSpan.FromSeconds(timeout)));
-                if (!readTask.IsCompleted || readTask.Result == 0)
-                {
-                    Console.WriteLine("Client disconnected");
-                    Dokan.Unmount(DriveLetter);
-                    return null;
-                }
+                if (readTask.IsCompleted && readTask.Result != 0)
+                    return Encoding.UTF8.GetString(buffer, 0, readTask.Result);
+                Console.WriteLine("Client disconnected");
+                Dokan.Unmount(DriveLetter);
+                return null;
 
-                return Encoding.UTF8.GetString(buffer, 0, readTask.Result);
             }
         }
     }
