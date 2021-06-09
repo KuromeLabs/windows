@@ -92,17 +92,13 @@ namespace Kurome
             files = null;
             if (fileName == "\\")
             {
-                files = new List<FileInformation>();
                 var request = SendReceiveTcpWithTimeout("request:info:directory", 15);
-                if (request == null)
-                    return DokanResult.Unsuccessful;
+                if (request == null) return DokanResult.Unsuccessful;
                 Console.WriteLine(request);
                 var fileInfos = JsonSerializer.Deserialize<List<FileData>>(request);
                 if (fileInfos == null)
                     return DokanResult.Unsuccessful;
-                foreach (var fileData in fileInfos)
-                {
-                    var finfo = new FileInformation
+                files = fileInfos.Select(fileData => new FileInformation
                     {
                         FileName = fileData.fileName,
                         Attributes = fileData.isDirectory ? FileAttributes.Directory : FileAttributes.Normal,
@@ -110,9 +106,8 @@ namespace Kurome
                         LastWriteTime = null,
                         CreationTime = null,
                         Length = fileData.size
-                    };
-                    files.Add(finfo);
-                }
+                    })
+                    .ToList();
 
                 return DokanResult.Success;
             }
