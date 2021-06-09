@@ -90,29 +90,25 @@ namespace Kurome
             IDokanFileInfo info)
         {
             files = null;
-            if (fileName == "\\")
-            {
-                var request = SendReceiveTcpWithTimeout("request:info:directory", 15);
-                if (request == null) return DokanResult.Unsuccessful;
-                Console.WriteLine(request);
-                var fileInfos = JsonSerializer.Deserialize<List<FileData>>(request);
-                if (fileInfos == null)
-                    return DokanResult.Unsuccessful;
-                files = fileInfos.Select(fileData => new FileInformation
-                    {
-                        FileName = fileData.fileName,
-                        Attributes = fileData.isDirectory ? FileAttributes.Directory : FileAttributes.Normal,
-                        LastAccessTime = DateTime.Now,
-                        LastWriteTime = null,
-                        CreationTime = null,
-                        Length = fileData.size
-                    })
-                    .ToList();
+            var request = SendReceiveTcpWithTimeout("request:info:directory:" + fileName.Replace('\\', '/'), 15);
+            Console.WriteLine("request:info:directory:" + fileName.Replace('\\', '/'));
+            if (request == null) return DokanResult.Unsuccessful;
+            Console.WriteLine(request);
+            var fileInfos = JsonSerializer.Deserialize<List<FileData>>(request);
+            if (fileInfos == null)
+                return DokanResult.Unsuccessful;
+            files = fileInfos.Select(fileData => new FileInformation
+                {
+                    FileName = fileData.fileName,
+                    Attributes = fileData.isDirectory ? FileAttributes.Directory : FileAttributes.Normal,
+                    LastAccessTime = DateTime.Now,
+                    LastWriteTime = null,
+                    CreationTime = null,
+                    Length = fileData.size
+                })
+                .ToList();
 
-                return DokanResult.Success;
-            }
-
-            return DokanResult.Unsuccessful;
+            return DokanResult.Success;
         }
 
         public NtStatus SetFileAttributes(string fileName, FileAttributes attributes, IDokanFileInfo info)
@@ -225,7 +221,7 @@ namespace Kurome
             lock (_lock) //Maybe use a queue
             {
                 _tcpClient.GetStream().Write(Encoding.UTF8.GetBytes(message));
-                var buffer = new byte[4096];
+                var buffer = new byte[8192];
                 var readTask = _tcpClient.GetStream().ReadAsync(buffer, 0, buffer.Length);
                 Task.WaitAny(readTask, Task.Delay(TimeSpan.FromSeconds(timeout)));
                 if (readTask.IsCompleted && readTask.Result != 0)
@@ -233,7 +229,6 @@ namespace Kurome
                 Console.WriteLine("Client disconnected");
                 Dokan.Unmount(DriveLetter);
                 return null;
-
             }
         }
     }
