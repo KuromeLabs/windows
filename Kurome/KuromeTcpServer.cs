@@ -11,9 +11,7 @@ namespace Kurome
 {
     public class KuromeTcpServer
     {
-        readonly object _lock = new(); // sync lock 
-        private List<TcpClient> ConnectedTcpClients { get; } = new();
-
+        private int _numOfConnectedClients;
         public async void StartServer()
         {
             try
@@ -24,7 +22,7 @@ namespace Kurome
                 {
                     TcpClient client = await tcpListener.AcceptTcpClientAsync();
                     Console.WriteLine("[Server]: Client has connected");
-                    lock (_lock) ConnectedTcpClients.Add(client);
+                    _numOfConnectedClients++;
                     HandleConnectionAsync(client);
                 }
             }
@@ -49,8 +47,8 @@ namespace Kurome
                 //list drive letters starting from C and excluding those already in use
                 var list = Enumerable.Range('C', 'Z' - 'C').Select(i => (char) i + ":")
                     .Except(DriveInfo.GetDrives().Select(s => s.Name.Replace("\\", ""))).ToList();
-                char letter = list[ConnectedTcpClients.Count - 1][0];
-                var rfs = new KuromeVirtualDisk(tcpClient, request, letter);
+                char letter = list[_numOfConnectedClients - 1][0];
+                var rfs = new KuromeVirtualDisk(tcpClient.GetStream(), request, letter);
                 rfs.Mount(letter + ":\\");
                 Console.WriteLine(@"Success");
             }
@@ -58,7 +56,7 @@ namespace Kurome
             {
                 Console.WriteLine(@"Error: " + ex.Message);
             }
-            lock (_lock) ConnectedTcpClients.Remove(tcpClient);
+            _numOfConnectedClients--;
             tcpClient.Close();
             Console.WriteLine("Server TCP Connection closed");
         }

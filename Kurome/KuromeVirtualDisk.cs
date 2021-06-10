@@ -15,7 +15,7 @@ namespace Kurome
 {
     public class KuromeVirtualDisk : IDokanOperations
     {
-        private TcpClient _tcpClient { get; }
+        private NetworkStream _networkStream;
         private string _deviceName;
         private char DriveLetter;
         private readonly object _lock = new();
@@ -25,9 +25,9 @@ namespace Kurome
         private const long TiB = 1024 * GiB;
 
 
-        public KuromeVirtualDisk(TcpClient tcpClient, string deviceName, char driveLetter)
+        public KuromeVirtualDisk(NetworkStream networkStream, string deviceName, char driveLetter)
         {
-            _tcpClient = tcpClient;
+            _networkStream = networkStream;
             _deviceName = deviceName;
             DriveLetter = driveLetter;
         }
@@ -220,9 +220,9 @@ namespace Kurome
         {
             lock (_lock) //Maybe use a queue
             {
-                _tcpClient.GetStream().Write(Encoding.UTF8.GetBytes(message));
+                _networkStream.Write(Encoding.UTF8.GetBytes(message));
                 var buffer = new byte[8192];
-                var readTask = _tcpClient.GetStream().ReadAsync(buffer, 0, buffer.Length);
+                var readTask = _networkStream.ReadAsync(buffer, 0, buffer.Length);
                 Task.WaitAny(readTask, Task.Delay(TimeSpan.FromSeconds(timeout)));
                 if (readTask.IsCompleted && readTask.Result != 0)
                     return Encoding.UTF8.GetString(buffer, 0, readTask.Result);
