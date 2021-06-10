@@ -2,6 +2,7 @@
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
+using System.IO.Compression;
 using System.Linq;
 using System.Net.Sockets;
 using System.Security.AccessControl;
@@ -225,11 +226,28 @@ namespace Kurome
                 var readTask = _networkStream.ReadAsync(buffer, 0, buffer.Length);
                 Task.WaitAny(readTask, Task.Delay(TimeSpan.FromSeconds(timeout)));
                 if (readTask.IsCompleted && readTask.Result != 0)
-                    return Encoding.UTF8.GetString(buffer, 0, readTask.Result);
+                {
+                    if (buffer[0] != 0x1f || buffer[1] != 0x8b)
+                        return Encoding.UTF8.GetString(buffer, 0, readTask.Result);
+                    var decompressed = Decompress(buffer);
+                    return Encoding.UTF8.GetString(decompressed, 0, decompressed.Length);
+                }
+
                 Console.WriteLine("Client disconnected");
                 Dokan.Unmount(DriveLetter);
                 return null;
             }
+        }
+
+
+        private static byte[] Decompress(byte[] compressedData)
+        {
+            var outputStream = new MemoryStream();
+            using var compressedStream = new MemoryStream(compressedData);
+            using GZipStream sr = new GZipStream(compressedStream, CompressionMode.Decompress);
+            sr.CopyTo(outputStream);
+            outputStream.Position = 0;
+            return outputStream.ToArray();
         }
     }
 
