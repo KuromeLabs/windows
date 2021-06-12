@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.IO.Compression;
@@ -221,18 +220,24 @@ namespace Kurome
         {
             lock (_lock) //Maybe use a queue
             {
-                _networkStream.Write(Encoding.UTF8.GetBytes(message));
-                var buffer = new byte[8192];
-                var readTask = _networkStream.ReadAsync(buffer, 0, buffer.Length);
-                Task.WaitAny(readTask, Task.Delay(TimeSpan.FromSeconds(timeout)));
-                if (readTask.IsCompleted && readTask.Result != 0)
+                try
                 {
-                    if (buffer[0] != 0x1f || buffer[1] != 0x8b)
-                        return Encoding.UTF8.GetString(buffer, 0, readTask.Result);
-                    var decompressed = Decompress(buffer);
-                    return Encoding.UTF8.GetString(decompressed, 0, decompressed.Length);
+                    _networkStream.Write(Encoding.UTF8.GetBytes(message));
+                    var buffer = new byte[8192];
+                    var readTask = _networkStream.ReadAsync(buffer, 0, buffer.Length);
+                    Task.WaitAny(readTask, Task.Delay(TimeSpan.FromSeconds(timeout)));
+                    if (readTask.IsCompleted && readTask.Result != 0)
+                    {
+                        if (buffer[0] != 0x1f || buffer[1] != 0x8b)
+                            return Encoding.UTF8.GetString(buffer, 0, readTask.Result);
+                        var decompressed = Decompress(buffer);
+                        return Encoding.UTF8.GetString(decompressed, 0, decompressed.Length);
+                    }
                 }
-
+                catch (Exception e)
+                {
+                    Console.WriteLine(e);
+                }
                 Console.WriteLine("Client disconnected");
                 Dokan.Unmount(DriveLetter);
                 return null;
