@@ -222,17 +222,24 @@ namespace Kurome
             {
                 try
                 {
-                    _networkStream.Write(Encoding.UTF8.GetBytes(message));
-                    var buffer = new byte[8192];
-                    var readTask = _networkStream.ReadAsync(buffer, 0, buffer.Length);
-                    Task.WaitAny(readTask, Task.Delay(TimeSpan.FromSeconds(timeout)));
-                    if (readTask.IsCompleted && readTask.Result != 0)
+                    _networkStream.Write(BitConverter.GetBytes(message.Length)
+                        .Concat(Encoding.UTF8.GetBytes(message)).ToArray());
+                    var sizeBuffer = new byte[4];
+                    var readPrefixTask = _networkStream.ReadAsync(sizeBuffer, 0, 4);
+                    Task.WaitAny(readPrefixTask, Task.Delay(TimeSpan.FromSeconds(timeout)));
+                    var size = BitConverter.ToInt32(sizeBuffer);
+                    int bytesRead = 0;
+                    
+                    var buffer = new byte[size];
+                    while (bytesRead != size)
                     {
-                        if (buffer[0] != 0x1f || buffer[1] != 0x8b)
-                            return Encoding.UTF8.GetString(buffer, 0, readTask.Result);
-                        var decompressed = Decompress(buffer);
-                        return Encoding.UTF8.GetString(decompressed, 0, decompressed.Length);
+                        var readTask = _networkStream.Read(buffer, 0 + bytesRead, buffer.Length - bytesRead);
+                        bytesRead += readTask;
                     }
+                    if (buffer[0] != 0x1f || buffer[1] != 0x8b)
+                        return Encoding.UTF8.GetString(buffer, 0, size);
+                    var decompressed = Decompress(buffer);
+                    return Encoding.UTF8.GetString(decompressed, 0, decompressed.Length);
                 }
                 catch (Exception e)
                 {

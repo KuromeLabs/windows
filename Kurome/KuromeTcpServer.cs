@@ -39,9 +39,18 @@ namespace Kurome
         {
             try
             {
-                var buffer = new byte[4096];
-                var byteCount = await tcpClient.GetStream().ReadAsync(buffer, 0, buffer.Length);
-                var request = Encoding.UTF8.GetString(buffer, 0, byteCount);
+                var sizeBuffer = new byte[4];
+                await tcpClient.GetStream().ReadAsync(sizeBuffer, 0, sizeBuffer.Length);
+                var size = BitConverter.ToInt32(sizeBuffer, 0);
+                var buffer = new byte[size];
+                int bytesRead = 0;
+                while (bytesRead != size)
+                {
+                    var byteCount = await tcpClient.GetStream().ReadAsync(buffer, 0 + bytesRead, buffer.Length - bytesRead);
+                    bytesRead += byteCount;
+                }
+
+                var request = Encoding.UTF8.GetString(buffer, 0, size);
                 
                 
                 //list drive letters starting from C and excluding those already in use
@@ -49,7 +58,7 @@ namespace Kurome
                     .Except(DriveInfo.GetDrives().Select(s => s.Name.Replace("\\", ""))).ToList();
                 char letter = list[_numOfConnectedClients - 1][0];
                 var rfs = new KuromeVirtualDisk(tcpClient.GetStream(), request, letter);
-                rfs.Mount(letter + ":\\");
+                await Task.Run(() =>rfs.Mount(letter + ":\\"));
                 Console.WriteLine(@"Success");
             }
             catch (DokanException ex)
