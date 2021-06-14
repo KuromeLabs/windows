@@ -4,6 +4,7 @@ using System.IO;
 using System.IO.Compression;
 using System.Linq;
 using System.Net.Sockets;
+using System.Runtime.Caching;
 using System.Security.AccessControl;
 using System.Text;
 using System.Text.Json;
@@ -23,6 +24,7 @@ namespace Kurome
         private const long MiB = 1024 * KiB;
         private const long GiB = 1024 * MiB;
         private const long TiB = 1024 * GiB;
+        private MemoryCache cache = MemoryCache.Default;
 
 
         public KuromeVirtualDisk(NetworkStream networkStream, string deviceName, char driveLetter)
@@ -30,6 +32,7 @@ namespace Kurome
             _networkStream = networkStream;
             _deviceName = deviceName;
             DriveLetter = driveLetter;
+
         }
 
         public NtStatus CreateFile(
@@ -90,11 +93,17 @@ namespace Kurome
             IDokanFileInfo info)
         {
             files = null;
-            var request = SendReceiveTcpWithTimeout("request:info:directory:" + fileName.Replace('\\', '/'), 15);
+            var request = "request:info:directory:" + fileName.Replace('\\', '/');
+            var response = cache.Get(request) as string;
+            if (response == null)
+            {
+                response = SendReceiveTcpWithTimeout(request, 15);
+                CacheItemPolicy policy = new() {AbsoluteExpiration = DateTimeOffset.Now.AddSeconds(10)};
+                cache.Add(request, response, policy);
+            }
             Console.WriteLine("request:info:directory:" + fileName.Replace('\\', '/'));
-            if (request == null) return DokanResult.Unsuccessful;
-            Console.WriteLine(request);
-            var fileInfos = JsonSerializer.Deserialize<List<FileData>>(request);
+            Console.WriteLine(response);
+            var fileInfos = JsonSerializer.Deserialize<List<FileData>>(response);
             if (fileInfos == null)
                 return DokanResult.Unsuccessful;
             files = fileInfos.Select(fileData => new FileInformation
@@ -164,11 +173,17 @@ namespace Kurome
             out long totalNumberOfFreeBytes,
             IDokanFileInfo info)
         {
-            string request = SendReceiveTcpWithTimeout("request:info:space", 15);
+            var request = "request:info:space";
+            var response = cache.Get(request) as string;
+            if (response == null)
+            {
+                response = SendReceiveTcpWithTimeout(request, 15);
+                CacheItemPolicy policy = new() {AbsoluteExpiration = DateTimeOffset.Now.AddSeconds(10)};
+                cache.Add(request, response, policy);
+            }
             totalNumberOfBytes = freeBytesAvailable = totalNumberOfFreeBytes = 0;
-            if (request == null) return DokanResult.Unsuccessful;
-            Console.WriteLine(request);
-            string[] spaces = request.Split(':');
+            Console.WriteLine(response);
+            string[] spaces = response.Split(':');
             long totalSizeGb = long.Parse(spaces[0]);
             long freeSpaceGb = long.Parse(spaces[1]);
             totalNumberOfBytes = totalSizeGb;
@@ -229,13 +244,14 @@ namespace Kurome
                     Task.WaitAny(readPrefixTask, Task.Delay(TimeSpan.FromSeconds(timeout)));
                     var size = BitConverter.ToInt32(sizeBuffer);
                     int bytesRead = 0;
-                    
+
                     var buffer = new byte[size];
                     while (bytesRead != size)
                     {
                         var readTask = _networkStream.Read(buffer, 0 + bytesRead, buffer.Length - bytesRead);
                         bytesRead += readTask;
                     }
+
                     if (buffer[0] != 0x1f || buffer[1] != 0x8b)
                         return Encoding.UTF8.GetString(buffer, 0, size);
                     var decompressed = Decompress(buffer);
@@ -245,6 +261,7 @@ namespace Kurome
                 {
                     Console.WriteLine(e);
                 }
+
                 Console.WriteLine("Client disconnected");
                 Dokan.Unmount(DriveLetter);
                 return null;
