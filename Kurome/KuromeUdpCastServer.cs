@@ -33,12 +33,19 @@ namespace Kurome
                 String message = "kurome:" + interfaceIp + ":" + Environment.MachineName;
                 var data = Encoding.Default.GetBytes(message);
                 using var udpClient = new UdpClient(AddressFamily.InterNetwork);
-                udpClient.Client.Bind(new IPEndPoint(IPAddress.Parse(interfaceIp), PORT));
-                udpClient.JoinMulticastGroup(address);
-                udpClient.Ttl = 32;
-                await udpClient.SendAsync(data, data.Length, endpoint);
-               // Console.WriteLine("Broadcast: \"{0}\" to {1}", message, interfaceIp);
-                udpClient.Close();
+                try
+                {
+                    udpClient.Client.Bind(new IPEndPoint(IPAddress.Parse(interfaceIp), PORT));
+                    udpClient.JoinMulticastGroup(address);
+                    udpClient.Ttl = 32;
+                    await udpClient.SendAsync(data, data.Length, endpoint);
+                    // Console.WriteLine("Broadcast: \"{0}\" to {1}", message, interfaceIp);
+                    udpClient.Close();
+                }
+                catch (SocketException e)
+                {
+                    Console.WriteLine(e);
+                }
             }
         }
         
