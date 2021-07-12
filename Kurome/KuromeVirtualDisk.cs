@@ -103,17 +103,17 @@ namespace Kurome
             }
             Console.WriteLine("request:info:directory:" + fileName.Replace('\\', '/'));
             Console.WriteLine(response);
-            var fileInfos = JsonSerializer.Deserialize<List<FileData>>(response);
-            if (fileInfos == null)
+            var fileNodeList = JsonSerializer.Deserialize<List<FileNode>>(response);
+            if (fileNodeList == null)
                 return DokanResult.Unsuccessful;
-            files = fileInfos.Select(fileData => new FileInformation
+            files = fileNodeList.Select(fileNode => new FileInformation
                 {
-                    FileName = fileData.fileName,
-                    Attributes = fileData.isDirectory ? FileAttributes.Directory : FileAttributes.Normal,
+                    FileName = fileNode.FileName,
+                    Attributes = fileNode.IsDirectory ? FileAttributes.Directory : FileAttributes.Normal,
                     LastAccessTime = DateTime.Now,
-                    LastWriteTime = null,
-                    CreationTime = null,
-                    Length = fileData.size
+                    LastWriteTime = DateTime.Now,
+                    CreationTime = DateTime.Now,
+                    Length = fileNode.Size
                 })
                 .ToList();
 
@@ -278,12 +278,5 @@ namespace Kurome
             outputStream.Position = 0;
             return outputStream.ToArray();
         }
-    }
-
-    public class FileData
-    {
-        public string fileName { get; set; }
-        public bool isDirectory { get; set; }
-        public long size { get; set; }
     }
 }
