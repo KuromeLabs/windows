@@ -10,7 +10,7 @@ using System.Threading.Tasks;
 
 namespace Kurome
 {
-    public class KuromeUdpCastServer
+    public class KuromeUdpServer
     {
         public static readonly string UDP_SUBNET = "235.132.20.12";
         public static readonly int PORT = 33586;

@@ -14,25 +14,18 @@ using FileAccess = DokanNet.FileAccess;
 
 namespace Kurome
 {
-    public class KuromeVirtualDisk : IDokanOperations
+    public class KuromeOperations : IDokanOperations
     {
-        private NetworkStream _networkStream;
-        private string _deviceName;
-        private char DriveLetter;
-        private readonly object _lock = new();
+        private readonly Device _device;
         private const long KiB = 1024;
         private const long MiB = 1024 * KiB;
         private const long GiB = 1024 * MiB;
         private const long TiB = 1024 * GiB;
-        private MemoryCache cache = MemoryCache.Default;
 
 
-        public KuromeVirtualDisk(NetworkStream networkStream, string deviceName, char driveLetter)
+        public KuromeOperations(Device device)
         {
-            _networkStream = networkStream;
-            _deviceName = deviceName;
-            DriveLetter = driveLetter;
-
+            _device = device;
         }
 
         public NtStatus CreateFile(
@@ -93,17 +86,7 @@ namespace Kurome
             IDokanFileInfo info)
         {
             files = null;
-            var request = "request:info:directory:" + fileName.Replace('\\', '/');
-            var response = cache.Get(request) as string;
-            if (response == null)
-            {
-                response = SendReceiveTcpWithTimeout(request, 15);
-                CacheItemPolicy policy = new() {AbsoluteExpiration = DateTimeOffset.Now.AddSeconds(10)};
-                cache.Add(request, response, policy);
-            }
-            Console.WriteLine("request:info:directory:" + fileName.Replace('\\', '/'));
-            Console.WriteLine(response);
-            var fileNodeList = JsonSerializer.Deserialize<List<FileNode>>(response);
+            var fileNodeList = _device.GetFileNodes(fileName);
             if (fileNodeList == null)
                 return DokanResult.Unsuccessful;
             files = fileNodeList.Select(fileNode => new FileInformation
@@ -173,17 +156,9 @@ namespace Kurome
             out long totalNumberOfFreeBytes,
             IDokanFileInfo info)
         {
-            var request = "request:info:space";
-            var response = cache.Get(request) as string;
-            if (response == null)
-            {
-                response = SendReceiveTcpWithTimeout(request, 15);
-                CacheItemPolicy policy = new() {AbsoluteExpiration = DateTimeOffset.Now.AddSeconds(10)};
-                cache.Add(request, response, policy);
-            }
+            
             totalNumberOfBytes = freeBytesAvailable = totalNumberOfFreeBytes = 0;
-            Console.WriteLine(response);
-            string[] spaces = response.Split(':');
+            string[] spaces = _device.GetSpace().Split(':');
             long totalSizeGb = long.Parse(spaces[0]);
             long freeSpaceGb = long.Parse(spaces[1]);
             totalNumberOfBytes = totalSizeGb;
@@ -196,7 +171,7 @@ namespace Kurome
             out string fileSystemName,
             out uint maximumComponentLength, IDokanFileInfo info)
         {
-            volumeLabel = _deviceName;
+            volumeLabel = _device.Name;
             features = FileSystemFeatures.UnicodeOnDisk | FileSystemFeatures.CasePreservedNames;
             fileSystemName = "Generic hierarchical";
             maximumComponentLength = 255;
@@ -231,52 +206,9 @@ namespace Kurome
             throw new NotImplementedException();
         }
 
-        private string SendReceiveTcpWithTimeout(string message, int timeout)
-        {
-            lock (_lock) //Maybe use a queue
-            {
-                try
-                {
-                    _networkStream.Write(BitConverter.GetBytes(message.Length)
-                        .Concat(Encoding.UTF8.GetBytes(message)).ToArray());
-                    var sizeBuffer = new byte[4];
-                    var readPrefixTask = _networkStream.ReadAsync(sizeBuffer, 0, 4);
-                    Task.WaitAny(readPrefixTask, Task.Delay(TimeSpan.FromSeconds(timeout)));
-                    var size = BitConverter.ToInt32(sizeBuffer);
-                    int bytesRead = 0;
-
-                    var buffer = new byte[size];
-                    while (bytesRead != size)
-                    {
-                        var readTask = _networkStream.Read(buffer, 0 + bytesRead, buffer.Length - bytesRead);
-                        bytesRead += readTask;
-                    }
-
-                    if (buffer[0] != 0x1f || buffer[1] != 0x8b)
-                        return Encoding.UTF8.GetString(buffer, 0, size);
-                    var decompressed = Decompress(buffer);
-                    return Encoding.UTF8.GetString(decompressed, 0, decompressed.Length);
-                }
-                catch (Exception e)
-                {
-                    Console.WriteLine(e);
-                }
-
-                Console.WriteLine("Client disconnected");
-                Dokan.Unmount(DriveLetter);
-                return null;
-            }
-        }
+        
 
 
-        private static byte[] Decompress(byte[] compressedData)
-        {
-            var outputStream = new MemoryStream();
-            using var compressedStream = new MemoryStream(compressedData);
-            using GZipStream sr = new GZipStream(compressedStream, CompressionMode.Decompress);
-            sr.CopyTo(outputStream);
-            outputStream.Position = 0;
-            return outputStream.ToArray();
-        }
+      
     }
 }
