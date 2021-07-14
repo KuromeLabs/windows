@@ -36,11 +36,25 @@ namespace Kurome
             SendTcpPrefixed("request:info:space");
             return ReadTcpWithTimeout(15);
         }
+
         public IEnumerable<FileNode> GetFileNodes(string fileName)
         {
             SendTcpPrefixed("request:info:directory:" + fileName.Replace('\\', '/'));
             return JsonSerializer.Deserialize<IEnumerable<FileNode>>(ReadTcpWithTimeout(15));
         }
+
+        public string GetFileType(string fileName)
+        {
+            SendTcpPrefixed("request:info:filetype:" + fileName.Replace('\\', '/'));
+            return ReadTcpWithTimeout(15);
+        }
+
+        public string CreateDirectory(string fileName)
+        {
+            SendTcpPrefixed("action:write:dir:" + fileName.Replace('\\', '/'));
+            return ReadTcpWithTimeout(15);
+        }
+
         private void SendTcpPrefixed(string message)
         {
             lock (_lock)
@@ -54,28 +68,25 @@ namespace Kurome
         {
             try
             {
-                var sizeBuffer = new byte[4];
                 lock (_lock)
                 {
+                    var sizeBuffer = new byte[4];
                     var readPrefixTask = _networkStream.ReadAsync(sizeBuffer, 0, 4);
                     Task.WaitAny(readPrefixTask, Task.Delay(TimeSpan.FromSeconds(timeout)));
-                }
-                var size = BitConverter.ToInt32(sizeBuffer);
-                var bytesRead = 0;
-                var buffer = new byte[size];
-                while (bytesRead != size)
-                {
-                    lock (_lock)
+
+                    var size = BitConverter.ToInt32(sizeBuffer);
+                    var bytesRead = 0;
+                    var buffer = new byte[size];
+                    while (bytesRead != size)
                     {
                         var readTask = _networkStream.Read(buffer, 0 + bytesRead, buffer.Length - bytesRead);
                         bytesRead += readTask;
                     }
+                    if (buffer[0] != 0x1f || buffer[1] != 0x8b)
+                        return Encoding.UTF8.GetString(buffer, 0, size);
+                    var decompressed = Decompress(buffer);
+                    return Encoding.UTF8.GetString(decompressed, 0, decompressed.Length);
                 }
-
-                if (buffer[0] != 0x1f || buffer[1] != 0x8b)
-                    return Encoding.UTF8.GetString(buffer, 0, size);
-                var decompressed = Decompress(buffer);
-                return Encoding.UTF8.GetString(decompressed, 0, decompressed.Length);
             }
             catch (Exception e)
             {

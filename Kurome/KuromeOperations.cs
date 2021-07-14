@@ -1,14 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
-using System.IO.Compression;
 using System.Linq;
-using System.Net.Sockets;
-using System.Runtime.Caching;
 using System.Security.AccessControl;
-using System.Text;
-using System.Text.Json;
-using System.Threading.Tasks;
 using DokanNet;
 using FileAccess = DokanNet.FileAccess;
 
@@ -37,6 +31,48 @@ namespace Kurome
             FileAttributes attributes,
             IDokanFileInfo info)
         {
+            var fileType = _device.GetFileType(fileName);
+            if (info.IsDirectory)
+            {
+                switch (mode)
+                {
+                    case FileMode.Open:
+                        if (fileType != "directory")
+                            return DokanResult.NotADirectory;
+                        else if (fileType == "doesnotexist")
+                            return DokanResult.FileNotFound;
+                        break;
+                    case FileMode.CreateNew:
+                        if (fileType == "file")
+                            return DokanResult.FileExists;
+                        else if (fileType == "directory")
+                            return DokanResult.AlreadyExists;
+                        _device.CreateDirectory(fileName);
+                        break;
+                }
+            }
+            else
+            {
+                switch (mode)
+                {
+                    case FileMode.Open:
+                        if (fileType == "doesnotexist")
+                            return DokanResult.FileNotFound;
+                        else if (fileType == "directory")
+                            info.IsDirectory = true;
+                        info.Context = new object();
+                        return DokanResult.Success;
+                    case FileMode.CreateNew:
+                        if (fileType != "doesnotexist")
+                            return DokanResult.FileExists;
+                        break;
+                    case FileMode.Truncate:
+                        if (fileType == "doesnotexist")
+                            return DokanResult.FileNotFound;
+                        break;
+                }
+            }
+
             if (info.IsDirectory && mode == FileMode.CreateNew)
                 return DokanResult.AccessDenied;
             return DokanResult.Success;
@@ -182,13 +218,15 @@ namespace Kurome
             AccessControlSections sections,
             IDokanFileInfo info)
         {
+            security = null;
+            return DokanResult.NotImplemented;
             throw new NotImplementedException();
         }
 
         public NtStatus SetFileSecurity(string fileName, FileSystemSecurity security, AccessControlSections sections,
             IDokanFileInfo info)
         {
-            throw new NotImplementedException();
+            return DokanResult.NotImplemented;
         }
 
         public NtStatus Mounted(IDokanFileInfo info)
@@ -205,10 +243,5 @@ namespace Kurome
         {
             throw new NotImplementedException();
         }
-
-        
-
-
-      
     }
 }
