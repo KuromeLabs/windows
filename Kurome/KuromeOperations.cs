@@ -32,21 +32,19 @@ namespace Kurome
             IDokanFileInfo info)
         {
             var fileType = _device.GetFileType(fileName);
+            var fileExists = fileType != "doesnotexist";
+            var isDirectory = fileExists && fileType == "directory";
             if (info.IsDirectory)
             {
                 switch (mode)
                 {
                     case FileMode.Open:
-                        if (fileType != "directory")
+                        if (!isDirectory)
                             return DokanResult.NotADirectory;
-                        else if (fileType == "doesnotexist")
-                            return DokanResult.FileNotFound;
                         break;
                     case FileMode.CreateNew:
-                        if (fileType == "file")
+                        if (fileExists)
                             return DokanResult.FileExists;
-                        else if (fileType == "directory")
-                            return DokanResult.AlreadyExists;
                         _device.CreateDirectory(fileName);
                         break;
                 }
@@ -56,25 +54,29 @@ namespace Kurome
                 switch (mode)
                 {
                     case FileMode.Open:
-                        if (fileType == "doesnotexist")
+                        if (fileExists)
+                        {
+                            if (isDirectory)
+                            {
+                                info.IsDirectory = true;
+                                info.Context = new object();
+                                return DokanResult.Success;
+                            }
+                        }
+                        else
                             return DokanResult.FileNotFound;
-                        else if (fileType == "directory")
-                            info.IsDirectory = true;
-                        info.Context = new object();
-                        return DokanResult.Success;
+
+                        break;
                     case FileMode.CreateNew:
-                        if (fileType != "doesnotexist")
+                        if (fileExists)
                             return DokanResult.FileExists;
                         break;
                     case FileMode.Truncate:
-                        if (fileType == "doesnotexist")
+                        if (!fileExists)
                             return DokanResult.FileNotFound;
                         break;
                 }
             }
-
-            if (info.IsDirectory && mode == FileMode.CreateNew)
-                return DokanResult.AccessDenied;
             return DokanResult.Success;
         }
 
