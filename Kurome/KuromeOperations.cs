@@ -115,12 +115,6 @@ namespace Kurome
 
         public NtStatus FindFiles(string fileName, out IList<FileInformation> files, IDokanFileInfo info)
         {
-            throw new NotImplementedException();
-        }
-
-        public NtStatus FindFilesWithPattern(string fileName, string searchPattern, out IList<FileInformation> files,
-            IDokanFileInfo info)
-        {
             files = null;
             var fileNodeList = _device.GetFileNodes(fileName);
             if (fileNodeList == null)
@@ -130,13 +124,19 @@ namespace Kurome
                     FileName = fileNode.FileName,
                     Attributes = fileNode.IsDirectory ? FileAttributes.Directory : FileAttributes.Normal,
                     LastAccessTime = DateTime.Now,
-                    LastWriteTime = DateTime.Now,
-                    CreationTime = DateTime.Now,
-                    Length = fileNode.Size
+                    LastWriteTime = null,
+                    CreationTime = null,
+                    Length = fileNode.IsDirectory ? 0 : fileNode.Size
                 })
                 .ToList();
-
             return DokanResult.Success;
+        }
+
+        public NtStatus FindFilesWithPattern(string fileName, string searchPattern, out IList<FileInformation> files,
+            IDokanFileInfo info)
+        {
+            files = null;
+            return DokanResult.NotImplemented;
         }
 
         public NtStatus SetFileAttributes(string fileName, FileAttributes attributes, IDokanFileInfo info)
