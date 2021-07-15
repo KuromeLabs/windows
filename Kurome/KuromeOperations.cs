@@ -109,8 +109,14 @@ namespace Kurome
             //TODO: implement
             fileInfo = new FileInformation
             {
+                CreationTime = null,
+                LastAccessTime = DateTime.Now,
+                LastWriteTime = null,
+                Attributes = info.IsDirectory ? FileAttributes.Directory : FileAttributes.NotContentIndexed,
+                FileName = fileName[(fileName.LastIndexOf('\\')+1)..],
+                Length = 0
             };
-            return DokanResult.Unsuccessful;
+            return DokanResult.Success;
         }
 
         public NtStatus FindFiles(string fileName, out IList<FileInformation> files, IDokanFileInfo info)
