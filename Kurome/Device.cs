@@ -19,6 +19,10 @@ namespace Kurome
         private readonly char _driveLetter;
         private readonly object _lock = new();
         public string Name { get; private set; }
+        private const byte ActonGetEnumerateDirectory = 1;
+        private const byte ActionGetSpaceInfo = 2;
+        private const byte ActionGetFileType = 3;
+        private const byte ActionWriteDirectory = 4;
 
         public Device(NetworkStream networkStream, char driveLetter)
         {
@@ -33,34 +37,34 @@ namespace Kurome
 
         public string GetSpace()
         {
-            SendTcpPrefixed("request:info:space");
+            SendTcpPrefixed(ActionGetSpaceInfo, "");
             return ReadTcpWithTimeout(15);
         }
 
         public IEnumerable<FileNode> GetFileNodes(string fileName)
         {
-            SendTcpPrefixed("request:info:directory:" + fileName.Replace('\\', '/'));
+            SendTcpPrefixed(ActonGetEnumerateDirectory,fileName.Replace('\\', '/'));
             return JsonSerializer.Deserialize<IEnumerable<FileNode>>(ReadTcpWithTimeout(15));
         }
 
         public string GetFileType(string fileName)
         {
-            SendTcpPrefixed("request:info:filetype:" + fileName.Replace('\\', '/'));
+            SendTcpPrefixed(ActionGetFileType, fileName.Replace('\\', '/'));
             return ReadTcpWithTimeout(15);
         }
 
         public string CreateDirectory(string fileName)
         {
-            SendTcpPrefixed("action:write:dir:" + fileName.Replace('\\', '/'));
+            SendTcpPrefixed(ActionWriteDirectory,fileName.Replace('\\', '/'));
             return ReadTcpWithTimeout(15);
         }
 
-        private void SendTcpPrefixed(string message)
+        private void SendTcpPrefixed(byte action, string message)
         {
             lock (_lock)
             {
-                _networkStream.Write(BitConverter.GetBytes(message.Length)
-                    .Concat(Encoding.UTF8.GetBytes(message)).ToArray());
+                _networkStream.Write(BitConverter.GetBytes(message.Length + 1)
+                    .Concat(Encoding.UTF8.GetBytes(message).Prepend(action)).ToArray());
             }
         }
 
@@ -82,6 +86,7 @@ namespace Kurome
                         var readTask = _networkStream.Read(buffer, 0 + bytesRead, buffer.Length - bytesRead);
                         bytesRead += readTask;
                     }
+
                     if (buffer[0] != 0x1f || buffer[1] != 0x8b)
                         return Encoding.UTF8.GetString(buffer, 0, size);
                     var decompressed = Decompress(buffer);
