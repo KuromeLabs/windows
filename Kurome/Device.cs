@@ -19,10 +19,14 @@ namespace Kurome
         private readonly char _driveLetter;
         private readonly object _lock = new();
         public string Name { get; private set; }
+        public const byte ResultActionSuccess = 1;
         private const byte ActonGetEnumerateDirectory = 1;
         private const byte ActionGetSpaceInfo = 2;
         private const byte ActionGetFileType = 3;
         private const byte ActionWriteDirectory = 4;
+        public const byte ResultFileIsDirectory = 5;
+        public const byte ResultFileIsFile = 6;
+        public const byte ResultFileNotFound = 7;
 
         public Device(NetworkStream networkStream, char driveLetter)
         {
@@ -32,31 +36,31 @@ namespace Kurome
 
         public void Initialize()
         {
-            Name = ReadTcpWithTimeout(15);
+            Name = ByteArrayToDecompressedString(ReadTcpWithTimeout(15));
         }
 
         public string GetSpace()
         {
             SendTcpPrefixed(ActionGetSpaceInfo, "");
-            return ReadTcpWithTimeout(15);
+            return ByteArrayToDecompressedString(ReadTcpWithTimeout(15));
         }
 
         public IEnumerable<FileNode> GetFileNodes(string fileName)
         {
-            SendTcpPrefixed(ActonGetEnumerateDirectory,fileName.Replace('\\', '/'));
-            return JsonSerializer.Deserialize<IEnumerable<FileNode>>(ReadTcpWithTimeout(15));
+            SendTcpPrefixed(ActonGetEnumerateDirectory, fileName.Replace('\\', '/'));
+            return JsonSerializer.Deserialize<IEnumerable<FileNode>>(ByteArrayToDecompressedString(ReadTcpWithTimeout(15)));
         }
 
-        public string GetFileType(string fileName)
+        public byte GetFileType(string fileName)
         {
             SendTcpPrefixed(ActionGetFileType, fileName.Replace('\\', '/'));
-            return ReadTcpWithTimeout(15);
+            return ReadTcpWithTimeout(15)[0];
         }
 
-        public string CreateDirectory(string fileName)
+        public byte CreateDirectory(string fileName)
         {
-            SendTcpPrefixed(ActionWriteDirectory,fileName.Replace('\\', '/'));
-            return ReadTcpWithTimeout(15);
+            SendTcpPrefixed(ActionWriteDirectory, fileName.Replace('\\', '/'));
+            return ReadTcpWithTimeout(15)[0];
         }
 
         private void SendTcpPrefixed(byte action, string message)
@@ -68,7 +72,7 @@ namespace Kurome
             }
         }
 
-        private string ReadTcpWithTimeout(int timeout)
+        private byte[] ReadTcpWithTimeout(int timeout)
         {
             try
             {
@@ -87,10 +91,7 @@ namespace Kurome
                         bytesRead += readTask;
                     }
 
-                    if (buffer[0] != 0x1f || buffer[1] != 0x8b)
-                        return Encoding.UTF8.GetString(buffer, 0, size);
-                    var decompressed = Decompress(buffer);
-                    return Encoding.UTF8.GetString(decompressed, 0, decompressed.Length);
+                    return buffer;
                 }
             }
             catch (Exception e)
@@ -101,6 +102,14 @@ namespace Kurome
             Console.WriteLine("Client disconnected");
             Dokan.Unmount(_driveLetter);
             return null;
+        }
+
+        private static string ByteArrayToDecompressedString(byte[] array)
+        {
+            if (array[0] != 0x1f || array[1] != 0x8b)
+                return Encoding.UTF8.GetString(array, 0, array.Length);
+            var decompressed = Decompress(array);
+            return Encoding.UTF8.GetString(decompressed, 0, decompressed.Length);
         }
 
         private static byte[] Decompress(byte[] compressedData)

@@ -32,8 +32,8 @@ namespace Kurome
             IDokanFileInfo info)
         {
             var fileType = _device.GetFileType(fileName);
-            var fileExists = fileType != "doesnotexist";
-            var isDirectory = fileExists && fileType == "directory";
+            var fileExists = fileType != Device.ResultFileNotFound;
+            var isDirectory = fileExists && fileType == Device.ResultFileIsDirectory;
             if (info.IsDirectory)
             {
                 switch (mode)
