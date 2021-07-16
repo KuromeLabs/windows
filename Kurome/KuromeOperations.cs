@@ -77,17 +77,20 @@ namespace Kurome
                         break;
                 }
             }
+
             return DokanResult.Success;
         }
 
         public void Cleanup(string fileName, IDokanFileInfo info)
         {
-            //throw new NotImplementedException();
+            info.Context = null;
+            if (info.DeleteOnClose)
+                _device.Delete(fileName);
         }
 
         public void CloseFile(string fileName, IDokanFileInfo info)
         {
-            //throw new NotImplementedException();
+            info.Context = null;
         }
 
         public NtStatus ReadFile(string fileName, byte[] buffer, out int bytesRead, long offset, IDokanFileInfo info)
@@ -115,7 +118,7 @@ namespace Kurome
                 LastAccessTime = DateTime.Now,
                 LastWriteTime = null,
                 Attributes = info.IsDirectory ? FileAttributes.Directory : FileAttributes.NotContentIndexed,
-                FileName = fileName[(fileName.LastIndexOf('\\')+1)..],
+                FileName = fileName[(fileName.LastIndexOf('\\') + 1)..],
                 Length = 0
             };
             return DokanResult.Success;
@@ -161,12 +164,22 @@ namespace Kurome
 
         public NtStatus DeleteFile(string fileName, IDokanFileInfo info)
         {
-            throw new NotImplementedException();
+            var type = _device.GetFileType(fileName);
+            if (type == Device.ResultFileNotFound)
+                return DokanResult.FileNotFound;
+            else if (type == Device.ResultFileIsDirectory)
+                return DokanResult.AccessDenied;
+            return DokanResult.Success;
         }
 
         public NtStatus DeleteDirectory(string fileName, IDokanFileInfo info)
         {
-            throw new NotImplementedException();
+            var type = _device.GetFileType(fileName);
+            if (type == Device.ResultFileNotFound)
+                return DokanResult.FileNotFound;
+            else if (type == Device.ResultFileIsFile)
+                return DokanResult.AccessDenied;
+            return DokanResult.Success;
         }
 
         public NtStatus MoveFile(string oldName, string newName, bool replace, IDokanFileInfo info)
@@ -200,7 +213,6 @@ namespace Kurome
             out long totalNumberOfFreeBytes,
             IDokanFileInfo info)
         {
-            
             totalNumberOfBytes = freeBytesAvailable = totalNumberOfFreeBytes = 0;
             string[] spaces = _device.GetSpace().Split(':');
             long totalSizeGb = long.Parse(spaces[0]);

@@ -27,6 +27,7 @@ namespace Kurome
         public const byte ResultFileIsDirectory = 5;
         public const byte ResultFileIsFile = 6;
         public const byte ResultFileNotFound = 7;
+        private const byte ActionDelete = 8;
 
         public Device(NetworkStream networkStream, char driveLetter)
         {
@@ -60,6 +61,12 @@ namespace Kurome
         public byte CreateDirectory(string fileName)
         {
             SendTcpPrefixed(ActionWriteDirectory, fileName.Replace('\\', '/'));
+            return ReadTcpWithTimeout(15)[0];
+        }
+
+        public byte Delete(string fileName)
+        {
+            SendTcpPrefixed(ActionDelete, fileName.Replace('\\','/'));
             return ReadTcpWithTimeout(15)[0];
         }
 
