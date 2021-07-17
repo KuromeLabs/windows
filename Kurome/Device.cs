@@ -17,7 +17,8 @@ namespace Kurome
     {
         private readonly NetworkStream _networkStream;
         private readonly char _driveLetter;
-        private readonly object _lock = new();
+        private readonly object _readLock = new();
+        private readonly object _writeLock = new();
         public string Name { get; private set; }
         public const byte ResultActionSuccess = 1;
         private const byte ActonGetEnumerateDirectory = 1;
@@ -72,7 +73,7 @@ namespace Kurome
 
         private void SendTcpPrefixed(byte action, string message)
         {
-            lock (_lock)
+            lock (_writeLock)
             {
                 _networkStream.Write(BitConverter.GetBytes(message.Length + 1)
                     .Concat(Encoding.UTF8.GetBytes(message).Prepend(action)).ToArray());
@@ -83,7 +84,7 @@ namespace Kurome
         {
             try
             {
-                lock (_lock)
+                lock (_readLock)
                 {
                     var sizeBuffer = new byte[4];
                     var readPrefixTask = _networkStream.ReadAsync(sizeBuffer, 0, 4);
