@@ -229,7 +229,7 @@ namespace Kurome
         {
             volumeLabel = _device.Name;
             features = FileSystemFeatures.UnicodeOnDisk | FileSystemFeatures.CasePreservedNames;
-            fileSystemName = "Generic hierarchical";
+            fileSystemName = "Kurome";
             maximumComponentLength = 255;
             return DokanResult.Success;
         }
