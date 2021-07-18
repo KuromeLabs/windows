@@ -117,7 +117,7 @@ namespace Kurome
                 CreationTime = null,
                 LastAccessTime = DateTime.Now,
                 LastWriteTime = null,
-                Attributes = info.IsDirectory ? FileAttributes.Directory : FileAttributes.NotContentIndexed,
+                Attributes = info.IsDirectory ? FileAttributes.Directory : FileAttributes.Offline,
                 FileName = fileName[(fileName.LastIndexOf('\\') + 1)..],
                 Length = 0
             };
@@ -133,7 +133,7 @@ namespace Kurome
             files = fileNodeList.Select(fileNode => new FileInformation
                 {
                     FileName = fileNode.FileName,
-                    Attributes = fileNode.IsDirectory ? FileAttributes.Directory : FileAttributes.Normal,
+                    Attributes = fileNode.IsDirectory ? FileAttributes.Directory : FileAttributes.Offline,
                     LastAccessTime = DateTime.Now,
                     LastWriteTime = null,
                     CreationTime = null,
