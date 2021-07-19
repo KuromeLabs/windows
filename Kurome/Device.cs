@@ -16,6 +16,7 @@ namespace Kurome
     public class Device
     {
         private readonly NetworkStream _networkStream;
+        private readonly IPAddress ip;
         private readonly char _driveLetter;
         private readonly object _readLock = new();
         private readonly object _writeLock = new();
@@ -30,9 +31,10 @@ namespace Kurome
         public const byte ResultFileNotFound = 7;
         private const byte ActionDelete = 8;
 
-        public Device(NetworkStream networkStream, char driveLetter)
+        public Device(TcpClient tcpClient, char driveLetter)
         {
-            _networkStream = networkStream;
+            _networkStream = tcpClient.GetStream();
+            ip = ((IPEndPoint) tcpClient.Client.RemoteEndPoint)!.Address;
             _driveLetter = driveLetter;
         }
 

@@ -43,7 +43,7 @@ namespace Kurome
                 var list = Enumerable.Range('C', 'Z' - 'C').Select(i => (char) i + ":")
                     .Except(DriveInfo.GetDrives().Select(s => s.Name.Replace("\\", ""))).ToList();
                 var letter = list[_numOfConnectedClients - 1][0];
-                var device = new Device(tcpClient.GetStream(), letter);
+                var device = new Device(tcpClient, letter);
                 device.Initialize();
                 var rfs = new KuromeOperations(device);
                 await Task.Run(() =>rfs.Mount(letter + ":\\"));
