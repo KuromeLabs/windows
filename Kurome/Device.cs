@@ -28,6 +28,7 @@ namespace Kurome
         public const byte ResultFileNotFound = 7;
         private const byte ActionDelete = 8;
         private const byte ActionSendToServer = 10;
+        private const byte ActionGetFileInfo = 11;
 
         public Device(TcpClient tcpClient, char driveLetter)
         {
@@ -80,6 +81,12 @@ namespace Kurome
             tcpListener.Stop();
             result = ReadFullStreamPrefixed(15)[0];
             return client.GetStream();
+        }
+
+        public FileNode GetFileInfo(string filename)
+        {
+            SendTcpPrefixed(ActionGetFileInfo, filename.Replace('\\','/'));
+            return JsonSerializer.Deserialize<FileNode>(ByteArrayToDecompressedString(ReadFullStreamPrefixed(15)));
         }
 
         private void SendTcpPrefixed(byte action, string message)

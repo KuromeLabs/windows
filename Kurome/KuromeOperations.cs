@@ -138,15 +138,15 @@ namespace Kurome
 
         public NtStatus GetFileInformation(string fileName, out FileInformation fileInfo, IDokanFileInfo info)
         {
-            //TODO: implement
+            var fileNode = _device.GetFileInfo(fileName);
             fileInfo = new FileInformation
             {
-                CreationTime = null,
+                FileName = fileNode.FileName,
+                Attributes = fileNode.IsDirectory ? FileAttributes.Directory : FileAttributes.Normal,
                 LastAccessTime = DateTime.Now,
                 LastWriteTime = null,
-                Attributes = info.IsDirectory ? FileAttributes.Directory : FileAttributes.Normal,
-                FileName = fileName[(fileName.LastIndexOf('\\') + 1)..],
-                Length = 21504
+                CreationTime = null,
+                Length = fileNode.IsDirectory ? 0 : fileNode.Size
             };
             return DokanResult.Success;
         }
