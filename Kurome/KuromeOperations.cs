@@ -1,7 +1,9 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Net.Sockets;
 using System.Security.AccessControl;
 using DokanNet;
 using FileAccess = DokanNet.FileAccess;
@@ -62,6 +64,15 @@ namespace Kurome
                                 info.Context = new object();
                                 return DokanResult.Success;
                             }
+
+                            if (access.HasFlag(FileAccess.GenericRead))
+                            {
+                                info.Context = _device.ReceiveFileStream(fileName, out var result);
+                                if (result != Device.ResultActionSuccess)
+                                {
+                                    return DokanResult.Unsuccessful;
+                                }
+                            }
                         }
                         else
                             return DokanResult.FileNotFound;
@@ -83,6 +94,7 @@ namespace Kurome
 
         public void Cleanup(string fileName, IDokanFileInfo info)
         {
+            (info.Context as NetworkStream)?.Dispose();
             info.Context = null;
             if (info.DeleteOnClose)
                 _device.Delete(fileName);
@@ -90,12 +102,19 @@ namespace Kurome
 
         public void CloseFile(string fileName, IDokanFileInfo info)
         {
+            (info.Context as NetworkStream)?.Dispose();
             info.Context = null;
         }
 
         public NtStatus ReadFile(string fileName, byte[] buffer, out int bytesRead, long offset, IDokanFileInfo info)
         {
-            throw new NotImplementedException();
+            lock (info.Context)
+            {
+                var stream = info.Context as NetworkStream;
+                bytesRead = stream.Read(buffer, (int) offset, buffer.Length);
+            }
+
+            return DokanResult.Success;
         }
 
         public NtStatus WriteFile(string fileName, byte[] buffer, out int bytesWritten, long offset,
@@ -117,9 +136,9 @@ namespace Kurome
                 CreationTime = null,
                 LastAccessTime = DateTime.Now,
                 LastWriteTime = null,
-                Attributes = info.IsDirectory ? FileAttributes.Directory : FileAttributes.Offline,
+                Attributes = info.IsDirectory ? FileAttributes.Directory : FileAttributes.Normal,
                 FileName = fileName[(fileName.LastIndexOf('\\') + 1)..],
-                Length = 0
+                Length = 21504
             };
             return DokanResult.Success;
         }
@@ -133,7 +152,7 @@ namespace Kurome
             files = fileNodeList.Select(fileNode => new FileInformation
                 {
                     FileName = fileNode.FileName,
-                    Attributes = fileNode.IsDirectory ? FileAttributes.Directory : FileAttributes.Offline,
+                    Attributes = fileNode.IsDirectory ? FileAttributes.Directory : FileAttributes.Normal,
                     LastAccessTime = DateTime.Now,
                     LastWriteTime = null,
                     CreationTime = null,
