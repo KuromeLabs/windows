@@ -17,7 +17,7 @@ namespace Kurome
         private const long MiB = 1024 * KiB;
         private const long GiB = 1024 * MiB;
         private const long TiB = 1024 * GiB;
-
+        private readonly object _lock = new();
 
         public KuromeOperations(Device device)
         {
@@ -108,13 +108,21 @@ namespace Kurome
 
         public NtStatus ReadFile(string fileName, byte[] buffer, out int bytesRead, long offset, IDokanFileInfo info)
         {
-            lock (info.Context)
+            lock (_lock)
             {
-                var stream = info.Context as NetworkStream;
-                bytesRead = stream.Read(buffer, (int) offset, buffer.Length);
-            }
+                if (info.Context == null)
+                {
+                    var stream = _device.ReceiveFileStream(fileName, out var result);
+                    bytesRead = stream.Read(buffer, (int) offset, buffer.Length);
+                }
+                else
+                {
+                    var stream = info.Context as NetworkStream;
+                    bytesRead = stream.Read(buffer, (int) offset, buffer.Length);
+                }
 
-            return DokanResult.Success;
+                return DokanResult.Success;
+            }
         }
 
         public NtStatus WriteFile(string fileName, byte[] buffer, out int bytesWritten, long offset,
