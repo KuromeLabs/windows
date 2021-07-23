@@ -14,6 +14,7 @@ namespace Kurome
     public class Device
     {
         private readonly NetworkStream _networkStream;
+        public NetworkStream FileStream { get; set; }
         private readonly char _driveLetter;
         private readonly object _readLock = new();
         private readonly object _writeLock = new();
@@ -72,15 +73,16 @@ namespace Kurome
             return ReadFullStreamPrefixed(15)[0];
         }
 
-        public NetworkStream ReceiveFileStream(string fileName, out byte result)
+        public NetworkStream ReceiveFileStream(string fileName)
         {
+            if (FileStream != null) return FileStream;
             var tcpListener = TcpListener.Create(33588);
             tcpListener.Start();
             SendTcpPrefixed(ActionSendToServer, fileName.Replace('\\', '/'));
             var client = tcpListener.AcceptTcpClient();
             tcpListener.Stop();
-            result = ReadFullStreamPrefixed(15)[0];
-            return client.GetStream();
+            FileStream = client.GetStream();
+            return FileStream;
         }
 
         public FileNode GetFileInfo(string filename)

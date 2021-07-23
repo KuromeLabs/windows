@@ -12,6 +12,12 @@ namespace Kurome
 {
     public class KuromeOperations : IDokanOperations
     {
+        private class StreamContext
+        {
+            public NetworkStream stream { get; set; }
+            public FileNode node { get; set; }
+        }
+
         private readonly Device _device;
         private const long KiB = 1024;
         private const long MiB = 1024 * KiB;
@@ -65,13 +71,14 @@ namespace Kurome
                                 return DokanResult.Success;
                             }
 
-                            if (access.HasFlag(FileAccess.GenericRead))
+                            if (access.HasFlag(FileAccess.GenericRead) && info.Context == null)
                             {
-                                info.Context = _device.ReceiveFileStream(fileName, out var result);
-                                if (result != Device.ResultActionSuccess)
+                                StreamContext context = new()
                                 {
-                                    return DokanResult.Unsuccessful;
-                                }
+                                    node = _device.GetFileInfo(fileName),
+                                    stream = _device.ReceiveFileStream(fileName)
+                                };
+                                info.Context = context;
                             }
                         }
                         else
@@ -94,16 +101,18 @@ namespace Kurome
 
         public void Cleanup(string fileName, IDokanFileInfo info)
         {
-            (info.Context as NetworkStream)?.Dispose();
-            info.Context = null;
+            // (info.Context as NetworkStream)?.Dispose();
+            // info.Context = null;
+            // _device.FileStream = null;
             if (info.DeleteOnClose)
                 _device.Delete(fileName);
         }
 
         public void CloseFile(string fileName, IDokanFileInfo info)
         {
-            (info.Context as NetworkStream)?.Dispose();
-            info.Context = null;
+            // (info.Context as NetworkStream)?.Dispose();
+            // info.Context = null;
+            // _device.FileStream = null;
         }
 
         public NtStatus ReadFile(string fileName, byte[] buffer, out int bytesRead, long offset, IDokanFileInfo info)
@@ -112,13 +121,19 @@ namespace Kurome
             {
                 if (info.Context == null)
                 {
-                    var stream = _device.ReceiveFileStream(fileName, out var result);
+                    var stream = _device.ReceiveFileStream(fileName);
                     bytesRead = stream.Read(buffer, (int) offset, buffer.Length);
                 }
                 else
                 {
-                    var stream = info.Context as NetworkStream;
-                    bytesRead = stream.Read(buffer, (int) offset, buffer.Length);
+                    bytesRead = 0;
+                    var context = info.Context as StreamContext;
+                    var stream = context.stream;
+                    var size = context.node.Size;
+                    while (bytesRead != buffer.Length && (size - offset) != bytesRead)
+                    {
+                        bytesRead += stream.Read(buffer, bytesRead, buffer.Length - bytesRead);
+                    }
                 }
 
                 return DokanResult.Success;
