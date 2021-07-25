@@ -101,18 +101,18 @@ namespace Kurome
 
         public void Cleanup(string fileName, IDokanFileInfo info)
         {
-            // (info.Context as NetworkStream)?.Dispose();
-            // info.Context = null;
-            // _device.FileStream = null;
+            (info.Context as NetworkStream)?.Dispose();
+            info.Context = null;
+            _device.FileStream = null;
             if (info.DeleteOnClose)
                 _device.Delete(fileName);
         }
 
         public void CloseFile(string fileName, IDokanFileInfo info)
         {
-            // (info.Context as NetworkStream)?.Dispose();
-            // info.Context = null;
-            // _device.FileStream = null;
+            (info.Context as NetworkStream)?.Dispose();
+            info.Context = null;
+            _device.FileStream = null;
         }
 
         public NtStatus ReadFile(string fileName, byte[] buffer, out int bytesRead, long offset, IDokanFileInfo info)
@@ -121,6 +121,7 @@ namespace Kurome
             {
                 if (info.Context == null)
                 {
+                    Console.WriteLine("null context read");
                     var stream = _device.ReceiveFileStream(fileName);
                     bytesRead = stream.Read(buffer, (int) offset, buffer.Length);
                 }
