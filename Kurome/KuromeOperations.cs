@@ -76,7 +76,7 @@ namespace Kurome
                                 StreamContext context = new()
                                 {
                                     node = _device.GetFileInfo(fileName),
-                                    stream = _device.ReceiveFileStream(fileName)
+                                    stream = null
                                 };
                                 info.Context = context;
                             }
@@ -119,26 +119,19 @@ namespace Kurome
         {
             lock (_lock)
             {
-                if (info.Context == null)
+                bytesRead = 0;
+                var context = info.Context as StreamContext;
+                var size = context?.node.Size ?? _device.GetFileInfo(fileName).Size;
+                var bytesToRead = (offset + buffer.Length) > size ? (size - offset) : buffer.Length;
+                var stream = _device.ReceiveFileStream(fileName, offset, (int) bytesToRead);
+                while (bytesRead != buffer.Length && (size - offset) != bytesRead)
                 {
-                    Console.WriteLine("null context read");
-                    var stream = _device.ReceiveFileStream(fileName);
-                    bytesRead = stream.Read(buffer, (int) offset, buffer.Length);
+                    bytesRead += stream.Read(buffer, bytesRead, buffer.Length - bytesRead);
                 }
-                else
-                {
-                    bytesRead = 0;
-                    var context = info.Context as StreamContext;
-                    var stream = context.stream;
-                    var size = context.node.Size;
-                    while (bytesRead != buffer.Length && (size - offset) != bytesRead)
-                    {
-                        bytesRead += stream.Read(buffer, bytesRead, buffer.Length - bytesRead);
-                    }
-                }
-
-                return DokanResult.Success;
             }
+            _device.FileStream.Dispose();
+            _device.FileStream = null;
+            return DokanResult.Success;
         }
 
         public NtStatus WriteFile(string fileName, byte[] buffer, out int bytesWritten, long offset,

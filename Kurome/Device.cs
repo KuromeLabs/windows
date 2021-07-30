@@ -62,12 +62,12 @@ namespace Kurome
             return ReadFullStreamPrefixed(15)[0];
         }
 
-        public NetworkStream ReceiveFileStream(string fileName)
+        public NetworkStream ReceiveFileStream(string fileName, long offset, int size)
         {
             if (FileStream != null) return FileStream;
             var tcpListener = TcpListener.Create(33588);
             tcpListener.Start();
-            SendTcpPrefixed(Packets.ActionSendToServer, fileName.Replace('\\', '/'));
+            SendTcpPrefixed(Packets.ActionSendToServer, fileName.Replace('\\', '/') + ':' + offset + ':' + size);
             var client = tcpListener.AcceptTcpClient();
             tcpListener.Stop();
             FileStream = client.GetStream();
@@ -76,7 +76,7 @@ namespace Kurome
 
         public FileNode GetFileInfo(string filename)
         {
-            SendTcpPrefixed(Packets.ActionGetFileInfo, filename.Replace('\\','/'));
+            SendTcpPrefixed(Packets.ActionGetFileInfo, filename.Replace('\\', '/'));
             return JsonSerializer.Deserialize<FileNode>(ByteArrayToDecompressedString(ReadFullStreamPrefixed(15)));
         }
 
