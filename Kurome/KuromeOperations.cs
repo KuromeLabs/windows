@@ -40,8 +40,8 @@ namespace Kurome
             IDokanFileInfo info)
         {
             var fileType = _device.GetFileType(fileName);
-            var fileExists = fileType != Device.ResultFileNotFound;
-            var isDirectory = fileExists && fileType == Device.ResultFileIsDirectory;
+            var fileExists = fileType != Packets.ResultFileNotFound;
+            var isDirectory = fileExists && fileType == Packets.ResultFileIsDirectory;
             if (info.IsDirectory)
             {
                 switch (mode)
@@ -208,9 +208,9 @@ namespace Kurome
         public NtStatus DeleteFile(string fileName, IDokanFileInfo info)
         {
             var type = _device.GetFileType(fileName);
-            if (type == Device.ResultFileNotFound)
+            if (type == Packets.ResultFileNotFound)
                 return DokanResult.FileNotFound;
-            else if (type == Device.ResultFileIsDirectory)
+            else if (type == Packets.ResultFileIsDirectory)
                 return DokanResult.AccessDenied;
             return DokanResult.Success;
         }
@@ -218,9 +218,9 @@ namespace Kurome
         public NtStatus DeleteDirectory(string fileName, IDokanFileInfo info)
         {
             var type = _device.GetFileType(fileName);
-            if (type == Device.ResultFileNotFound)
+            if (type == Packets.ResultFileNotFound)
                 return DokanResult.FileNotFound;
-            else if (type == Device.ResultFileIsFile)
+            else if (type == Packets.ResultFileIsFile)
                 return DokanResult.AccessDenied;
             return DokanResult.Success;
         }

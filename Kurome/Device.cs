@@ -19,17 +19,6 @@ namespace Kurome
         private readonly object _readLock = new();
         private readonly object _writeLock = new();
         public string Name { get; private set; }
-        public const byte ResultActionSuccess = 0;
-        private const byte ActonGetEnumerateDirectory = 1;
-        private const byte ActionGetSpaceInfo = 2;
-        private const byte ActionGetFileType = 3;
-        private const byte ActionWriteDirectory = 4;
-        public const byte ResultFileIsDirectory = 5;
-        public const byte ResultFileIsFile = 6;
-        public const byte ResultFileNotFound = 7;
-        private const byte ActionDelete = 8;
-        private const byte ActionSendToServer = 10;
-        private const byte ActionGetFileInfo = 11;
 
         public Device(TcpClient tcpClient, char driveLetter)
         {
@@ -44,32 +33,32 @@ namespace Kurome
 
         public string GetSpace()
         {
-            SendTcpPrefixed(ActionGetSpaceInfo, "");
+            SendTcpPrefixed(Packets.ActionGetSpaceInfo, "");
             return ByteArrayToDecompressedString(ReadFullStreamPrefixed(15));
         }
 
         public IEnumerable<FileNode> GetFileNodes(string fileName)
         {
-            SendTcpPrefixed(ActonGetEnumerateDirectory, fileName.Replace('\\', '/'));
+            SendTcpPrefixed(Packets.ActonGetEnumerateDirectory, fileName.Replace('\\', '/'));
             return JsonSerializer.Deserialize<IEnumerable<FileNode>>(
                 ByteArrayToDecompressedString(ReadFullStreamPrefixed(15)));
         }
 
         public byte GetFileType(string fileName)
         {
-            SendTcpPrefixed(ActionGetFileType, fileName.Replace('\\', '/'));
+            SendTcpPrefixed((Packets.ActionGetFileType), fileName.Replace('\\', '/'));
             return ReadFullStreamPrefixed(15)[0];
         }
 
         public byte CreateDirectory(string fileName)
         {
-            SendTcpPrefixed(ActionWriteDirectory, fileName.Replace('\\', '/'));
+            SendTcpPrefixed(Packets.ActionWriteDirectory, fileName.Replace('\\', '/'));
             return ReadFullStreamPrefixed(15)[0];
         }
 
         public byte Delete(string fileName)
         {
-            SendTcpPrefixed(ActionDelete, fileName.Replace('\\', '/'));
+            SendTcpPrefixed(Packets.ActionDelete, fileName.Replace('\\', '/'));
             return ReadFullStreamPrefixed(15)[0];
         }
 
@@ -78,7 +67,7 @@ namespace Kurome
             if (FileStream != null) return FileStream;
             var tcpListener = TcpListener.Create(33588);
             tcpListener.Start();
-            SendTcpPrefixed(ActionSendToServer, fileName.Replace('\\', '/'));
+            SendTcpPrefixed(Packets.ActionSendToServer, fileName.Replace('\\', '/'));
             var client = tcpListener.AcceptTcpClient();
             tcpListener.Stop();
             FileStream = client.GetStream();
@@ -87,7 +76,7 @@ namespace Kurome
 
         public FileNode GetFileInfo(string filename)
         {
-            SendTcpPrefixed(ActionGetFileInfo, filename.Replace('\\','/'));
+            SendTcpPrefixed(Packets.ActionGetFileInfo, filename.Replace('\\','/'));
             return JsonSerializer.Deserialize<FileNode>(ByteArrayToDecompressedString(ReadFullStreamPrefixed(15)));
         }
 
