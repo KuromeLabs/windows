@@ -26,9 +26,12 @@ namespace Kurome
             _driveLetter = driveLetter;
         }
 
-        public void Initialize()
+        public string GetDeviceName()
         {
+            if (Name != null) return Name;
+            SendTcpPrefixed(Packets.ActionGetDeviceName,"");
             Name = ByteArrayToDecompressedString(ReadFullStreamPrefixed(15));
+            return Name;
         }
 
         public string GetSpace()

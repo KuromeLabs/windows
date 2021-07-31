@@ -263,7 +263,7 @@ namespace Kurome
             out string fileSystemName,
             out uint maximumComponentLength, IDokanFileInfo info)
         {
-            volumeLabel = _device.Name;
+            volumeLabel = _device.GetDeviceName();
             features = FileSystemFeatures.UnicodeOnDisk | FileSystemFeatures.CasePreservedNames;
             fileSystemName = "Kurome";
             maximumComponentLength = 255;
