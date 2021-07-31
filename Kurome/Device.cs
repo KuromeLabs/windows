@@ -19,6 +19,7 @@ namespace Kurome
         private readonly object _readLock = new();
         private readonly object _writeLock = new();
         public string Name { get; private set; }
+        private const int Timeout = 5;
 
         public Device(TcpClient tcpClient, char driveLetter)
         {
@@ -30,39 +31,39 @@ namespace Kurome
         {
             if (Name != null) return Name;
             SendTcpPrefixed(Packets.ActionGetDeviceName,"");
-            Name = ByteArrayToDecompressedString(ReadFullStreamPrefixed(15));
+            Name = ByteArrayToDecompressedString(ReadFullStreamPrefixed(Timeout));
             return Name;
         }
 
         public string GetSpace()
         {
             SendTcpPrefixed(Packets.ActionGetSpaceInfo, "");
-            return ByteArrayToDecompressedString(ReadFullStreamPrefixed(15));
+            return ByteArrayToDecompressedString(ReadFullStreamPrefixed(Timeout));
         }
 
         public IEnumerable<FileNode> GetFileNodes(string fileName)
         {
             SendTcpPrefixed(Packets.ActonGetEnumerateDirectory, fileName.Replace('\\', '/'));
             return JsonSerializer.Deserialize<IEnumerable<FileNode>>(
-                ByteArrayToDecompressedString(ReadFullStreamPrefixed(15)));
+                ByteArrayToDecompressedString(ReadFullStreamPrefixed(Timeout)));
         }
 
         public byte GetFileType(string fileName)
         {
             SendTcpPrefixed((Packets.ActionGetFileType), fileName.Replace('\\', '/'));
-            return ReadFullStreamPrefixed(15)[0];
+            return ReadFullStreamPrefixed(Timeout)[0];
         }
 
         public byte CreateDirectory(string fileName)
         {
             SendTcpPrefixed(Packets.ActionWriteDirectory, fileName.Replace('\\', '/'));
-            return ReadFullStreamPrefixed(15)[0];
+            return ReadFullStreamPrefixed(Timeout)[0];
         }
 
         public byte Delete(string fileName)
         {
             SendTcpPrefixed(Packets.ActionDelete, fileName.Replace('\\', '/'));
-            return ReadFullStreamPrefixed(15)[0];
+            return ReadFullStreamPrefixed(Timeout)[0];
         }
 
         public NetworkStream ReceiveFileStream(string fileName, long offset, int size)
@@ -80,7 +81,7 @@ namespace Kurome
         public FileNode GetFileInfo(string filename)
         {
             SendTcpPrefixed(Packets.ActionGetFileInfo, filename.Replace('\\', '/'));
-            return JsonSerializer.Deserialize<FileNode>(ByteArrayToDecompressedString(ReadFullStreamPrefixed(15)));
+            return JsonSerializer.Deserialize<FileNode>(ByteArrayToDecompressedString(ReadFullStreamPrefixed(Timeout)));
         }
 
         private void SendTcpPrefixed(byte action, string message)
