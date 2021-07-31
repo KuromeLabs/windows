@@ -101,7 +101,8 @@ namespace Kurome
                     var sizeBuffer = new byte[4];
                     var readPrefixTask = _networkStream.ReadAsync(sizeBuffer, 0, 4);
                     Task.WaitAny(readPrefixTask, Task.Delay(TimeSpan.FromSeconds(timeout)));
-
+                    if (!readPrefixTask.IsCompleted)
+                        throw new TimeoutException();
                     var size = BitConverter.ToInt32(sizeBuffer);
                     var bytesRead = 0;
                     var buffer = new byte[size];
