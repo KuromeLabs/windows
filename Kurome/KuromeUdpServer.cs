@@ -14,23 +14,26 @@ namespace Kurome
     {
         public static readonly string UDP_SUBNET = "235.132.20.12";
         public static readonly int PORT = 33586;
+        private static string _id;
 
         public async void PeriodicCastUdpInfo(TimeSpan interval, CancellationToken token)
         {
             var address = IPAddress.Parse(UDP_SUBNET);
             var ipEndPoint = new IPEndPoint(address, PORT);
+            _id = IdentityProvider.GetGuid();
             while (true)
             {
                 CastUdpInfo(address, ipEndPoint);
                 await Task.Delay(interval, token);
             }
         }
+
         private static async void CastUdpInfo(IPAddress address, IPEndPoint endpoint)
         {
             var localIpAddresses = GetLocalIpAddress();
             foreach (var interfaceIp in localIpAddresses)
             {
-                var message = "kurome:" + interfaceIp + ":" + IdentityProvider.GetMachineName();
+                var message = "kurome:" + interfaceIp + ":" + IdentityProvider.GetMachineName() + ":" + _id;
                 var data = Encoding.Default.GetBytes(message);
                 using var udpClient = new UdpClient(AddressFamily.InterNetwork);
                 try
