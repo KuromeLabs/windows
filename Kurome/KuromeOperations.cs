@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -128,10 +127,10 @@ namespace Kurome
                 {
                     bytesRead += stream.Read(buffer, bytesRead, buffer.Length - bytesRead);
                 }
+                _device.FileStream.Dispose();
+                _device.FileStream = null;
+                return DokanResult.Success;
             }
-            _device.FileStream.Dispose();
-            _device.FileStream = null;
-            return DokanResult.Success;
         }
 
         public NtStatus WriteFile(string fileName, byte[] buffer, out int bytesWritten, long offset,

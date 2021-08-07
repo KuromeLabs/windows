@@ -18,7 +18,7 @@ namespace Kurome
         private readonly char _driveLetter;
         private readonly object _readLock = new();
         private readonly object _writeLock = new();
-        public string Name { get; private set; }
+        private string Name { get; set; }
         private const int Timeout = 5;
 
         public Device(TcpClient tcpClient, char driveLetter)
