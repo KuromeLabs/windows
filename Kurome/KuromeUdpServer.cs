@@ -30,7 +30,7 @@ namespace Kurome
             var localIpAddresses = GetLocalIpAddress();
             foreach (var interfaceIp in localIpAddresses)
             {
-                String message = "kurome:" + interfaceIp + ":" + Environment.MachineName;
+                var message = "kurome:" + interfaceIp + ":" + IdentityProvider.GetMachineName();
                 var data = Encoding.Default.GetBytes(message);
                 using var udpClient = new UdpClient(AddressFamily.InterNetwork);
                 try
