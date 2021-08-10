@@ -69,16 +69,6 @@ namespace Kurome
                                 info.Context = new object();
                                 return DokanResult.Success;
                             }
-
-                            if (access.HasFlag(FileAccess.GenericRead) && info.Context == null)
-                            {
-                                StreamContext context = new()
-                                {
-                                    node = _device.GetFileInfo(fileName),
-                                    stream = null
-                                };
-                                info.Context = context;
-                            }
                         }
                         else
                             return DokanResult.FileNotFound;
@@ -100,35 +90,24 @@ namespace Kurome
 
         public void Cleanup(string fileName, IDokanFileInfo info)
         {
-            (info.Context as NetworkStream)?.Dispose();
             info.Context = null;
-            _device.FileStream = null;
             if (info.DeleteOnClose)
                 _device.Delete(fileName);
         }
 
         public void CloseFile(string fileName, IDokanFileInfo info)
         {
-            (info.Context as NetworkStream)?.Dispose();
             info.Context = null;
-            _device.FileStream = null;
         }
 
         public NtStatus ReadFile(string fileName, byte[] buffer, out int bytesRead, long offset, IDokanFileInfo info)
         {
             lock (_lock)
             {
-                bytesRead = 0;
-                var context = info.Context as StreamContext;
-                var size = context?.node.Size ?? _device.GetFileInfo(fileName).Size;
+                info.Context ??= _device.GetFileInfo(fileName);
+                var size = (info.Context as FileNode)!.Size;
                 var bytesToRead = (offset + buffer.Length) > size ? (size - offset) : buffer.Length;
-                var stream = _device.ReceiveFileStream(fileName, offset, (int) bytesToRead);
-                while (bytesRead != buffer.Length && (size - offset) != bytesRead)
-                {
-                    bytesRead += stream.Read(buffer, bytesRead, buffer.Length - bytesRead);
-                }
-                _device.FileStream.Dispose();
-                _device.FileStream = null;
+                bytesRead = _device.ReceiveFileBuffer(ref buffer, fileName, offset, (int)bytesToRead, size);
                 return DokanResult.Success;
             }
         }
