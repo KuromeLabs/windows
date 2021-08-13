@@ -1,23 +1,47 @@
-using System.Collections.Generic;
+using System;
+using System.Linq;
 using System.Net.Sockets;
+using System.Text;
+using System.Threading.Tasks;
 
 namespace Kurome
 {
-    public class Link
+    public class Link: IDisposable
     {
-        private readonly object _queueLock = new();
-        private Queue<TcpClient> _streamQueue = new();
+        private readonly TcpClient _client;
 
-        public TcpClient Get()
+        public Link(TcpClient client)
         {
-            lock (_queueLock)
-                return _streamQueue.Dequeue();
+            _client = client;
+        }
+        private void WritePrefixed(byte action, string message)
+        {
+            _client.GetStream().Write(BitConverter.GetBytes(message.Length + 1)
+                    .Concat(Encoding.UTF8.GetBytes(message).Prepend(action)).ToArray());
+        }
+        private byte[] ReadFullPrefixed(int timeout)
+        {
+            var sizeBuffer = new byte[4];
+            var readPrefixTask = _client.GetStream().ReadAsync(sizeBuffer, 0, 4);
+            Task.WaitAny(readPrefixTask, Task.Delay(TimeSpan.FromSeconds(timeout)));
+            if (!readPrefixTask.IsCompleted)
+                throw new TimeoutException();
+            var size = BitConverter.ToInt32(sizeBuffer);
+            var bytesRead = 0;
+            var buffer = new byte[size];
+            while (bytesRead != size)
+            {
+                var readTask = _client.GetStream().Read(buffer, 0 + bytesRead, buffer.Length - bytesRead);
+                bytesRead += readTask;
+            }
+
+            return buffer;
         }
 
-        public void Return(TcpClient client)
+        public void Dispose()
         {
-            lock (_queueLock)
-                _streamQueue.Enqueue(client);
+            _client.Close();
+            _client.Dispose();
         }
     }
 }
