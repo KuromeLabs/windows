@@ -1,4 +1,6 @@
 using System;
+using System.IO;
+using System.IO.Compression;
 using System.Linq;
 using System.Net.Sockets;
 using System.Text;
@@ -36,6 +38,24 @@ namespace Kurome
             }
 
             return buffer;
+        }
+        
+        private string ByteArrayToDecompressedString(byte[] array)
+        {
+            if (array[0] != 0x1f || array[1] != 0x8b)
+                return Encoding.UTF8.GetString(array, 0, array.Length);
+            var decompressed = Decompress(array);
+            return Encoding.UTF8.GetString(decompressed, 0, decompressed.Length);
+        }
+
+        private byte[] Decompress(byte[] compressedData)
+        {
+            var outputStream = new MemoryStream();
+            using var compressedStream = new MemoryStream(compressedData);
+            using var sr = new GZipStream(compressedStream, CompressionMode.Decompress);
+            sr.CopyTo(outputStream);
+            outputStream.Position = 0;
+            return outputStream.ToArray();
         }
 
         public void Dispose()
