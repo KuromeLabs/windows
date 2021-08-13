@@ -14,5 +14,6 @@ namespace Kurome
         public const byte ActionSendToServer = 10;
         public const byte ActionGetFileInfo = 11;
         public const byte ActionGetDeviceName = 12;
+        public const byte ActionGetDeviceId = 13;
     }
 }

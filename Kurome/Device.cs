@@ -18,6 +18,7 @@ namespace Kurome
         private readonly object _readLock = new();
         private readonly object _writeLock = new();
         private string Name { get; set; }
+        private string Id { get; set; }
         private const int Timeout = 5;
 
         public Device(TcpClient tcpClient, char driveLetter)
@@ -34,6 +35,13 @@ namespace Kurome
             return Name;
         }
 
+        public string GetDeviceId()
+        {
+            if (Id != null) return Id;
+            SendTcpPrefixed(Packets.ActionGetDeviceId,"");
+            Id = ByteArrayToDecompressedString(ReadFullStreamPrefixed(Timeout));
+            return Id;
+        }
         public string GetSpace()
         {
             SendTcpPrefixed(Packets.ActionGetSpaceInfo, "");
