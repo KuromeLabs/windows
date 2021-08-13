@@ -11,17 +11,18 @@ namespace Kurome
     public class Link: IDisposable
     {
         private readonly TcpClient _client;
+        public bool IsDisposed = false;
 
         public Link(TcpClient client)
         {
             _client = client;
         }
-        private void WritePrefixed(byte action, string message)
+        public void WritePrefixed(byte action, string message)
         {
             _client.GetStream().Write(BitConverter.GetBytes(message.Length + 1)
                     .Concat(Encoding.UTF8.GetBytes(message).Prepend(action)).ToArray());
         }
-        private byte[] ReadFullPrefixed(int timeout)
+        public byte[] ReadFullPrefixed(int timeout)
         {
             var sizeBuffer = new byte[4];
             var readPrefixTask = _client.GetStream().ReadAsync(sizeBuffer, 0, 4);
@@ -60,6 +61,7 @@ namespace Kurome
 
         public void Dispose()
         {
+            IsDisposed = true;
             _client.Close();
             _client.Dispose();
         }
