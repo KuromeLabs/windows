@@ -41,7 +41,7 @@ namespace Kurome
             return buffer;
         }
         
-        private string ByteArrayToDecompressedString(byte[] array)
+        public string BufferToString(byte[] array)
         {
             if (array[0] != 0x1f || array[1] != 0x8b)
                 return Encoding.UTF8.GetString(array, 0, array.Length);
