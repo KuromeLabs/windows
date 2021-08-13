@@ -1,149 +1,92 @@
-using System;
 using System.Collections.Generic;
-using System.IO;
-using System.IO.Compression;
-using System.Linq;
-using System.Net.Sockets;
-using System.Text;
 using System.Text.Json;
-using System.Threading.Tasks;
-using DokanNet;
 
 namespace Kurome
 {
     public class Device
     {
-        private readonly NetworkStream _networkStream;
+        public Link ControlLink { get; }
         private readonly char _driveLetter;
-        private readonly object _readLock = new();
-        private readonly object _writeLock = new();
         private string Name { get; set; }
         private string Id { get; set; }
         private const int Timeout = 5;
+        private readonly LinkPool _pool;
 
-        public Device(TcpClient tcpClient, char driveLetter)
+        public Device(Link controlLink, char driveLetter)
         {
-            _networkStream = tcpClient.GetStream();
+            ControlLink = controlLink;
             _driveLetter = driveLetter;
+            _pool = new LinkPool(this);
         }
 
         public string GetDeviceName()
         {
             if (Name != null) return Name;
-            SendTcpPrefixed(Packets.ActionGetDeviceName, "");
-            Name = ByteArrayToDecompressedString(ReadFullStreamPrefixed(Timeout));
+            var link = _pool.Get();
+            link.WritePrefixed(Packets.ActionGetDeviceName, "");
+            Name = link.BufferToString(link.ReadFullPrefixed(Timeout));
             return Name;
         }
 
         public string GetDeviceId()
         {
             if (Id != null) return Id;
-            SendTcpPrefixed(Packets.ActionGetDeviceId,"");
-            Id = ByteArrayToDecompressedString(ReadFullStreamPrefixed(Timeout));
+            var link = _pool.Get();
+            link.WritePrefixed(Packets.ActionGetDeviceId, "");
+            Id = link.BufferToString(link.ReadFullPrefixed(Timeout));
             return Id;
         }
+
         public string GetSpace()
         {
-            SendTcpPrefixed(Packets.ActionGetSpaceInfo, "");
-            return ByteArrayToDecompressedString(ReadFullStreamPrefixed(Timeout));
+            var link = _pool.Get();
+            link.WritePrefixed(Packets.ActionGetSpaceInfo, "");
+            return link.BufferToString(link.ReadFullPrefixed(Timeout));
         }
 
         public IEnumerable<FileNode> GetFileNodes(string fileName)
         {
-            SendTcpPrefixed(Packets.ActonGetEnumerateDirectory, fileName.Replace('\\', '/'));
+            var link = _pool.Get();
+            link.WritePrefixed(Packets.ActonGetEnumerateDirectory, fileName.Replace('\\', '/'));
             return JsonSerializer.Deserialize<IEnumerable<FileNode>>(
-                ByteArrayToDecompressedString(ReadFullStreamPrefixed(Timeout)));
+                link.BufferToString(link.ReadFullPrefixed(Timeout)));
         }
 
         public byte GetFileType(string fileName)
         {
-            SendTcpPrefixed((Packets.ActionGetFileType), fileName.Replace('\\', '/'));
-            return ReadFullStreamPrefixed(Timeout)[0];
+            var link = _pool.Get();
+            link.WritePrefixed((Packets.ActionGetFileType), fileName.Replace('\\', '/'));
+            return link.ReadFullPrefixed(Timeout)[0];
         }
 
         public byte CreateDirectory(string fileName)
         {
-            SendTcpPrefixed(Packets.ActionWriteDirectory, fileName.Replace('\\', '/'));
-            return ReadFullStreamPrefixed(Timeout)[0];
+            var link = _pool.Get();
+            link.WritePrefixed(Packets.ActionWriteDirectory, fileName.Replace('\\', '/'));
+            return link.ReadFullPrefixed(Timeout)[0];
         }
 
         public byte Delete(string fileName)
         {
-            SendTcpPrefixed(Packets.ActionDelete, fileName.Replace('\\', '/'));
-            return ReadFullStreamPrefixed(Timeout)[0];
+            var link = _pool.Get();
+            link.WritePrefixed(Packets.ActionDelete, fileName.Replace('\\', '/'));
+            return link.ReadFullPrefixed(Timeout)[0];
         }
-        
+
         public int ReceiveFileBuffer(ref byte[] buffer, string fileName, long offset, int bytesToRead, long fileSize)
         {
-            SendTcpPrefixed(Packets.ActionSendToServer, fileName.Replace('\\', '/') + ':' + offset + ':' + bytesToRead);
-            ReadFullStreamPrefixed(30).CopyTo(buffer, 0);
+            var link = _pool.Get();
+            link.WritePrefixed(Packets.ActionSendToServer,
+                fileName.Replace('\\', '/') + ':' + offset + ':' + bytesToRead);
+            link.ReadFullPrefixed(30).CopyTo(buffer, 0);
             return bytesToRead;
         }
 
         public FileNode GetFileInfo(string filename)
         {
-            SendTcpPrefixed(Packets.ActionGetFileInfo, filename.Replace('\\', '/'));
-            return JsonSerializer.Deserialize<FileNode>(ByteArrayToDecompressedString(ReadFullStreamPrefixed(Timeout)));
-        }
-
-        private void SendTcpPrefixed(byte action, string message)
-        {
-            lock (_writeLock)
-            {
-                _networkStream.Write(BitConverter.GetBytes(message.Length + 1)
-                    .Concat(Encoding.UTF8.GetBytes(message).Prepend(action)).ToArray());
-            }
-        }
-
-        private byte[] ReadFullStreamPrefixed(int timeout)
-        {
-            try
-            {
-                lock (_readLock)
-                {
-                    var sizeBuffer = new byte[4];
-                    var readPrefixTask = _networkStream.ReadAsync(sizeBuffer, 0, 4);
-                    Task.WaitAny(readPrefixTask, Task.Delay(TimeSpan.FromSeconds(timeout)));
-                    if (!readPrefixTask.IsCompleted)
-                        throw new TimeoutException();
-                    var size = BitConverter.ToInt32(sizeBuffer);
-                    var bytesRead = 0;
-                    var buffer = new byte[size];
-                    while (bytesRead != size)
-                    {
-                        var readTask = _networkStream.Read(buffer, 0 + bytesRead, buffer.Length - bytesRead);
-                        bytesRead += readTask;
-                    }
-
-                    return buffer;
-                }
-            }
-            catch (Exception e)
-            {
-                Console.WriteLine(e);
-            }
-
-            Console.WriteLine("Client disconnected");
-            Dokan.Unmount(_driveLetter);
-            return null;
-        }
-
-        private static string ByteArrayToDecompressedString(byte[] array)
-        {
-            if (array[0] != 0x1f || array[1] != 0x8b)
-                return Encoding.UTF8.GetString(array, 0, array.Length);
-            var decompressed = Decompress(array);
-            return Encoding.UTF8.GetString(decompressed, 0, decompressed.Length);
-        }
-
-        private static byte[] Decompress(byte[] compressedData)
-        {
-            var outputStream = new MemoryStream();
-            using var compressedStream = new MemoryStream(compressedData);
-            using var sr = new GZipStream(compressedStream, CompressionMode.Decompress);
-            sr.CopyTo(outputStream);
-            outputStream.Position = 0;
-            return outputStream.ToArray();
+            var link = _pool.Get();
+            link.WritePrefixed(Packets.ActionGetFileInfo, filename.Replace('\\', '/'));
+            return JsonSerializer.Deserialize<FileNode>(link.BufferToString(link.ReadFullPrefixed(Timeout)));
         }
     }
 }
