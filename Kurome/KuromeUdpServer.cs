@@ -12,8 +12,8 @@ namespace Kurome
 {
     public class KuromeUdpServer
     {
-        public static readonly string UDP_SUBNET = "235.132.20.12";
-        public static readonly int PORT = 33586;
+        private readonly string UDP_SUBNET = "235.132.20.12";
+        private readonly int PORT = 33586;
         private static string _id;
 
         public async void PeriodicCastUdpInfo(TimeSpan interval, CancellationToken token)
@@ -28,7 +28,7 @@ namespace Kurome
             }
         }
 
-        private static async void CastUdpInfo(IPAddress address, IPEndPoint endpoint)
+        private async void CastUdpInfo(IPAddress address, IPEndPoint endpoint)
         {
             var localIpAddresses = GetLocalIpAddress();
             foreach (var interfaceIp in localIpAddresses)
@@ -42,7 +42,7 @@ namespace Kurome
                     udpClient.JoinMulticastGroup(address);
                     udpClient.Ttl = 32;
                     await udpClient.SendAsync(data, data.Length, endpoint);
-                    // Console.WriteLine("Broadcast: \"{0}\" to {1}", message, interfaceIp);
+                    //Console.WriteLine("Broadcast: \"{0}\" to {1}", message, interfaceIp);
                     udpClient.Close();
                 }
                 catch (SocketException e)
@@ -51,8 +51,8 @@ namespace Kurome
                 }
             }
         }
-        
-        private static IEnumerable<string> GetLocalIpAddress()
+
+        private IEnumerable<string> GetLocalIpAddress()
         {
             var networkInterfaces = NetworkInterface.GetAllNetworkInterfaces();
             return (from network in networkInterfaces
