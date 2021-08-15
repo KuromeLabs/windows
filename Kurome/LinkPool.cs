@@ -1,9 +1,11 @@
+using System;
 using System.Collections.Concurrent;
 
 namespace Kurome
 {
     public class LinkPool
     {
+        private int _numOfLinks = 0;
         public LinkPool(Device device)
         {
             _remoteDevice = device;
@@ -14,14 +16,22 @@ namespace Kurome
 
         public Link Get()
         {
-            return _linkQueue.TryDequeue(out var client) ? client : _linkProvider.CreateLink(_remoteDevice.ControlLink);
+            if (_linkQueue.TryDequeue(out var client))
+            {
+                Console.WriteLine($"LinkPool is returning an existing Link. Total: {_numOfLinks}");
+                return client;
+            }
+            else
+            {
+                _numOfLinks++;
+                Console.WriteLine($"LinkPool is creating a new Link. Total: {_numOfLinks}");
+                return _linkProvider.CreateLink(_remoteDevice.ControlLink);
+            }
         }
 
         public void Return(Link link)
         {
             _linkQueue.Enqueue(link);
         }
-        
-       
     }
 }
