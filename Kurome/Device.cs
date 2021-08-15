@@ -9,7 +9,7 @@ namespace Kurome
         private readonly char _driveLetter;
         private string Name { get; set; }
         private string Id { get; set; }
-        private const int Timeout = 5;
+        private const int Timeout = 10;
         private readonly LinkPool _pool;
 
         public Device(Link controlLink, char driveLetter)
@@ -90,7 +90,7 @@ namespace Kurome
             var link = _pool.Get();
             link.WritePrefixed(Packets.ActionSendToServer,
                 fileName.Replace('\\', '/') + ':' + offset + ':' + bytesToRead);
-            link.ReadFullPrefixed(30).CopyTo(buffer, 0);
+            link.ReadFullPrefixed(Timeout).CopyTo(buffer, 0);
             _pool.Return(link);
             return bytesToRead;
         }
