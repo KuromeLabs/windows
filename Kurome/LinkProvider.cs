@@ -13,6 +13,7 @@ namespace Kurome
                 listener.Start();
                 controlLink.WritePrefixed(Packets.ActionCreateNewLink, "");
                 var client = listener.AcceptTcpClient();
+                listener.Stop();
                 return new Link(client);
             }
         }
