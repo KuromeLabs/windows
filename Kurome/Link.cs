@@ -25,7 +25,12 @@ namespace Kurome
         public byte[] ReadFullPrefixed(int timeout)
         {
             var sizeBuffer = new byte[4];
-            var readPrefixTask = _client.GetStream().ReadAsync(sizeBuffer, 0, 4);
+            var readPrefixTask = Task.Run(() =>
+            {
+                var bytesRead = 0;
+                while (bytesRead != 4)
+                    bytesRead += _client.GetStream().Read(sizeBuffer, 0 + bytesRead, 4 - bytesRead);
+            });
             Task.WaitAny(readPrefixTask, Task.Delay(TimeSpan.FromSeconds(timeout)));
             if (!readPrefixTask.IsCompleted)
                 throw new TimeoutException();
