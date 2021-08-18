@@ -1,4 +1,6 @@
 using System.Collections.Generic;
+using System.Linq;
+using System.Text;
 using System.Text.Json;
 
 namespace Kurome
@@ -23,7 +25,7 @@ namespace Kurome
         {
             if (Name != null) return Name;
             var link = _pool.Get();
-            link.WritePrefixed(Packets.ActionGetDeviceName, "");
+            link.WritePrefixed(Packets.ActionGetDeviceName);
             Name = link.BufferToString(link.ReadFullPrefixed(Timeout));
             _pool.Return(link);
             return Name;
@@ -33,7 +35,7 @@ namespace Kurome
         {
             if (Id != null) return Id;
             var link = _pool.Get();
-            link.WritePrefixed(Packets.ActionGetDeviceId, "");
+            link.WritePrefixed(Packets.ActionGetDeviceId);
             Id = link.BufferToString(link.ReadFullPrefixed(Timeout));
             _pool.Return(link);
             return Id;
@@ -42,7 +44,7 @@ namespace Kurome
         public string GetSpace()
         {
             var link = _pool.Get();
-            link.WritePrefixed(Packets.ActionGetSpaceInfo, "");
+            link.WritePrefixed(Packets.ActionGetSpaceInfo);
             var result = link.BufferToString(link.ReadFullPrefixed(Timeout));
             _pool.Return(link);
             return result;
@@ -51,7 +53,9 @@ namespace Kurome
         public IEnumerable<FileNode> GetFileNodes(string fileName)
         {
             var link = _pool.Get();
-            link.WritePrefixed(Packets.ActonGetEnumerateDirectory, fileName.Replace('\\', '/'));
+            link.WritePrefixed(Encoding.UTF8.GetBytes(fileName.Replace('\\', '/'))
+                .Prepend(Packets.ActonGetEnumerateDirectory)
+                .ToArray());
             var result = JsonSerializer.Deserialize<IEnumerable<FileNode>>(
                 link.BufferToString(link.ReadFullPrefixed(Timeout)));
             _pool.Return(link);
@@ -61,7 +65,9 @@ namespace Kurome
         public byte GetFileType(string fileName)
         {
             var link = _pool.Get();
-            link.WritePrefixed((Packets.ActionGetFileType), fileName.Replace('\\', '/'));
+            link.WritePrefixed(Encoding.UTF8.GetBytes(fileName.Replace('\\', '/'))
+                .Prepend(Packets.ActionGetFileType)
+                .ToArray());
             var result = link.ReadFullPrefixed(Timeout)[0];
             _pool.Return(link);
             return result;
@@ -70,7 +76,9 @@ namespace Kurome
         public byte CreateDirectory(string fileName)
         {
             var link = _pool.Get();
-            link.WritePrefixed(Packets.ActionWriteDirectory, fileName.Replace('\\', '/'));
+            link.WritePrefixed(Encoding.UTF8.GetBytes(fileName.Replace('\\', '/'))
+                .Prepend(Packets.ActionWriteDirectory)
+                .ToArray());
             var result = link.ReadFullPrefixed(Timeout)[0];
             _pool.Return(link);
             return result;
@@ -79,7 +87,9 @@ namespace Kurome
         public byte Delete(string fileName)
         {
             var link = _pool.Get();
-            link.WritePrefixed(Packets.ActionDelete, fileName.Replace('\\', '/'));
+            link.WritePrefixed(Encoding.UTF8.GetBytes(fileName.Replace('\\', '/'))
+                .Prepend(Packets.ActionDelete)
+                .ToArray());
             var result = link.ReadFullPrefixed(Timeout)[0];
             _pool.Return(link);
             return result;
@@ -88,17 +98,31 @@ namespace Kurome
         public int ReceiveFileBuffer(ref byte[] buffer, string fileName, long offset, int bytesToRead, long fileSize)
         {
             var link = _pool.Get();
-            link.WritePrefixed(Packets.ActionSendToServer,
-                fileName.Replace('\\', '/') + ':' + offset + ':' + bytesToRead);
+            link.WritePrefixed(Encoding.UTF8.GetBytes(fileName.Replace('\\', '/') + ':' + offset + ':' + bytesToRead)
+                .Prepend(Packets.ActionSendToServer)
+                .ToArray());
             link.ReadFullPrefixed(Timeout).CopyTo(buffer, 0);
             _pool.Return(link);
             return bytesToRead;
         }
 
-        public FileNode GetFileInfo(string filename)
+        public int WriteFileBuffer(byte[] buffer, string fileName, long offset)
         {
             var link = _pool.Get();
-            link.WritePrefixed(Packets.ActionGetFileInfo, filename.Replace('\\', '/'));
+            link.WritePrefixed(Encoding.UTF8.GetBytes(fileName.Replace('\\', '/') + ':' + offset + ':' + buffer)
+                .Prepend(Packets.ActionWriteFileBuffer)
+                .ToArray());
+            var result = link.ReadFullPrefixed(Timeout)[0];
+            _pool.Return(link);
+            return result;
+        }
+
+        public FileNode GetFileInfo(string fileName)
+        {
+            var link = _pool.Get();
+            link.WritePrefixed(Encoding.UTF8.GetBytes(fileName.Replace('\\', '/'))
+                .Prepend(Packets.ActionGetFileInfo)
+                .ToArray());
             var result = JsonSerializer.Deserialize<FileNode>(link.BufferToString(link.ReadFullPrefixed(Timeout)));
             _pool.Return(link);
             return result;

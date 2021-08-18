@@ -17,10 +17,13 @@ namespace Kurome
         {
             _client = client;
         }
-        public void WritePrefixed(byte action, string message)
+        public void WritePrefixed(byte[] buffer)
         {
-            _client.GetStream().Write(BitConverter.GetBytes(message.Length + 1)
-                    .Concat(Encoding.UTF8.GetBytes(message).Prepend(action)).ToArray());
+            _client.GetStream().Write(BitConverter.GetBytes(buffer.Length).Concat(buffer).ToArray());
+        }
+        public void WritePrefixed(byte buffer)
+        {
+            _client.GetStream().Write(BitConverter.GetBytes(1).Append(buffer).ToArray());
         }
         public byte[] ReadFullPrefixed(int timeout)
         {

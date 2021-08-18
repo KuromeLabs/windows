@@ -11,7 +11,7 @@ namespace Kurome
             {
                 var listener = TcpListener.Create(33588);
                 listener.Start();
-                controlLink.WritePrefixed(Packets.ActionCreateNewLink, "");
+                controlLink.WritePrefixed(Packets.ActionCreateNewLink);
                 var client = listener.AcceptTcpClient();
                 listener.Stop();
                 return new Link(client);
