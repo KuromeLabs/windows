@@ -102,14 +102,11 @@ namespace Kurome
 
         public NtStatus ReadFile(string fileName, byte[] buffer, out int bytesRead, long offset, IDokanFileInfo info)
         {
-            lock (_lock)
-            {
-                info.Context ??= _device.GetFileInfo(fileName);
-                var size = (info.Context as FileNode)!.Size;
-                var bytesToRead = (offset + buffer.Length) > size ? (size - offset) : buffer.Length;
-                bytesRead = _device.ReceiveFileBuffer(ref buffer, fileName, offset, (int)bytesToRead, size);
-                return DokanResult.Success;
-            }
+            info.Context ??= _device.GetFileInfo(fileName);
+            var size = (info.Context as FileNode)!.Size;
+            var bytesToRead = (offset + buffer.Length) > size ? (size - offset) : buffer.Length;
+            bytesRead = _device.ReceiveFileBuffer(ref buffer, fileName, offset, (int)bytesToRead, size);
+            return DokanResult.Success;
         }
 
         public NtStatus WriteFile(string fileName, byte[] buffer, out int bytesWritten, long offset,
