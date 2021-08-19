@@ -112,7 +112,9 @@ namespace Kurome
         public NtStatus WriteFile(string fileName, byte[] buffer, out int bytesWritten, long offset,
             IDokanFileInfo info)
         {
-            throw new NotImplementedException();
+            _device.WriteFileBuffer(buffer, fileName, offset);
+            bytesWritten = buffer.Length;
+            return DokanResult.Success;
         }
 
         public NtStatus FlushFileBuffers(string fileName, IDokanFileInfo info)

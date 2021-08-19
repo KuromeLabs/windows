@@ -106,10 +106,11 @@ namespace Kurome
             return bytesToRead;
         }
 
-        public int WriteFileBuffer(byte[] buffer, string fileName, long offset)
+        public byte WriteFileBuffer(byte[] buffer, string fileName, long offset)
         {
             var link = _pool.Get();
-            link.WritePrefixed(Encoding.UTF8.GetBytes(fileName.Replace('\\', '/') + ':' + offset + ':' + buffer)
+            link.WritePrefixed(Encoding.UTF8.GetBytes(fileName.Replace('\\', '/') + ':' + offset + ':')
+                .Concat(buffer)
                 .Prepend(Packets.ActionWriteFileBuffer)
                 .ToArray());
             var result = link.ReadFullPrefixed(Timeout)[0];

@@ -16,5 +16,6 @@ namespace Kurome
         public const byte ActionGetDeviceName = 12;
         public const byte ActionGetDeviceId = 13;
         public const byte ActionCreateNewLink = 14;
+        public const byte ActionWriteFileBuffer = 15;
     }
 }
