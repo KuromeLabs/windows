@@ -18,5 +18,6 @@ namespace Kurome
         public const byte ActionCreateNewLink = 14;
         public const byte ActionWriteFileBuffer = 15;
         public const byte ActionRename = 16;
+        public const byte ActionSetLength = 17;
     }
 }

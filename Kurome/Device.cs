@@ -128,6 +128,17 @@ namespace Kurome
             return result;
         }
 
+        public byte SetLength(string fileName, long length)
+        {
+            var link = _pool.Get();
+            link.WritePrefixed(Encoding.UTF8.GetBytes(fileName.Replace('\\', '/') + ':' + length)
+                .Prepend(Packets.ActionSetLength)
+                .ToArray());
+            var result = link.ReadFullPrefixed(Timeout)[0];
+            _pool.Return(link);
+            return result;
+        }
+
         public FileNode GetFileInfo(string fileName)
         {
             var link = _pool.Get();

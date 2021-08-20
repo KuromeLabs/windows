@@ -210,12 +210,14 @@ namespace Kurome
 
         public NtStatus SetEndOfFile(string fileName, long length, IDokanFileInfo info)
         {
-            throw new NotImplementedException();
+            _device.SetLength(fileName, length);
+            return DokanResult.Success;
         }
 
         public NtStatus SetAllocationSize(string fileName, long length, IDokanFileInfo info)
         {
-            throw new NotImplementedException();
+            _device.SetLength(fileName, length);
+            return DokanResult.Success;
         }
 
         public NtStatus LockFile(string fileName, long offset, long length, IDokanFileInfo info)
