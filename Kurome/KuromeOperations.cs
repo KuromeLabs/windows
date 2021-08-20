@@ -11,12 +11,6 @@ namespace Kurome
 {
     public class KuromeOperations : IDokanOperations
     {
-        private class StreamContext
-        {
-            public NetworkStream stream { get; set; }
-            public FileNode node { get; set; }
-        }
-
         private readonly Device _device;
         private const long KiB = 1024;
         private const long MiB = 1024 * KiB;
@@ -40,7 +34,7 @@ namespace Kurome
         {
             var fileType = _device.GetFileType(fileName);
             var fileExists = fileType != Packets.ResultFileNotFound;
-            var isDirectory = fileExists && fileType == Packets.ResultFileIsDirectory;
+            var isDirectory = fileType == Packets.ResultFileIsDirectory;
             if (info.IsDirectory)
             {
                 switch (mode)
@@ -197,7 +191,21 @@ namespace Kurome
 
         public NtStatus MoveFile(string oldName, string newName, bool replace, IDokanFileInfo info)
         {
-            throw new NotImplementedException();
+            var fileType = _device.GetFileType(newName);
+            var fileExists = fileType != Packets.ResultFileNotFound;
+            if (!fileExists)
+            {
+                _device.Rename(oldName, newName);
+                return DokanResult.Success;
+            } else if (replace)
+            {
+                if (info.IsDirectory) return DokanResult.AccessDenied;
+                _device.Delete(newName);
+                _device.Rename(oldName, newName);
+                return DokanResult.Success;
+            }
+
+            return DokanResult.FileExists;
         }
 
         public NtStatus SetEndOfFile(string fileName, long length, IDokanFileInfo info)
