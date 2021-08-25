@@ -13,6 +13,7 @@ namespace Kurome
     public sealed class LinkProvider
     {
         private static readonly Lazy<LinkProvider> Lazy = new(() => new LinkProvider());    
+        private readonly TcpListener _controlListener = TcpListener.Create(33587);
         public static LinkProvider Instance => Lazy.Value;
         private readonly object _lock = new();
         private readonly string UdpSubnet = "235.132.20.12";
@@ -41,6 +42,16 @@ namespace Kurome
                 CastUdpInfo(address, ipEndPoint);
                 await Task.Delay(interval, token);
             }
+        }
+
+        public void StartListening()
+        {
+            _controlListener.Start();
+        }
+
+        public async Task<Link> GetIncomingLink()
+        {
+            return new Link(await _controlListener.AcceptTcpClientAsync());
         }
 
         private async void CastUdpInfo(IPAddress address, IPEndPoint endpoint)
