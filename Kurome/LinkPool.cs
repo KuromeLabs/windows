@@ -6,11 +6,11 @@ namespace Kurome
     public class LinkPool
     {
         private int _numOfLinks = 0;
+        private readonly LinkProvider _linkProvider = LinkProvider.Instance;
         public LinkPool(Device device)
         {
             _remoteDevice = device;
         }
-        private LinkProvider _linkProvider = new();
         private ConcurrentQueue<Link> _linkQueue = new();
         private Device _remoteDevice;
 

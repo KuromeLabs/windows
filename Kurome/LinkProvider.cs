@@ -1,9 +1,12 @@
+using System;
 using System.Net.Sockets;
 
 namespace Kurome
 {
-    public class LinkProvider
+    public sealed class LinkProvider
     {
+        private static readonly Lazy<LinkProvider> Lazy = new(() => new LinkProvider());    
+        public static LinkProvider Instance => Lazy.Value;
         private readonly object _lock = new();
         public Link CreateLink(Link controlLink)
         {
