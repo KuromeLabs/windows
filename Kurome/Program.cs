@@ -17,11 +17,8 @@ namespace Kurome
 
         static void Main(string[] args)
         {
-            KuromeUdpServer udpServer = new KuromeUdpServer();
-            udpServer.PeriodicCastUdpInfo(TimeSpan.FromSeconds(5), CancellationToken.None);
-            // var address = IPAddress.Parse(UDP_SUBNET);
-            // var ipEndPoint = new IPEndPoint(address, PORT);
-            // CastUdpInfo(address, ipEndPoint, GetLocalIpAddress());
+            var linkProvider = LinkProvider.Instance;
+            linkProvider.StartCasting(TimeSpan.FromSeconds(1), CancellationToken.None);
             KuromeTcpServer tcpServer = new KuromeTcpServer();
             tcpServer.StartServer();
             Console.Read();
