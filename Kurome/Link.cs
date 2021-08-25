@@ -46,19 +46,20 @@ namespace Kurome
                 bytesRead += readTask;
             }
 
-            return buffer;
+            if (buffer[0] != 0x1f || buffer[1] != 0x8b)
+                return buffer;
+            else
+                return Decompress(buffer);
         }
         
         public string BufferToString(byte[] array)
         {
-            if (array[0] != 0x1f || array[1] != 0x8b)
-                return Encoding.UTF8.GetString(array, 0, array.Length);
-            var decompressed = Decompress(array);
-            return Encoding.UTF8.GetString(decompressed, 0, decompressed.Length);
+            return Encoding.UTF8.GetString(array, 0, array.Length);
         }
 
         private byte[] Decompress(byte[] compressedData)
         {
+            Console.WriteLine("Decompressing. Compressed size: " + compressedData.Length);
             var outputStream = new MemoryStream();
             using var compressedStream = new MemoryStream(compressedData);
             using var sr = new GZipStream(compressedStream, CompressionMode.Decompress);
