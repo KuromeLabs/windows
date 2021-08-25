@@ -98,6 +98,11 @@ namespace Kurome
         {
             info.Context ??= _device.GetFileInfo(fileName);
             var size = (info.Context as FileNode)!.Size;
+            if (offset >= size)
+            {
+                bytesRead = 0;
+                return DokanResult.Success;
+            }
             var bytesToRead = (offset + buffer.Length) > size ? (size - offset) : buffer.Length;
             bytesRead = _device.ReceiveFileBuffer(ref buffer, fileName, offset, (int)bytesToRead, size);
             return DokanResult.Success;
