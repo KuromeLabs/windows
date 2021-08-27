@@ -1,6 +1,7 @@
 ﻿using System;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using DokanNet;
@@ -16,7 +17,7 @@ namespace Kurome
         {
             linkProvider.StartListening();
             HandleLink(CancellationToken.None);
-            Console.WriteLine("TCP Listening started");
+            Console.WriteLine("TCP Listening started.");
             linkProvider.StartCasting(TimeSpan.FromSeconds(1), CancellationToken.None);
             Console.WriteLine("UDP casting started.");
             Console.Read();
@@ -28,7 +29,12 @@ namespace Kurome
             while (!token.IsCancellationRequested)
             {
                 var controlLink = await linkProvider.GetIncomingLink();
-                if (controlLink.ReadFullPrefixed(5)[0] == Packets.ActionConnect)
+                var result = controlLink.ReadFullPrefixed(5);
+                var packet = result[0];
+                var identity = Encoding.UTF8.GetString(result)[1..];
+                var name = identity.Split(':')[0];
+                var id = identity.Split(':')[1];
+                if (packet == Packets.ActionConnect)
                 {
                     Console.WriteLine("Device has connected.");
                     numOfConnectedClients++;
@@ -36,14 +42,18 @@ namespace Kurome
                         .Except(DriveInfo.GetDrives().Select(s => s.Name.Replace("\\", ""))).ToList();
                     var letter = list[numOfConnectedClients - 1][0];
                     var device = new Device(controlLink, letter);
+                    device.Name = name;
+                    device.Id = id;
                     var rfs = new KuromeOperations(device);
                     controlLink.WritePrefixed(Packets.ResultActionSuccess);
                     _ = Task.Run(() => rfs.Mount(letter + ":\\",
                         DokanOptions.FixedDrive |
                         DokanOptions.EnableFCBGC |
                         DokanOptions.MountManager, 8, new NullLogger()), token);
-                    Console.WriteLine("Device {0}:{1} has been mounted on {2}:\\ ", device.GetDeviceName(),
-                        device.GetDeviceId(), letter);
+                    Console.WriteLine("Device {0} has been mounted on {1}:\\ ", identity, letter);
+                } else if (packet == Packets.ActionPair)
+                {
+                    
                 }
             }
         }

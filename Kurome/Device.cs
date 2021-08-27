@@ -9,8 +9,8 @@ namespace Kurome
     {
         public Link ControlLink { get; }
         private readonly char _driveLetter;
-        private string Name { get; set; }
-        private string Id { get; set; }
+        public string Name { get; set; }
+        public string Id { get; set; }
         private const int Timeout = 10;
         private readonly LinkPool _pool;
 
@@ -21,25 +21,25 @@ namespace Kurome
             _pool = new LinkPool(this);
         }
 
-        public string GetDeviceName()
-        {
-            if (Name != null) return Name;
-            var link = _pool.Get();
-            link.WritePrefixed(Packets.ActionGetDeviceName);
-            Name = link.BufferToString(link.ReadFullPrefixed(Timeout));
-            _pool.Return(link);
-            return Name;
-        }
-
-        public string GetDeviceId()
-        {
-            if (Id != null) return Id;
-            var link = _pool.Get();
-            link.WritePrefixed(Packets.ActionGetDeviceId);
-            Id = link.BufferToString(link.ReadFullPrefixed(Timeout));
-            _pool.Return(link);
-            return Id;
-        }
+        // public string GetDeviceName()
+        // {
+        //     if (Name != null) return Name;
+        //     var link = _pool.Get();
+        //     link.WritePrefixed(Packets.ActionGetDeviceName);
+        //     Name = link.BufferToString(link.ReadFullPrefixed(Timeout));
+        //     _pool.Return(link);
+        //     return Name;
+        // }
+        //
+        // public string GetDeviceId()
+        // {
+        //     if (Id != null) return Id;
+        //     var link = _pool.Get();
+        //     link.WritePrefixed(Packets.ActionGetDeviceId);
+        //     Id = link.BufferToString(link.ReadFullPrefixed(Timeout));
+        //     _pool.Return(link);
+        //     return Id;
+        // }
 
         public string GetSpace()
         {
