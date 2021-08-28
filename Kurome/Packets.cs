@@ -20,5 +20,6 @@ namespace Kurome
         public const byte ActionRename = 16;
         public const byte ActionSetLength = 17;
         public const byte ActionConnect = 18;
+        public const byte ActionPair = 19;
     }
 }
