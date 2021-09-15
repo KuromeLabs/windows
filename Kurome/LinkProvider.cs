@@ -12,13 +12,15 @@ namespace Kurome
 {
     public sealed class LinkProvider
     {
-        private static readonly Lazy<LinkProvider> Lazy = new(() => new LinkProvider());    
+        private static readonly Lazy<LinkProvider> Lazy = new(() => new LinkProvider());
         private readonly TcpListener _controlListener = TcpListener.Create(33587);
         public static LinkProvider Instance => Lazy.Value;
         private readonly object _lock = new();
         private readonly string UdpSubnet = "235.132.20.12";
         private readonly int Port = 33586;
         private string _id;
+        private IEnumerable<string> localIpAddresses = Array.Empty<string>();
+
         public Link CreateLink(Link controlLink)
         {
             lock (_lock)
@@ -31,12 +33,21 @@ namespace Kurome
                 return new Link(client);
             }
         }
-        
+
         public async void StartCasting(TimeSpan interval, CancellationToken token)
         {
             var address = IPAddress.Parse(UdpSubnet);
             var ipEndPoint = new IPEndPoint(address, Port);
             _id = IdentityProvider.GetGuid();
+            using var udpClient = new UdpClient(AddressFamily.InterNetwork);
+            _ = Task.Run(() =>
+            {
+                while (!token.IsCancellationRequested)
+                {
+                    localIpAddresses = GetLocalIpAddress();
+                    Task.Delay(TimeSpan.FromSeconds(10), token);
+                }
+            }, token);
             while (!token.IsCancellationRequested)
             {
                 CastUdpInfo(address, ipEndPoint);
@@ -56,7 +67,6 @@ namespace Kurome
 
         private async void CastUdpInfo(IPAddress address, IPEndPoint endpoint)
         {
-            var localIpAddresses = GetLocalIpAddress();
             foreach (var interfaceIp in localIpAddresses)
             {
                 var message = "kurome:" + interfaceIp + ":" + IdentityProvider.GetMachineName() + ":" + _id;
