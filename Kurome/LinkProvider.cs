@@ -40,12 +40,12 @@ namespace Kurome
             var ipEndPoint = new IPEndPoint(address, Port);
             _id = IdentityProvider.GetGuid();
             using var udpClient = new UdpClient(AddressFamily.InterNetwork);
-            _ = Task.Run(() =>
+            _ = Task.Run(async () =>
             {
                 while (!token.IsCancellationRequested)
                 {
                     localIpAddresses = GetLocalIpAddress();
-                    Task.Delay(TimeSpan.FromSeconds(10), token);
+                    await Task.Delay(TimeSpan.FromSeconds(10), token);
                 }
             }, token);
             while (!token.IsCancellationRequested)
