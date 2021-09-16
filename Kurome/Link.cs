@@ -12,20 +12,42 @@ namespace Kurome
     {
         private readonly TcpClient _client;
         public bool IsDisposed = false;
+        private byte[] _writeBuffer = new byte[16384];
+        private byte[] _readBuffer = new byte[16384];
 
         public Link(TcpClient client)
         {
             _client = client;
         }
+
+        public void WritePrefixedFileBuffer(byte[] buffer, string fileName, long offset)
+        {
+            var fileNameOffsetBytes = Encoding.UTF8.GetBytes($"{fileName.Replace('\\', '/')}:{offset.ToString()}:");
+            var size = buffer.Length + fileNameOffsetBytes.Length + 1;
+            var sizeBytes = BitConverter.GetBytes(size);
+            if (buffer.Length + fileNameOffsetBytes.Length + 5 > _writeBuffer.Length)
+                Array.Resize(ref _writeBuffer, buffer.Length + fileNameOffsetBytes.Length + 5);
+            Buffer.BlockCopy(sizeBytes, 0, _writeBuffer, 0, 4);
+            _writeBuffer[4] = Packets.ActionWriteFileBuffer;
+            Buffer.BlockCopy(fileNameOffsetBytes, 0, _writeBuffer, 5, fileNameOffsetBytes.Length);
+            Buffer.BlockCopy(buffer, 0, _writeBuffer, 5 + fileNameOffsetBytes.Length, buffer.Length);
+            _client.GetStream().Write(_writeBuffer, 0, size + 4);
+        }
         public void WritePrefixed(byte[] buffer)
         {
-            _client.GetStream().Write(BitConverter.GetBytes(buffer.Length).Concat(buffer).ToArray());
+            WriteToLinkBuffer(ref buffer);
+            _client.GetStream().Write(_writeBuffer, 0, buffer.Length + 4);
         }
         public void WritePrefixed(byte buffer)
         {
             _client.GetStream().Write(BitConverter.GetBytes(1).Append(buffer).ToArray());
         }
+
         public byte[] ReadFullPrefixed(int timeout)
+        {
+            return ReadFullPrefixed(timeout, out _);
+        }
+        public byte[] ReadFullPrefixed(int timeout, out int size)
         {
             var sizeBuffer = new byte[4];
             var readPrefixTask = Task.Run(() =>
@@ -37,24 +59,25 @@ namespace Kurome
             Task.WaitAny(readPrefixTask, Task.Delay(TimeSpan.FromSeconds(timeout)));
             if (!readPrefixTask.IsCompleted)
                 throw new TimeoutException();
-            var size = BitConverter.ToInt32(sizeBuffer);
+            size = BitConverter.ToInt32(sizeBuffer);
             var bytesRead = 0;
-            var buffer = new byte[size];
+            if (_readBuffer.Length < size)
+                Array.Resize(ref _readBuffer, size + 4);
             while (bytesRead != size)
             {
-                var readTask = _client.GetStream().Read(buffer, 0 + bytesRead, buffer.Length - bytesRead);
+                var readTask = _client.GetStream().Read(_readBuffer, 0 + bytesRead, size - bytesRead);
                 bytesRead += readTask;
             }
 
-            if (buffer[0] != 0x1f || buffer[1] != 0x8b)
-                return buffer;
+            if (_readBuffer[0] != 0x1f || _readBuffer[1] != 0x8b)
+                return _readBuffer;
             else
-                return Decompress(buffer);
+                return Decompress(_readBuffer);
         }
         
-        public string BufferToString(byte[] array)
+        public string BufferToString(byte[] array, int size)
         {
-            return Encoding.UTF8.GetString(array, 0, array.Length);
+            return Encoding.UTF8.GetString(array, 0, size);
         }
 
         private byte[] Decompress(byte[] compressedData)
@@ -66,6 +89,15 @@ namespace Kurome
             sr.CopyTo(outputStream);
             outputStream.Position = 0;
             return outputStream.ToArray();
+        }
+
+        private void WriteToLinkBuffer(ref byte[] buffer)
+        {
+            if (buffer.Length + 4 > _writeBuffer.Length)
+                Array.Resize(ref _writeBuffer, buffer.Length + 4);
+            var sizeBytes = BitConverter.GetBytes(buffer.Length);
+            Buffer.BlockCopy(sizeBytes, 0, _writeBuffer, 0, 4);
+            Buffer.BlockCopy(buffer, 0, _writeBuffer, 4, buffer.Length);
         }
 
         public void Dispose()
