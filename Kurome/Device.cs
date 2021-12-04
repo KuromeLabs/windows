@@ -117,6 +117,18 @@ namespace Kurome
             _pool.Return(link);
             return result;
         }
+        
+        public byte SetFileTime(string fileName, long? creationTime, long? lastAccessTime, long? lastModifiedTime)
+        {
+            var link = _pool.Get();
+            link.WritePrefixed(Encoding.UTF8.GetBytes(
+                    $"{fileName.Replace('\\', '/')}:{creationTime.ToString()}:{lastAccessTime.ToString()}:{lastModifiedTime.ToString()}")
+                .Prepend(Packets.ActionSetFileTime)
+                .ToArray());
+            var result = link.ReadFullPrefixed(Timeout)[0];
+            _pool.Return(link);
+            return result;
+        }
 
         public FileNode GetFileInfo(string fileName)
         {

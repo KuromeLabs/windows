@@ -171,7 +171,11 @@ namespace Kurome
             DateTime? lastWriteTime,
             IDokanFileInfo info)
         {
-            throw new NotImplementedException();
+            var cTime = creationTime?.ToFileTimeUtc();
+            var laTime = lastAccessTime?.ToFileTimeUtc();
+            var lwTime = lastWriteTime?.ToFileTimeUtc();
+            _device.SetFileTime(fileName, cTime, laTime, lwTime);
+            return DokanResult.Success;
         }
 
         public NtStatus DeleteFile(string fileName, IDokanFileInfo info)
