@@ -11,27 +11,25 @@ namespace Kurome
         {
             _remoteDevice = device;
         }
-        private ConcurrentQueue<Link> _linkQueue = new();
+        private ConcurrentBag<Link> _linkBag = new();
         private Device _remoteDevice;
 
         public Link Get()
         {
-            if (_linkQueue.TryDequeue(out var client))
+            if (_linkBag.TryTake(out var link))
             {
-                Console.WriteLine($"LinkPool is returning an existing Link. Total: {_numOfLinks}");
-                return client;
+                return link;
             }
             else
             {
                 _numOfLinks++;
-                Console.WriteLine($"LinkPool is creating a new Link. Total: {_numOfLinks}");
                 return _linkProvider.CreateLink(_remoteDevice.ControlLink);
             }
         }
 
         public void Return(Link link)
         {
-            _linkQueue.Enqueue(link);
+            _linkBag.Add(link);
         }
     }
 }
