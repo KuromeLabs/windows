@@ -22,5 +22,7 @@ namespace Kurome
         public const byte ActionConnect = 18;
         public const byte ActionPair = 19;
         public const byte ActionSetFileTime = 20;
+        public const byte ResultPathNotFound = 21;
+        public const byte ActionCreateEmptyFile = 22;
     }
 }

@@ -140,5 +140,16 @@ namespace Kurome
             _pool.Return(link);
             return result;
         }
+
+        public byte CreateEmptyFile(string fileName)
+        {
+            var link = _pool.Get();
+            link.WritePrefixed(Encoding.UTF8.GetBytes(fileName.Replace('\\', '/'))
+                .Prepend(Packets.ActionCreateEmptyFile)
+                .ToArray());
+            var result = link.ReadFullPrefixed(Timeout)[0];
+            _pool.Return(link);
+            return result;
+        }
     }
 }
