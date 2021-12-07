@@ -16,7 +16,6 @@ namespace Kurome
         private const long MiB = 1024 * KiB;
         private const long GiB = 1024 * MiB;
         private const long TiB = 1024 * GiB;
-        private readonly object _lock = new();
 
         public KuromeOperations(Device device)
         {
@@ -33,19 +32,22 @@ namespace Kurome
             IDokanFileInfo info)
         {
             var fileType = _device.GetFileType(fileName);
-            var fileExists = fileType != Packets.ResultFileNotFound;
-            var isDirectory = fileType == Packets.ResultFileIsDirectory;
+            var pathExists = fileType is Packets.ResultFileIsFile or Packets.ResultFileIsDirectory;
             if (info.IsDirectory)
             {
                 switch (mode)
                 {
                     case FileMode.Open:
-                        if (!isDirectory)
+                        if (!pathExists)
+                            return DokanResult.FileNotFound;
+                        else if (fileType == Packets.ResultFileIsFile)
                             return DokanResult.NotADirectory;
                         break;
+
                     case FileMode.CreateNew:
-                        if (fileExists)
+                        if (pathExists)
                             return DokanResult.FileExists;
+                        Console.WriteLine("Called CreateDirectory");
                         _device.CreateDirectory(fileName);
                         break;
                 }
@@ -55,9 +57,9 @@ namespace Kurome
                 switch (mode)
                 {
                     case FileMode.Open:
-                        if (fileExists)
+                        if (fileType != Packets.ResultFileNotFound && fileType != Packets.ResultPathNotFound)
                         {
-                            if (isDirectory)
+                            if (fileType == Packets.ResultFileIsDirectory)
                             {
                                 info.IsDirectory = true;
                                 info.Context = new object();
@@ -69,11 +71,19 @@ namespace Kurome
 
                         break;
                     case FileMode.CreateNew:
-                        if (fileExists)
+                        if (fileType == Packets.ResultFileIsFile)
                             return DokanResult.FileExists;
+                        else if (fileType == Packets.ResultPathNotFound)
+                            return DokanResult.PathNotFound;
+                        break;
+                    case FileMode.Create:
+                        if (fileType == Packets.ResultPathNotFound)
+                            return DokanResult.PathNotFound;
+                        if (pathExists)
+                            return DokanResult.AlreadyExists;
                         break;
                     case FileMode.Truncate:
-                        if (!fileExists)
+                        if (!pathExists)
                             return DokanResult.FileNotFound;
                         break;
                 }
