@@ -143,9 +143,9 @@ namespace Kurome
             {
                 FileName = fileNode.FileName,
                 Attributes = fileNode.IsDirectory ? FileAttributes.Directory : FileAttributes.Normal,
-                LastAccessTime = DateTime.Now,
-                LastWriteTime = null,
-                CreationTime = null,
+                LastAccessTime = DateTimeOffset.FromUnixTimeMilliseconds(fileNode.LastAccessTime).LocalDateTime,
+                LastWriteTime = DateTimeOffset.FromUnixTimeMilliseconds(fileNode.LastWriteTime).LocalDateTime,
+                CreationTime = DateTimeOffset.FromUnixTimeMilliseconds(fileNode.CreationTime).LocalDateTime,
                 Length = fileNode.IsDirectory ? 0 : fileNode.Size
             };
             return DokanResult.Success;
@@ -161,9 +161,9 @@ namespace Kurome
                 {
                     FileName = fileNode.FileName,
                     Attributes = fileNode.IsDirectory ? FileAttributes.Directory : FileAttributes.Normal,
-                    LastAccessTime = DateTime.Now,
-                    LastWriteTime = null,
-                    CreationTime = null,
+                    LastAccessTime = DateTimeOffset.FromUnixTimeMilliseconds(fileNode.LastAccessTime).LocalDateTime,
+                    LastWriteTime = DateTimeOffset.FromUnixTimeMilliseconds(fileNode.LastWriteTime).LocalDateTime,
+                    CreationTime = DateTimeOffset.FromUnixTimeMilliseconds(fileNode.CreationTime).LocalDateTime,
                     Length = fileNode.IsDirectory ? 0 : fileNode.Size
                 })
                 .ToList();
