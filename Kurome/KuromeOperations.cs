@@ -83,6 +83,10 @@ namespace Kurome
                         if (pathExists)
                             return DokanResult.AlreadyExists;
                         break;
+                    case FileMode.OpenOrCreate:
+                        if (pathExists)
+                            return DokanResult.AlreadyExists;
+                        break;
                     case FileMode.Truncate:
                         if (!pathExists)
                             return DokanResult.FileNotFound;
