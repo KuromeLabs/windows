@@ -86,6 +86,9 @@ namespace Kurome
                     case FileMode.OpenOrCreate:
                         if (pathExists)
                             return DokanResult.AlreadyExists;
+                        if (fileType == Packets.ResultPathNotFound)
+                            return DokanResult.PathNotFound;
+                        _device.CreateEmptyFile(fileName);
                         break;
                     case FileMode.Truncate:
                         if (!pathExists)
