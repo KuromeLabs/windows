@@ -15,6 +15,14 @@ namespace Kurome
 
         static async Task<int> Main(string[] args)
         {
+            var mutex = new Mutex(false, "Global\\kurome-mutex");
+            if (!mutex.WaitOne(0, false))
+            {
+                Console.Write("Kurome is already running.\nPress any key to exit...");
+                Console.ReadKey();
+                return 0;
+            }
+
             linkProvider.StartListening();
 
             Console.WriteLine("TCP Listening started.");
