@@ -7,8 +7,19 @@
     </PropertyGroup>
 
     <ItemGroup>
-      <PackageReference Include="DokanNet" Version="1.5.0" />
-      <PackageReference Include="System.Runtime.Caching" Version="5.0.0" />
+        <PackageReference Include="DokanNet" Version="1.5.0" />
+        <PackageReference Include="Nncase.FlatBuffers" Version="2.0.0" />
+        <PackageReference Include="System.Runtime.Caching" Version="5.0.0" />
     </ItemGroup>
 
+    <PropertyGroup>
+        <DefineConstants>$(DefineConstants);UNSAFE_BYTEBUFFER;BYTEBUFFER_NO_BOUNDS_CHECK;ENABLE_SPAN_T</DefineConstants>
+    </PropertyGroup>
+    <!--    run flatc before each build-->
+   
+    <Target Name="FlatBufferTarget" BeforeTargets="BeforeBuild">
+        <Message Importance="high" Text="Compiling FlatBuffers" />
+        <Exec Command="rmdir -r $(ProjectDir)generated &amp;&amp; mkdir $(ProjectDir)generated" />
+        <Exec Command="for %%f in ($(ProjectDir)fbs\*.fbs) do flatc -o $(ProjectDir)generated %%f --csharp " />
+    </Target>
 </Project>
