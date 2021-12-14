@@ -68,11 +68,7 @@ namespace Kurome
                 var readTask = _client.GetStream().Read(_readBuffer, 0 + bytesRead, size - bytesRead);
                 bytesRead += readTask;
             }
-
-            if (_readBuffer[0] != 0x1f || _readBuffer[1] != 0x8b)
-                return _readBuffer;
-            else
-                return Decompress(_readBuffer);
+            return _readBuffer;
         }
         
         public string BufferToString(byte[] array, int size)
@@ -80,16 +76,6 @@ namespace Kurome
             return Encoding.UTF8.GetString(array, 0, size);
         }
 
-        private byte[] Decompress(byte[] compressedData)
-        {
-            Console.WriteLine("Decompressing. Compressed size: " + compressedData.Length);
-            var outputStream = new MemoryStream();
-            using var compressedStream = new MemoryStream(compressedData);
-            using var sr = new GZipStream(compressedStream, CompressionMode.Decompress);
-            sr.CopyTo(outputStream);
-            outputStream.Position = 0;
-            return outputStream.ToArray();
-        }
 
         private void WriteToLinkBuffer(ref byte[] buffer)
         {
