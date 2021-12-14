@@ -1,0 +1,12 @@
+// Generated from file_node.proto
+
+namespace kurome;
+table FileNode {
+  filename:string;
+  is_directory:bool;
+  length:ulong;
+  creation_time:ulong;
+  last_access_time:ulong;
+  last_write_time:ulong;
+}
+

@@ -1,0 +1,50 @@
+// Generated from packet.proto
+
+include "file_node.fbs";
+
+namespace kurome;
+
+
+
+enum ActionType : int {
+  NO_ACTION = 0,
+  ACTION_GET_ENUMERATE_DIRECTORY = 1,
+  ACTION_GET_SPACE_INFO = 2,
+  ACTION_GET_FILETYPE = 3,
+  ACTION_WRITE_DIRECTORY = 4,
+  ACTION_DELETE = 5,
+  ACTION_SEND_TO_SERVER = 6,
+  ACTION_GET_FILE_INFO = 7,
+  ACTION_GET_DEVICE_NAME = 8,
+  ACTION_GET_DEVICE_ID = 9,
+  ACTION_CREATE_NEW_LINK = 10,
+  ACTION_WRITE_FILE_BUFFER = 11,
+  ACTION_RENAME = 12,
+  ACTION_SET_LENGTH = 13,
+  ACTION_CONNECT = 14,
+  ACTION_PAIR = 15,
+  ACTION_SET_FILE_TIME = 16,
+  ACTION_CREATE_EMPTY_FILE = 17,
+}
+
+enum ResultType : int {
+  NO_RESULT = 0,
+  RESULT_ACTION_SUCCESS = 1,
+  RESULT_FILE_IS_DIRECTORY = 2,
+  RESULT_FILE_IS_FILE = 3,
+  RESULT_FILE_NOTFOUND = 4,
+  RESULT_PATH_NOTFOUND = 5,
+}
+
+table Packet {
+  
+  path:string;
+  action:kurome.ActionType;
+  result:kurome.ResultType;
+  raw:[ubyte];
+  buffer_offset:ulong;
+  buffer_length:ulong;
+  nodes:[kurome.FileNode];
+ 
+  
+}
