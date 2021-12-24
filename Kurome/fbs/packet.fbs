@@ -1,5 +1,6 @@
 include "file_node.fbs";
 include "device_info.fbs";
+include "raw.fbs";
 
 namespace kurome;
 
@@ -32,6 +33,7 @@ enum ResultType : byte {
     ResultFileIsFile = 3,
     ResultFileNotFound = 4,
     ResultPathNotFound = 5,
+    ResultActionFail = 6
 }
 
 table Packet {
@@ -39,10 +41,6 @@ table Packet {
     action:kurome.ActionType;
     result:kurome.ResultType;
     device_info:kurome.DeviceInfo;
-    raw:[ubyte];
-    buffer_offset:ulong;
-    buffer_length:ulong;
+    file_buffer:kurome.Raw;
     nodes:[kurome.FileNode];
- 
-  
 }
