@@ -1,0 +1,7 @@
+namespace kurome;
+
+table Raw {
+    buffer:[byte];
+    offset:long;
+    length:long;
+}
