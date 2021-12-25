@@ -1,8 +1,6 @@
 using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Text.Json;
+using FlatBuffers;
+using kurome;
 
 namespace Kurome
 {
@@ -12,7 +10,6 @@ namespace Kurome
         private readonly char _driveLetter;
         public string Name { get; set; }
         public string Id { get; set; }
-        private const int Timeout = 10;
         private readonly LinkPool _pool;
 
         public Device(Link controlLink, char driveLetter)
@@ -21,135 +18,113 @@ namespace Kurome
             _driveLetter = driveLetter;
             _pool = new LinkPool(this);
         }
-        
 
-        public string GetSpace()
+        public DeviceInfo GetSpace()
         {
-            var link = _pool.Get();
-            link.WritePrefixed(Packets.ActionGetSpaceInfo);
-            var result = link.BufferToString(link.ReadFullPrefixed(Timeout, out var bytesRead), bytesRead);
-            _pool.Return(link);
-            return result;
+            var packet = ExchangePacket(action: ActionType.ActionGetSpaceInfo);
+            return packet.DeviceInfo!.Value;
         }
 
-        public IEnumerable<FileNode> GetFileNodes(string fileName)
+        public Packet GetFileNodes(string fileName)
         {
-            var link = _pool.Get();
-            link.WritePrefixed(Encoding.UTF8.GetBytes(fileName.Replace('\\', '/'))
-                .Prepend(Packets.ActonGetEnumerateDirectory)
-                .ToArray());
-            var result = JsonSerializer.Deserialize<IEnumerable<FileNode>>(
-                link.BufferToString(link.ReadFullPrefixed(Timeout, out var bytesRead), bytesRead));
-            _pool.Return(link);
-            return result;
+            var packet = ExchangePacket(fileName, ActionType.ActionGetDirectory);
+            return packet;
         }
 
-        public byte GetFileType(string fileName)
+        public ResultType GetFileType(string fileName)
         {
-            var link = _pool.Get();
-            link.WritePrefixed(Encoding.UTF8.GetBytes(fileName.Replace('\\', '/'))
-                .Prepend(Packets.ActionGetFileType)
-                .ToArray());
-            var result = link.ReadFullPrefixed(Timeout)[0];
-            _pool.Return(link);
-            return result;
+            var packet = ExchangePacket(fileName, ActionType.ActionGetFileType);
+            return packet.Result;
         }
 
         public byte CreateDirectory(string fileName)
         {
-            var link = _pool.Get();
-            link.WritePrefixed(Encoding.UTF8.GetBytes(fileName.Replace('\\', '/'))
-                .Prepend(Packets.ActionWriteDirectory)
-                .ToArray());
-            var result = link.ReadFullPrefixed(Timeout)[0];
-            _pool.Return(link);
-            return result;
+            var packet = ExchangePacket(fileName, ActionType.ActionCreateDirectory);
+            return (byte) packet.Result;
         }
 
         public byte Delete(string fileName)
         {
-            var link = _pool.Get();
-            link.WritePrefixed(Encoding.UTF8.GetBytes(fileName.Replace('\\', '/'))
-                .Prepend(Packets.ActionDelete)
-                .ToArray());
-            var result = link.ReadFullPrefixed(Timeout)[0];
-            _pool.Return(link);
-            return result;
+            var packet = ExchangePacket(fileName, ActionType.ActionDelete);
+            return (byte) packet.Result;
         }
 
         public int ReceiveFileBuffer(byte[] buffer, string fileName, long offset, int bytesToRead, long fileSize)
         {
-            var link = _pool.Get();
-            link.WritePrefixed(Encoding.UTF8.GetBytes(fileName.Replace('\\', '/') + ':' + offset + ':' + bytesToRead)
-                .Prepend(Packets.ActionSendToServer)
-                .ToArray());
-            Buffer.BlockCopy(link.ReadFullPrefixed(Timeout), 0, buffer, 0, bytesToRead);
-            _pool.Return(link);
+            var packet = ExchangePacket(fileName, ActionType.ActionReadFileBuffer, rawOffset: offset,
+                rawLength: bytesToRead);
+            var rSpan = new Span<byte>(buffer);
+            packet.FileBuffer?.GetDataBytes().CopyTo(rSpan);
             return bytesToRead;
         }
 
         public byte WriteFileBuffer(byte[] buffer, string fileName, long offset)
         {
-            var link = _pool.Get();
-            link.WritePrefixedFileBuffer(buffer, fileName, offset);
-            var result = link.ReadFullPrefixed(Timeout)[0];
-            _pool.Return(link);
-            return result;
+            var packet = ExchangePacket(fileName, ActionType.ActionWriteFileBuffer, rawOffset: offset,
+                rawBuffer: buffer);
+            Console.WriteLine("buffer size: " + buffer.Length);
+            return (byte) packet.Result;
         }
-        public byte Rename(string oldName, string newName){
-            var link = _pool.Get();
-            link.WritePrefixed(Encoding.UTF8.GetBytes(oldName.Replace('\\', '/') + ':' + 
-                                                      newName.Replace('\\', '/'))
-                .Prepend(Packets.ActionRename)
-                .ToArray());
-            var result = link.ReadFullPrefixed(Timeout)[0];
-            _pool.Return(link);
-            return result;
+
+        public byte Rename(string oldName, string newName)
+        {
+            var packet = ExchangePacket(oldName, ActionType.ActionRename, newName);
+            return (byte) packet.Result;
         }
 
         public byte SetLength(string fileName, long length)
         {
-            var link = _pool.Get();
-            link.WritePrefixed(Encoding.UTF8.GetBytes(fileName.Replace('\\', '/') + ':' + length)
-                .Prepend(Packets.ActionSetLength)
-                .ToArray());
-            var result = link.ReadFullPrefixed(Timeout)[0];
-            _pool.Return(link);
-            return result;
+            var packet = ExchangePacket(nodeName: fileName, action: ActionType.ActionSetFileTime, fileLength: length);
+            return (byte) packet.Result;
         }
-        
-        public byte SetFileTime(string fileName, long? creationTime, long? lastAccessTime, long? lastModifiedTime)
+
+        public byte SetFileTime(string fileName, long cTime, long laTime, long lwTime)
         {
-            var link = _pool.Get();
-            link.WritePrefixed(Encoding.UTF8.GetBytes(
-                    $"{fileName.Replace('\\', '/')}:{creationTime.ToString()}:{lastAccessTime.ToString()}:{lastModifiedTime.ToString()}")
-                .Prepend(Packets.ActionSetFileTime)
-                .ToArray());
-            var result = link.ReadFullPrefixed(Timeout)[0];
-            _pool.Return(link);
-            return result;
+            var packet = ExchangePacket(nodeName: fileName, action: ActionType.ActionSetFileTime,
+                cTime: cTime, laTime: laTime, lwTime: lwTime);
+            return (byte) packet.Result;
         }
 
         public FileNode GetFileInfo(string fileName)
         {
-            var link = _pool.Get();
-            link.WritePrefixed(Encoding.UTF8.GetBytes(fileName.Replace('\\', '/'))
-                .Prepend(Packets.ActionGetFileInfo)
-                .ToArray());
-            var result = JsonSerializer.Deserialize<FileNode>(link.BufferToString(link.ReadFullPrefixed(Timeout, out var size), size));
-            _pool.Return(link);
-            return result;
+            var packet = ExchangePacket(fileName, ActionType.ActionGetFileInfo);
+            var packetNode = packet.Nodes(0).GetValueOrDefault(new FileNode());
+            return packetNode;
         }
 
         public byte CreateEmptyFile(string fileName)
         {
+            var packet = ExchangePacket(fileName, ActionType.ActionCreateFile);
+            return (byte) packet.Result;
+        }
+
+        private Packet ExchangePacket(string filename = "", ActionType action = ActionType.NoAction,
+            string nodeName = "", long cTime = 0, long laTime = 0, long lwTime = 0,
+            bool fileIsDirectory = false, long fileLength = 0, long rawOffset = 0, byte[] rawBuffer = null,
+            long rawLength = 0)
+        {
+            filename = filename.Replace('\\', '/');
+            nodeName = nodeName.Replace('\\', '/');
             var link = _pool.Get();
-            link.WritePrefixed(Encoding.UTF8.GetBytes(fileName.Replace('\\', '/'))
-                .Prepend(Packets.ActionCreateEmptyFile)
-                .ToArray());
-            var result = link.ReadFullPrefixed(Timeout)[0];
+            var builder = link.BufferBuilder;
+            var byteVector = new VectorOffset(0);
+            if (rawBuffer != null) byteVector = Raw.CreateDataVector(builder, rawBuffer);
+            var raw = Raw.CreateRaw(builder, byteVector, rawOffset, rawLength);
+
+            var nodesOffset = new Offset<FileNode>[1];
+            var nodeNameOffset = builder.CreateString(nodeName);
+            nodesOffset[0] = FileNode.CreateFileNode(builder, nodeNameOffset, fileIsDirectory, fileLength, cTime,
+                laTime, lwTime);
+            var nodesVector = Packet.CreateNodesVector(builder, nodesOffset);
+
+            var path = builder.CreateString(filename);
+            var packet = Packet.CreatePacket(builder, path, action, default, default, raw, nodesVector);
+            builder.FinishSizePrefixed(packet.Value);
+            link.SendBuffer(builder.DataBuffer);
+            builder.Clear();
+            var res = link.GetPacket();
             _pool.Return(link);
-            return result;
+            return res;
         }
     }
 }
