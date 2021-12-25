@@ -1,7 +1,7 @@
 namespace kurome;
 
 table Raw {
-    buffer:[byte];
+    data:[ubyte];
     offset:long;
     length:long;
 }
