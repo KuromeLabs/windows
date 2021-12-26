@@ -194,10 +194,10 @@ namespace Kurome
             DateTime? lastWriteTime,
             IDokanFileInfo info)
         {
-            var cTime = creationTime?.ToFileTimeUtc();
-            var laTime = lastAccessTime?.ToFileTimeUtc();
-            var lwTime = lastWriteTime?.ToFileTimeUtc();
-            _device.SetFileTime(fileName, cTime ?? 0, laTime ?? 0, lwTime ?? 0);
+            var cTime = creationTime == null ? 0 : ((DateTimeOffset) creationTime).ToUnixTimeMilliseconds();
+            var laTime = lastAccessTime == null ? 0 : ((DateTimeOffset) lastAccessTime).ToUnixTimeMilliseconds();
+            var lwTime = lastWriteTime == null ? 0 : ((DateTimeOffset) lastWriteTime).ToUnixTimeMilliseconds();
+            _device.SetFileTime(fileName, cTime, laTime, lwTime);
             return DokanResult.Success;
         }
 
