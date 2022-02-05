@@ -158,31 +158,19 @@ namespace Kurome
 
         public NtStatus FindFiles(string fileName, out IList<FileInformation> files, IDokanFileInfo info)
         {
-            files = null;
-            var packet = _device.GetFileNodes(fileName);
-            files = new List<FileInformation>();
-            for (var i = 0; i < packet.NodesLength; i++)
-            {
-                var node = packet.Nodes(i)!.Value;
-                files.Add(new FileInformation
-                {
-                    FileName = node.Filename,
-                    Attributes = node.IsDirectory ? FileAttributes.Directory : FileAttributes.Normal,
-                    LastAccessTime = DateTimeOffset.FromUnixTimeMilliseconds(node.LastAccessTime).LocalDateTime,
-                    LastWriteTime = DateTimeOffset.FromUnixTimeMilliseconds(node.LastWriteTime).LocalDateTime,
-                    CreationTime = DateTimeOffset.FromUnixTimeMilliseconds(node.CreationTime).LocalDateTime,
-                    Length = node.Length
-                });
-            }
-
+            files = _device.GetFileNodes(fileName);
             return DokanResult.Success;
         }
 
         public NtStatus FindFilesWithPattern(string fileName, string searchPattern, out IList<FileInformation> files,
             IDokanFileInfo info)
         {
-            files = null;
-            return DokanResult.NotImplemented;
+            var nodes = _device.GetFileNodes(fileName);
+            files = new List<FileInformation>(nodes.Count);
+            foreach (var node in nodes.Where(node =>
+                         DokanHelper.DokanIsNameInExpression(searchPattern, node.FileName, true)))
+                files.Add(node);
+            return DokanResult.Success;
         }
 
         public NtStatus SetFileAttributes(string fileName, FileAttributes attributes, IDokanFileInfo info)
@@ -305,7 +293,7 @@ namespace Kurome
             return DokanResult.NotImplemented;
         }
 
-        public NtStatus Mounted(IDokanFileInfo info)
+        public NtStatus Mounted(string mountPoint, IDokanFileInfo info)
         {
             throw new NotImplementedException();
         }

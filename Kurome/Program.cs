@@ -55,11 +55,10 @@ namespace Kurome
                 device.Id = id;
                 var rfs = new KuromeOperations(device);
                 controlLink.WritePrefixed(Packets.ResultActionSuccess);
+                Dokan.Init();
                 _ = Task.Run(() => rfs.Mount(letter + ":\\",
-                    DokanOptions.FixedDrive |
-                    DokanOptions.EnableFCBGC |
-                    DokanOptions.MountManager, 8, new NullLogger()));
-                Console.WriteLine("Device {0} has been mounted on {1}:\\ ", identity, letter);
+                    DokanOptions.FixedDrive , false, new ConsoleLogger("[Kurome] ")));
+                Console.WriteLine("Device {0}:{1} has been mounted on {2}:\\ ", name, id, letter.ToString());
             }
             else if (packet == Packets.ActionPair)
             {

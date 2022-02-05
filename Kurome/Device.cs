@@ -1,4 +1,7 @@
 using System;
+using System.Collections.Generic;
+using System.IO;
+using DokanNet;
 using FlatBuffers;
 using kurome;
 
@@ -7,7 +10,7 @@ namespace Kurome
     public class Device
     {
         public Link ControlLink { get; }
-        private readonly char _driveLetter;
+        public readonly char _driveLetter;
         public string Name { get; set; }
         public string Id { get; set; }
         private readonly LinkPool _pool;
@@ -25,10 +28,24 @@ namespace Kurome
             return packet.DeviceInfo!.Value;
         }
 
-        public Packet GetFileNodes(string fileName)
+        public List<FileInformation> GetFileNodes(string fileName)
         {
             var packet = ExchangePacket(fileName, ActionType.ActionGetDirectory);
-            return packet;
+            var files = new List<FileInformation>();
+            for (var i = 0; i < packet.NodesLength; i++)
+            {
+                var node = packet.Nodes(i)!.Value;
+                files.Add(new FileInformation
+                {
+                    FileName = node.Filename,
+                    Attributes = node.IsDirectory ? FileAttributes.Directory : FileAttributes.Normal,
+                    LastAccessTime = DateTimeOffset.FromUnixTimeMilliseconds(node.LastAccessTime).LocalDateTime,
+                    LastWriteTime = DateTimeOffset.FromUnixTimeMilliseconds(node.LastWriteTime).LocalDateTime,
+                    CreationTime = DateTimeOffset.FromUnixTimeMilliseconds(node.CreationTime).LocalDateTime,
+                    Length = node.Length
+                });
+            }
+            return files;
         }
 
         public ResultType GetFileType(string fileName)
