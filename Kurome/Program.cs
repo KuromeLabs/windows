@@ -23,10 +23,16 @@ namespace Kurome
                 return 0;
             }
 
+            SslHelper.InitializeSsl();
+
             linkProvider.StartListening();
 
             Console.WriteLine("TCP Listening started.");
-            linkProvider.StartCasting(TimeSpan.FromSeconds(1), CancellationToken.None);
+            linkProvider.InitializeUdpListener();
+            var address = IPAddress.Parse("235.132.20.12");
+            var ipEndPoint = new IPEndPoint(address, 33586);
+            linkProvider.CastUdpInfo(address, ipEndPoint);
+            
             Console.WriteLine("UDP casting started.");
             while (true)
             {
@@ -54,7 +60,7 @@ namespace Kurome
                 device.Name = name;
                 device.Id = id;
                 var rfs = new KuromeOperations(device);
-                controlLink.WritePrefixed(Packets.ResultActionSuccess);
+                // controlLink.WritePrefixed(Packets.ResultActionSuccess);
                 Dokan.Init();
                 _ = Task.Run(() => rfs.Mount(letter + ":\\",
                     DokanOptions.FixedDrive , false, new ConsoleLogger("[Kurome] ")));
