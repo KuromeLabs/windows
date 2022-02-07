@@ -7,6 +7,8 @@ using System.Net.Sockets;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using FlatBuffers;
+using kurome;
 
 namespace Kurome
 {
@@ -19,6 +21,7 @@ namespace Kurome
         private readonly string UdpSubnet = "235.132.20.12";
         private readonly int Port = 33586;
         private string _id;
+        private FlatBufferBuilder _builder = new(1024);
 
         private IEnumerable<string> _localIpAddresses = Array.Empty<string>();
 
@@ -44,7 +47,11 @@ namespace Kurome
             {
                 var listener = TcpListener.Create(33588);
                 listener.Start();
-                controlLink.WritePrefixed(Packets.ActionCreateNewLink);
+                var packet = Packet.CreatePacket(_builder, action: ActionType.ActionCreateLink);
+                _builder.FinishSizePrefixed(packet.Value);
+                controlLink.SendBuffer(_builder.DataBuffer);
+                _builder.Clear();
+                // controlLink.WritePrefixed(Packets.ActionCreateNewLink);
                 var client = listener.AcceptTcpClient();
                 listener.Stop();
                 return new Link(client);

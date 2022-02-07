@@ -1,11 +1,13 @@
 ﻿using System;
 using System.IO;
 using System.Linq;
-using System.Text;
+using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
 using DokanNet;
 using DokanNet.Logging;
+using FlatBuffers;
+using kurome;
 
 namespace Kurome
 {
@@ -44,12 +46,12 @@ namespace Kurome
         static void HandleLink(CancellationToken token, Link controlLink)
         {
             var numOfConnectedClients = 0;
-            var result = controlLink.ReadFullPrefixed(5);
-            var packet = result[0];
-            var identity = Encoding.UTF8.GetString(result)[1..];
-            var name = identity.Split(':')[0];
-            var id = identity.Split(':')[1];
-            if (packet == Packets.ActionConnect)
+            var result = controlLink.GetPacket();
+            if (result.DeviceInfo == null) return;
+            var name = result.DeviceInfo.Value.Name;
+            var id = result.DeviceInfo.Value.Id;
+            Console.WriteLine("Device name: " + name + ", id: " + id);
+            if (result.Action == ActionType.ActionConnect)
             {
                 Console.WriteLine("Device has connected.");
                 numOfConnectedClients++;
@@ -66,7 +68,7 @@ namespace Kurome
                     DokanOptions.FixedDrive , false, new ConsoleLogger("[Kurome] ")));
                 Console.WriteLine("Device {0}:{1} has been mounted on {2}:\\ ", name, id, letter.ToString());
             }
-            else if (packet == Packets.ActionPair)
+            else if (result.Action == ActionType.ActionPair)
             {
                 Console.WriteLine("Device {0} wants to Pair. \nRemote ID: {1} \nThis PC's ID: {2}", name, id,
                     IdentityProvider.GetGuid());
@@ -80,7 +82,11 @@ namespace Kurome
 
                 if (input == 'y')
                 {
-                    controlLink.WritePrefixed(Packets.ResultActionSuccess);
+                    var builder = new FlatBufferBuilder(4);
+                    var packet = Packet.CreatePacket(builder, result: ResultType.ResultActionSuccess);
+                    builder.FinishSizePrefixed(packet.Value);
+                    controlLink.SendBuffer(builder.DataBuffer);
+                    builder.Clear();
                     Console.WriteLine("\nPairing accepted.");
                 }
             }

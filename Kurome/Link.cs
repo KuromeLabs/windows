@@ -27,12 +27,8 @@ namespace Kurome
             _stream.AuthenticateAsServer(_certificate, false, SslProtocols.None, true);
         }
 
-        public void WritePrefixed(byte buffer)
-        {
-            _stream.Write(BitConverter.GetBytes(1).Append(buffer).ToArray());
-        }
 
-        public byte[] ReadFullPrefixed(int timeout)
+        private void ReadFullPrefixed(int timeout)
         {
             var readPrefixTask = ReadPrefix();
             Task.WaitAny(readPrefixTask, Task.Delay(TimeSpan.FromSeconds(timeout)));
@@ -47,8 +43,6 @@ namespace Kurome
                 var readTask = _stream.Read(_readBuffer, 0 + bytesRead, size - bytesRead);
                 bytesRead += readTask;
             }
-
-            return _readBuffer;
         }
 
         private async Task ReadPrefix()
