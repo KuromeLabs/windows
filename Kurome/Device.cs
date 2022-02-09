@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Net.Sockets;
 using DokanNet;
 using FlatBuffers;
 using kurome;
@@ -9,17 +10,15 @@ namespace Kurome
 {
     public class Device
     {
-        public Link ControlLink { get; }
         public readonly char _driveLetter;
         public string Name { get; set; }
         public string Id { get; set; }
-        private readonly LinkPool _pool;
+        public Link Link;
 
-        public Device(Link controlLink, char driveLetter)
+        public Device(Link link, char driveLetter)
         {
-            ControlLink = controlLink;
+            Link = link;
             _driveLetter = driveLetter;
-            _pool = new LinkPool(this);
         }
 
         public DeviceInfo GetSpace()
@@ -120,28 +119,29 @@ namespace Kurome
             bool fileIsDirectory = false, long fileLength = 0, long rawOffset = 0, byte[] rawBuffer = null,
             long rawLength = 0)
         {
-            filename = filename.Replace('\\', '/');
-            nodeName = nodeName.Replace('\\', '/');
-            var link = _pool.Get();
-            var builder = link.BufferBuilder;
-            var byteVector = new VectorOffset(0);
-            if (rawBuffer != null) byteVector = Raw.CreateDataVector(builder, rawBuffer);
-            var raw = Raw.CreateRaw(builder, byteVector, rawOffset, rawLength);
+            lock (Link)
+            {
+                filename = filename.Replace('\\', '/');
+                nodeName = nodeName.Replace('\\', '/');
+                var builder = Link.BufferBuilder;
+                var byteVector = new VectorOffset(0);
+                if (rawBuffer != null) byteVector = Raw.CreateDataVector(builder, rawBuffer);
+                var raw = Raw.CreateRaw(builder, byteVector, rawOffset, rawLength);
 
-            var nodesOffset = new Offset<FileNode>[1];
-            var nodeNameOffset = builder.CreateString(nodeName);
-            nodesOffset[0] = FileNode.CreateFileNode(builder, nodeNameOffset, fileIsDirectory, fileLength, cTime,
-                laTime, lwTime);
-            var nodesVector = Packet.CreateNodesVector(builder, nodesOffset);
+                var nodesOffset = new Offset<FileNode>[1];
+                var nodeNameOffset = builder.CreateString(nodeName);
+                nodesOffset[0] = FileNode.CreateFileNode(builder, nodeNameOffset, fileIsDirectory, fileLength, cTime,
+                    laTime, lwTime);
+                var nodesVector = Packet.CreateNodesVector(builder, nodesOffset);
 
-            var path = builder.CreateString(filename);
-            var packet = Packet.CreatePacket(builder, path, action, default, default, raw, nodesVector);
-            builder.FinishSizePrefixed(packet.Value);
-            link.SendBuffer(builder.DataBuffer);
-            builder.Clear();
-            var res = link.GetPacket();
-            _pool.Return(link);
-            return res;
+                var path = builder.CreateString(filename);
+                var packet = Packet.CreatePacket(builder, path, action, default, default, raw, nodesVector);
+                builder.FinishSizePrefixed(packet.Value);
+                Link.SendBuffer(builder.DataBuffer);
+                builder.Clear();
+                var res = Link.GetPacket();
+                return res;
+            }
         }
     }
 }
