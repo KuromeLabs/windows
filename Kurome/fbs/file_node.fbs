@@ -1,10 +1,16 @@
 namespace kurome;
+enum FileType: byte {
+    Directory = 0,
+    File = 1,
+    FileNotFound = 2,
+    PathNotFound = 3,
+}
+
 table FileNode {
   filename:string;
-  is_directory:bool;
+  file_type:FileType;
   length:long;
   creation_time:long;
   last_access_time:long;
   last_write_time:long;
 }
-

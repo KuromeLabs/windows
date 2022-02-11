@@ -46,7 +46,7 @@ namespace Kurome
                 files.Add(new FileInformation
                 {
                     FileName = node.Filename,
-                    Attributes = node.IsDirectory ? FileAttributes.Directory : FileAttributes.Normal,
+                    Attributes = node.FileType == FileType.Directory ? FileAttributes.Directory : FileAttributes.Normal,
                     LastAccessTime = DateTimeOffset.FromUnixTimeMilliseconds(node.LastAccessTime).LocalDateTime,
                     LastWriteTime = DateTimeOffset.FromUnixTimeMilliseconds(node.LastWriteTime).LocalDateTime,
                     CreationTime = DateTimeOffset.FromUnixTimeMilliseconds(node.CreationTime).LocalDateTime,
@@ -56,16 +56,6 @@ namespace Kurome
             return files;
         }
 
-        public ResultType GetFileType(string fileName)
-        {
-            var id = _random.Next(int.MaxValue - 1) + 1;
-            // Console.WriteLine("Called getfiletype id: " + id);
-            var packetCompletionSource = new TaskCompletionSource<Packet>();
-            _link.AddCompletionSource(id, packetCompletionSource);
-            SendPacket(fileName, ActionType.ActionGetFileType, id: id);
-            var packet = packetCompletionSource.Task.Result;
-            return packet.Result;
-        }
 
         public void CreateDirectory(string fileName)
         {
@@ -131,7 +121,7 @@ namespace Kurome
 
         private void SendPacket(string filename = "", ActionType action = ActionType.NoAction,
             string nodeName = "", long cTime = 0, long laTime = 0, long lwTime = 0,
-            bool fileIsDirectory = false, long fileLength = 0, long rawOffset = 0, byte[] rawBuffer = null,
+            FileType fileType = 0, long fileLength = 0, long rawOffset = 0, byte[] rawBuffer = null,
             int rawLength = 0, int id = 0)
         {
             lock (_lock)
@@ -145,7 +135,7 @@ namespace Kurome
 
                 var nodesOffset = new Offset<FileNode>[1];
                 var nodeNameOffset = builder.CreateString(nodeName);
-                nodesOffset[0] = FileNode.CreateFileNode(builder, nodeNameOffset, fileIsDirectory, fileLength, cTime,
+                nodesOffset[0] = FileNode.CreateFileNode(builder, nodeNameOffset, fileType, fileLength, cTime,
                     laTime, lwTime);
                 var nodesVector = Packet.CreateNodesVector(builder, nodesOffset);
 

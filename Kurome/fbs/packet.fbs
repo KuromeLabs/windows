@@ -9,7 +9,6 @@ enum ActionType : byte {
     NoAction = 0,
     ActionGetDirectory = 1,
     ActionGetSpaceInfo = 2,
-    ActionGetFileType = 3,
     ActionCreateDirectory = 4,
     ActionDelete = 5,
     ActionReadFileBuffer = 6,
@@ -29,11 +28,7 @@ enum ActionType : byte {
 enum ResultType : byte {
     NoResult = 0,
     ResultActionSuccess = 1,
-    ResultFileIsDirectory = 2,
-    ResultFileIsFile = 3,
-    ResultFileNotFound = 4,
-    ResultPathNotFound = 5,
-    ResultActionFail = 6
+    ResultActionFail = 2
 }
 
 table Packet {

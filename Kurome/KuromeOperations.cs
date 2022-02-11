@@ -31,8 +31,10 @@ namespace Kurome
             //TODO: Find workaround/ask for root/ask permission (for obb)/etc.
             if (fileName is "\\Android\\data" or "\\Android\\obb")
                 return DokanResult.AccessDenied;
-            var fileType = _device.GetFileType(fileName);
-            var pathExists = fileType is ResultType.ResultFileIsFile or ResultType.ResultFileIsDirectory;
+            var node = _device.GetFileInfo(fileName);
+            info.Context = node;
+            var fileType = node.FileType;
+            var pathExists = fileType is FileType.File or FileType.Directory;
             if (info.IsDirectory)
             {
                 switch (mode)
@@ -40,7 +42,7 @@ namespace Kurome
                     case FileMode.Open:
                         if (!pathExists)
                             return DokanResult.FileNotFound;
-                        else if (fileType == ResultType.ResultFileIsFile)
+                        else if (fileType == FileType.File)
                             return DokanResult.NotADirectory;
                         break;
 
@@ -57,12 +59,15 @@ namespace Kurome
                 switch (mode)
                 {
                     case FileMode.Open:
-                        if (fileType != ResultType.ResultFileNotFound && fileType != ResultType.ResultPathNotFound)
+                        if (fileType != FileType.FileNotFound && fileType != FileType.PathNotFound)
                         {
-                            if (fileType == ResultType.ResultFileIsDirectory)
+                            if (fileType == FileType.Directory)
                             {
+                                if ((access & FileAccess.Delete) == FileAccess.Delete &&
+                                    (access & FileAccess.Synchronize) != FileAccess.Synchronize)
+                                    return DokanResult.AccessDenied;
                                 info.IsDirectory = true;
-                                info.Context = new object();
+                                // info.Context = new object();
                                 return DokanResult.Success;
                             }
                         }
@@ -71,14 +76,14 @@ namespace Kurome
 
                         break;
                     case FileMode.CreateNew:
-                        if (fileType == ResultType.ResultFileIsFile)
+                        if (fileType == FileType.File)
                             return DokanResult.FileExists;
-                        else if (fileType == ResultType.ResultPathNotFound)
+                        else if (fileType == FileType.PathNotFound)
                             return DokanResult.PathNotFound;
                         _device.CreateEmptyFile(fileName);
                         break;
                     case FileMode.Create:
-                        if (fileType == ResultType.ResultPathNotFound)
+                        if (fileType == FileType.PathNotFound)
                             return DokanResult.PathNotFound;
                         if (pathExists)
                             return DokanResult.AlreadyExists;
@@ -87,7 +92,7 @@ namespace Kurome
                     case FileMode.OpenOrCreate:
                         if (pathExists)
                             return DokanResult.AlreadyExists;
-                        if (fileType == ResultType.ResultPathNotFound)
+                        if (fileType == FileType.PathNotFound)
                             return DokanResult.PathNotFound;
                         _device.CreateEmptyFile(fileName);
                         break;
@@ -143,15 +148,15 @@ namespace Kurome
 
         public NtStatus GetFileInformation(string fileName, out FileInformation fileInfo, IDokanFileInfo info)
         {
-            var fileNode = _device.GetFileInfo(fileName);
+            var fileNode = (info.Context as FileNode? ?? default);
             fileInfo = new FileInformation
             {
                 FileName = fileNode.Filename,
-                Attributes = fileNode.IsDirectory ? FileAttributes.Directory : FileAttributes.Normal,
+                Attributes = fileNode.FileType == FileType.Directory ? FileAttributes.Directory : FileAttributes.Normal,
                 LastAccessTime = DateTimeOffset.FromUnixTimeMilliseconds(fileNode.LastAccessTime).LocalDateTime,
                 LastWriteTime = DateTimeOffset.FromUnixTimeMilliseconds(fileNode.LastWriteTime).LocalDateTime,
                 CreationTime = DateTimeOffset.FromUnixTimeMilliseconds(fileNode.CreationTime).LocalDateTime,
-                Length = fileNode.IsDirectory ? 0 : fileNode.Length
+                Length = fileNode.FileType == FileType.Directory ? 0 : fileNode.Length
             };
             return DokanResult.Success;
         }
@@ -191,28 +196,29 @@ namespace Kurome
 
         public NtStatus DeleteFile(string fileName, IDokanFileInfo info)
         {
-            var type = _device.GetFileType(fileName);
-            if (type == ResultType.ResultFileNotFound)
+            var type = (info.Context as FileNode? ?? default).FileType;
+            
+            if (type == FileType.FileNotFound)
                 return DokanResult.FileNotFound;
-            else if (type == ResultType.ResultFileIsDirectory)
+            else if (type == FileType.Directory)
                 return DokanResult.AccessDenied;
             return DokanResult.Success;
         }
 
         public NtStatus DeleteDirectory(string fileName, IDokanFileInfo info)
         {
-            var type = _device.GetFileType(fileName);
-            if (type == ResultType.ResultFileNotFound)
+            var type = ((FileNode) info.Context).FileType;
+            if (type == FileType.FileNotFound)
                 return DokanResult.FileNotFound;
-            else if (type == ResultType.ResultFileIsFile)
+            else if (type == FileType.File)
                 return DokanResult.AccessDenied;
             return DokanResult.Success;
         }
 
         public NtStatus MoveFile(string oldName, string newName, bool replace, IDokanFileInfo info)
         {
-            var fileType = _device.GetFileType(newName);
-            var fileExists = fileType != ResultType.ResultFileNotFound;
+            var fileType = _device.GetFileInfo(newName).FileType;
+            var fileExists = fileType != FileType.FileNotFound;
             if (!fileExists)
             {
                 _device.Rename(oldName, newName);
@@ -260,7 +266,7 @@ namespace Kurome
             totalNumberOfBytes = freeBytesAvailable = totalNumberOfFreeBytes = 0;
             var spaces = _device.GetSpace();
             var total = spaces.TotalBytes;
-            long free = spaces.FreeBytes;
+            var free = spaces.FreeBytes;
             totalNumberOfBytes = total;
             freeBytesAvailable = free;
             totalNumberOfFreeBytes = free;
