@@ -8,6 +8,7 @@
 
     <ItemGroup>
         <PackageReference Include="DokanNet" Version="2.0.1" />
+        <PackageReference Include="Microsoft.DotNet.ILCompiler" Version="7.0.0-alpha.1.22074.1" />
         <PackageReference Include="Nncase.FlatBuffers" Version="2.0.0" />
         <PackageReference Include="System.Runtime.Caching" Version="5.0.0" />
     </ItemGroup>
