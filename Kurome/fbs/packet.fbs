@@ -43,4 +43,5 @@ table Packet {
     device_info:kurome.DeviceInfo;
     file_buffer:kurome.Raw;
     nodes:[kurome.FileNode];
+    id:int32;
 }

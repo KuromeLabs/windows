@@ -3,5 +3,5 @@ namespace kurome;
 table Raw {
     data:[ubyte];
     offset:long;
-    length:long;
+    length:int;
 }

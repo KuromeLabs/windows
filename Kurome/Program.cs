@@ -1,7 +1,6 @@
 ﻿using System;
 using System.IO;
 using System.Linq;
-using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
 using DokanNet;
@@ -13,7 +12,7 @@ namespace Kurome
 {
     class Program
     {
-        static LinkProvider linkProvider = LinkProvider.Instance;
+        private static LinkProvider linkProvider = new();
 
         static async Task<int> Main(string[] args)
         {
@@ -26,46 +25,43 @@ namespace Kurome
             }
 
             SslHelper.InitializeSsl();
-
-            linkProvider.StartListening();
-
-            Console.WriteLine("TCP Listening started.");
-            linkProvider.InitializeUdpListener();
-            var address = IPAddress.Parse("235.132.20.12");
-            var ipEndPoint = new IPEndPoint(address, 33586);
-            linkProvider.CastUdpInfo(address, ipEndPoint);
+            linkProvider.Initialize();
             
-            Console.WriteLine("UDP casting started.");
             while (true)
             {
-                var controlLink = await linkProvider.GetIncomingLink();
-                HandleLink(CancellationToken.None, controlLink);
+                var link = await linkProvider.GetIncomingLink();
+                HandleLink(link);
             }
         }
 
-        static void HandleLink(CancellationToken token, Link controlLink)
+        static void HandleLink(Link controlLink)
         {
             var numOfConnectedClients = 0;
-            var result = controlLink.GetPacket();
+            var packetCompletionSource = new TaskCompletionSource<Packet>();
+            controlLink.AddCompletionSource(0, packetCompletionSource);
+            Task.Run(controlLink.StartListeningAsync);
+            var result = packetCompletionSource.Task.Result;
             if (result.DeviceInfo == null) return;
             var name = result.DeviceInfo.Value.Name;
             var id = result.DeviceInfo.Value.Id;
             Console.WriteLine("Device name: " + name + ", id: " + id);
+
             if (result.Action == ActionType.ActionConnect)
             {
                 Console.WriteLine("Device has connected.");
                 numOfConnectedClients++;
-                var list = Enumerable.Range('C', 'Z' - 'C').Select(i => (char)i + ":")
+                var list = Enumerable.Range('C', 'Z' - 'C').Select(i => (char) i + ":")
                     .Except(DriveInfo.GetDrives().Select(s => s.Name.Replace("\\", ""))).ToList();
                 var letter = list[numOfConnectedClients - 1][0];
                 var device = new Device(controlLink, letter);
                 device.Name = name;
                 device.Id = id;
+
                 var rfs = new KuromeOperations(device);
                 // controlLink.WritePrefixed(Packets.ResultActionSuccess);
                 Dokan.Init();
                 _ = Task.Run(() => rfs.Mount(letter + ":\\",
-                    DokanOptions.FixedDrive , false, new ConsoleLogger("[Kurome] ")));
+                    DokanOptions.FixedDrive, false, new ConsoleLogger("[Kurome] ")));
                 Console.WriteLine("Device {0}:{1} has been mounted on {2}:\\ ", name, id, letter.ToString());
             }
             else if (result.Action == ActionType.ActionPair)
