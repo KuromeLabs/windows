@@ -1,18 +1,19 @@
-using System;
 using System.Collections.Concurrent;
 
 namespace Kurome
 {
     public class LinkPool
     {
+        private ConcurrentBag<Link> _linkBag = new();
         private int _numOfLinks = 0;
+
+        private Device _remoteDevice;
+
         // private readonly LinkProvider _linkProvider = LinkProvider.Instance;
         public LinkPool(Device device)
         {
             _remoteDevice = device;
         }
-        private ConcurrentBag<Link> _linkBag = new();
-        private Device _remoteDevice;
 
         // public Link Get()
         // {

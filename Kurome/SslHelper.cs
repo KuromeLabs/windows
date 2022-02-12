@@ -1,6 +1,4 @@
 using System;
-using System.IO;
-using System.Net;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 
@@ -53,7 +51,7 @@ public class SslHelper
             if (mustGenerateCertificate)
                 certStore.Remove(cert);
         }
-        
+
         if (mustGenerateCertificate)
         {
             var cert = BuildSelfSignedServerCertificate();

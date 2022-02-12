@@ -11,16 +11,18 @@ namespace Kurome
     public class Device
     {
         public readonly char _driveLetter;
-        public string Name { get; set; }
-        public string Id { get; set; }
         private readonly Link _link;
-        private readonly Random _random = new();
         private readonly object _lock = new();
+        private readonly Random _random = new();
+
         public Device(Link link, char driveLetter)
         {
             _link = link;
             _driveLetter = driveLetter;
         }
+
+        public string Name { get; set; }
+        public string Id { get; set; }
 
         public DeviceInfo GetSpace()
         {
@@ -53,6 +55,7 @@ namespace Kurome
                     Length = node.Length
                 });
             }
+
             return files;
         }
 
