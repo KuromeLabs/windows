@@ -5,20 +5,18 @@ using System.Net;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using System.Text;
-using System.Threading.Tasks;
 
 namespace Kurome
 {
-    public class LinkProvider : IObservable<Link>
+    public class LinkProvider
     {
         private readonly TcpListener _tcpListener = TcpListener.Create(33587);
-        private readonly string UdpSubnet = "235.132.20.12";
         private readonly int UdpPort = 33586;
+        private readonly string UdpSubnet = "235.132.20.12";
         private string _id;
 
-        private readonly List<IObserver<Link>> _observers = new();
-        // private readonly Dictionary<string, UdpClient> _udpDictionary = new();
-
+        public event KuromeDaemon.LinkConnected OnLinkConnected;
+        public event KuromeDaemon.LinkDisconnected OnLinkDisconnected;
 
         public void Initialize()
         {
@@ -26,7 +24,6 @@ namespace Kurome
 
             StartTcpListener();
             CastUdp(addresses);
-            // CastUdpInfo(new IPEndPoint(IPAddress.Parse(UdpSubnet), UdpPort));
         }
 
         private void CastUdp(IEnumerable<string> addresses)
@@ -51,18 +48,9 @@ namespace Kurome
             while (true)
             {
                 var link = new Link(await _tcpListener.AcceptTcpClientAsync());
-                OnLinkConnected(link);
+                OnLinkConnected?.Invoke(link);
             }
         }
-
-        private void OnLinkConnected(Link link)
-        {
-            foreach (var observer in _observers)
-            {
-                observer.OnNext(link);
-            }
-        }
-        
 
         private IEnumerable<string> GetLocalIpAddresses()
         {
@@ -75,28 +63,6 @@ namespace Kurome
                 where address.Address.AddressFamily == AddressFamily.InterNetwork
                 where !IPAddress.IsLoopback(address.Address)
                 select address.Address.ToString()).ToList();
-        }
-
-        public IDisposable Subscribe(IObserver<Link> observer)
-        {
-            if (!_observers.Contains(observer)) _observers.Add(observer);
-            return new Unsubscriber<Link>(_observers, observer);
-        }
-        internal class Unsubscriber<Link> : IDisposable
-        {
-            private readonly List<IObserver<Link>> _observers;
-            private readonly IObserver<Link> _observer;
-
-            public Unsubscriber(List<IObserver<Link>> observers, IObserver<Link> observer)
-            {
-                _observers = observers;
-                _observer = observer;
-            }
-
-            public void Dispose()
-            {
-                if (_observers.Contains(_observer)) _observers.Remove(_observer);
-            }
         }
     }
 }
