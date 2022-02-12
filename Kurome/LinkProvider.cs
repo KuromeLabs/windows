@@ -5,6 +5,8 @@ using System.Net;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using System.Text;
+using System.Threading.Tasks;
+using kurome;
 
 namespace Kurome
 {
@@ -14,6 +16,7 @@ namespace Kurome
         private readonly int UdpPort = 33586;
         private readonly string UdpSubnet = "235.132.20.12";
         private string _id;
+        public bool Listening { get; set; }
 
         public event KuromeDaemon.LinkConnected OnLinkConnected;
         public event KuromeDaemon.LinkDisconnected OnLinkDisconnected;
@@ -45,10 +48,14 @@ namespace Kurome
         private async void StartTcpListener()
         {
             _tcpListener.Start();
-            while (true)
+            while (Listening)
             {
                 var link = new Link(await _tcpListener.AcceptTcpClientAsync());
-                OnLinkConnected?.Invoke(link);
+                var packetCompletionSource = new TaskCompletionSource<Packet>();
+                link.AddCompletionSource(0, packetCompletionSource);
+                link.StartListeningAsync();
+                var result = packetCompletionSource.Task.Result;
+                OnLinkConnected?.Invoke(result.DeviceInfo!.Value.Name, result.DeviceInfo!.Value.Id, link);
             }
         }
 
