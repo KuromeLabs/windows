@@ -10,7 +10,7 @@ using kurome;
 
 namespace Kurome
 {
-    class Program
+    class Program: IObserver<Link>
     {
         private static LinkProvider linkProvider = new();
 
@@ -23,14 +23,14 @@ namespace Kurome
                 Console.ReadKey();
                 return 0;
             }
-
+            var observer = new Program();
+            linkProvider.Subscribe(observer);
             SslHelper.InitializeSsl();
             linkProvider.Initialize();
             
             while (true)
             {
-                var link = await linkProvider.GetIncomingLink();
-                HandleLink(link);
+                Console.ReadKey();
             }
         }
 
@@ -86,6 +86,21 @@ namespace Kurome
                     Console.WriteLine("\nPairing accepted.");
                 }
             }
+        }
+
+        public void OnCompleted()
+        {
+            throw new NotImplementedException();
+        }
+
+        public void OnError(Exception error)
+        {
+            throw new NotImplementedException();
+        }
+
+        public void OnNext(Link link)
+        {
+            HandleLink(link);
         }
     }
 }

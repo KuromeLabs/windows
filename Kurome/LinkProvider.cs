@@ -9,24 +9,27 @@ using System.Threading.Tasks;
 
 namespace Kurome
 {
-    public class LinkProvider
+    public class LinkProvider : IObservable<Link>
     {
         private readonly TcpListener _tcpListener = TcpListener.Create(33587);
         private readonly string UdpSubnet = "235.132.20.12";
         private readonly int UdpPort = 33586;
         private string _id;
-        private readonly Dictionary<string, UdpClient> _udpDictionary = new();
+
+        private readonly List<IObserver<Link>> _observers = new();
+        // private readonly Dictionary<string, UdpClient> _udpDictionary = new();
 
 
         public void Initialize()
         {
             var addresses = GetLocalIpAddresses();
-            CreateUdpClients(addresses);
-            StartListening();
-            CastUdpInfo(new IPEndPoint(IPAddress.Parse(UdpSubnet), UdpPort));
+
+            StartTcpListener();
+            CastUdp(addresses);
+            // CastUdpInfo(new IPEndPoint(IPAddress.Parse(UdpSubnet), UdpPort));
         }
 
-        private void CreateUdpClients(IEnumerable<string> addresses)
+        private void CastUdp(IEnumerable<string> addresses)
         {
             _id = IdentityProvider.GetGuid();
             foreach (var ip in addresses)
@@ -35,37 +38,31 @@ namespace Kurome
                 udpClient.JoinMulticastGroup(IPAddress.Parse(UdpSubnet));
                 udpClient.Client.Bind(new IPEndPoint(IPAddress.Parse(ip), UdpPort));
                 udpClient.Ttl = 32;
-                _udpDictionary.Add(ip, udpClient);
+                var message = "kurome:" + ip + ":" + IdentityProvider.GetMachineName() + ":" + _id;
+                var data = Encoding.Default.GetBytes(message);
+                Console.WriteLine("Broadcast: \"{0}\" to {1}", message, ip);
+                udpClient.Send(data, data.Length, new IPEndPoint(IPAddress.Parse(UdpSubnet), UdpPort));
             }
         }
 
-        private void StartListening()
+        private async void StartTcpListener()
         {
             _tcpListener.Start();
-        }
-
-        public async Task<Link> GetIncomingLink()
-        {
-            return new Link(await _tcpListener.AcceptTcpClientAsync());
-        }
-
-        private async void CastUdpInfo(IPEndPoint endpoint)
-        {
-            foreach (var addr in _udpDictionary.Keys)
+            while (true)
             {
-                var message = "kurome:" + addr + ":" + IdentityProvider.GetMachineName() + ":" + _id;
-                var data = Encoding.Default.GetBytes(message);
-                try
-                {
-                    await _udpDictionary[addr].SendAsync(data, data.Length, endpoint);
-                    // Console.WriteLine("Broadcast: \"{0}\" to {1}", message, addr);
-                }
-                catch (SocketException e)
-                {
-                    Console.WriteLine(e);
-                }
+                var link = new Link(await _tcpListener.AcceptTcpClientAsync());
+                OnLinkConnected(link);
             }
         }
+
+        private void OnLinkConnected(Link link)
+        {
+            foreach (var observer in _observers)
+            {
+                observer.OnNext(link);
+            }
+        }
+        
 
         private IEnumerable<string> GetLocalIpAddresses()
         {
@@ -78,6 +75,28 @@ namespace Kurome
                 where address.Address.AddressFamily == AddressFamily.InterNetwork
                 where !IPAddress.IsLoopback(address.Address)
                 select address.Address.ToString()).ToList();
+        }
+
+        public IDisposable Subscribe(IObserver<Link> observer)
+        {
+            if (!_observers.Contains(observer)) _observers.Add(observer);
+            return new Unsubscriber<Link>(_observers, observer);
+        }
+        internal class Unsubscriber<Link> : IDisposable
+        {
+            private readonly List<IObserver<Link>> _observers;
+            private readonly IObserver<Link> _observer;
+
+            public Unsubscriber(List<IObserver<Link>> observers, IObserver<Link> observer)
+            {
+                _observers = observers;
+                _observer = observer;
+            }
+
+            public void Dispose()
+            {
+                if (_observers.Contains(_observer)) _observers.Remove(_observer);
+            }
         }
     }
 }
