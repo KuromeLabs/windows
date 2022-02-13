@@ -17,12 +17,12 @@ namespace Kurome
 
         private readonly ConcurrentDictionary<int, TaskCompletionSource<Packet>> _packetTasks = new();
         private readonly SslStream _stream;
-
+        public string DeviceId;
 
         public readonly FlatBufferBuilder BufferBuilder = new(1024);
 
         public bool IsDisposed = false;
-
+        public event LinkProvider.LinkDisconnected OnLinkDisconnected;
         public Link(TcpClient client)
         {
             _client = client;
@@ -42,45 +42,42 @@ namespace Kurome
             while (true)
             {
                 var packet = await GetPacketAsync();
-                if (_packetTasks.ContainsKey(packet.Id))
-                    _packetTasks[packet.Id].SetResult(packet);
-                _packetTasks.TryRemove(packet.Id, out _);
+                if (packet == null) break;
+                if (_packetTasks.ContainsKey(packet.Value!.Id))
+                    _packetTasks[packet.Value!.Id].SetResult(packet.Value!);
+                _packetTasks.TryRemove(packet.Value!.Id, out _);
             }
         }
-
-        private async Task<int> ReadPrefixAsync()
-        {
-            var sizeBuffer = new byte[4];
-            var bytesRead = 0;
-            var current = -1;
-            while (bytesRead != 4 && current != 0)
-            {
-                current = await _stream.ReadAsync(sizeBuffer, 0 + bytesRead, 4 - bytesRead);
-                bytesRead += current;
-                if (current == 0) //TODO: Handle graceful disconnect
-                    Console.WriteLine("Disconnected");
-            }
-
-            return BitConverter.ToInt32(sizeBuffer);
-        }
-
 
         public void SendBuffer(ByteBuffer buffer)
         {
             _stream.Write(buffer.ToSpan(buffer.Position, buffer.Length - buffer.Position));
         }
 
-        private async Task<Packet> GetPacketAsync()
+        private async Task<Packet?> GetPacketAsync()
         {
-            var size = await ReadPrefixAsync();
+            var sizeBuffer = new byte[4];
             var bytesRead = 0;
+            int current;
+            while (bytesRead != 4)
+            {
+                current = await _stream.ReadAsync(sizeBuffer, 0 + bytesRead, 4 - bytesRead);
+                bytesRead += current;
+                if (current != 0) continue;
+                StopConnection();
+                return null;
+            }
+            var size = BitConverter.ToInt32(sizeBuffer);
+            bytesRead = 0;
             var readBuffer = new byte[size];
             while (bytesRead != size)
             {
-                var readTask = await _stream.ReadAsync(readBuffer.AsMemory(0 + bytesRead, size - bytesRead));
-                bytesRead += readTask;
+                current = await _stream.ReadAsync(readBuffer.AsMemory(0 + bytesRead, size - bytesRead));
+                bytesRead += current;
+                if (current != 0) continue;
+                StopConnection();
+                return null;
             }
-
             var bb = new ByteBuffer(readBuffer);
             var packet = Packet.GetRootAsPacket(bb);
             return packet;
@@ -89,6 +86,17 @@ namespace Kurome
         public void AddCompletionSource(int id, TaskCompletionSource<Packet> source)
         {
             _packetTasks.TryAdd(id, source);
+        }
+
+        private void StopConnection()
+        {
+            Console.WriteLine("Disconnected");
+            Dispose();
+            foreach (var (key, value) in _packetTasks)
+                value.SetCanceled();
+            
+            _packetTasks.Clear();
+            OnLinkDisconnected?.Invoke(this);
         }
     }
 }

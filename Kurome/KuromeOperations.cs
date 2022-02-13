@@ -307,7 +307,7 @@ namespace Kurome
 
         public NtStatus Unmounted(IDokanFileInfo info)
         {
-            throw new NotImplementedException();
+            return DokanResult.Success;
         }
 
         public NtStatus FindStreams(string fileName, out IList<FileInformation> streams, IDokanFileInfo info)

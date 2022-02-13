@@ -21,6 +21,10 @@ namespace Kurome
         public event KuromeDaemon.LinkConnected OnLinkConnected;
         public event KuromeDaemon.LinkDisconnected OnLinkDisconnected;
 
+
+        public delegate void LinkDisconnected(Link link);
+
+
         public void Initialize()
         {
             var addresses = GetLocalIpAddresses();
@@ -50,12 +54,22 @@ namespace Kurome
             _tcpListener.Start();
             while (Listening)
             {
-                var link = new Link(await _tcpListener.AcceptTcpClientAsync());
-                var packetCompletionSource = new TaskCompletionSource<Packet>();
-                link.AddCompletionSource(0, packetCompletionSource);
-                link.StartListeningAsync();
-                var result = packetCompletionSource.Task.Result;
-                OnLinkConnected?.Invoke(result.DeviceInfo!.Value.Name, result.DeviceInfo!.Value.Id, link);
+                try
+                {
+                    var link = new Link(await _tcpListener.AcceptTcpClientAsync());
+                    link.OnLinkDisconnected += OnDisconnect;
+                    var packetCompletionSource = new TaskCompletionSource<Packet>();
+                    link.AddCompletionSource(0, packetCompletionSource);
+                    link.StartListeningAsync();
+                    var result = packetCompletionSource.Task.Result;
+                    var info = result.DeviceInfo!.Value;
+                    link.DeviceId = info.Id;
+                    OnLinkConnected?.Invoke(info.Name, info.Id, link);
+                }
+                catch (Exception e)
+                {
+                    Console.WriteLine("Exception at StartTcpListener: {0}", e);
+                }
             }
         }
 
@@ -70,6 +84,12 @@ namespace Kurome
                 where address.Address.AddressFamily == AddressFamily.InterNetwork
                 where !IPAddress.IsLoopback(address.Address)
                 select address.Address.ToString()).ToList();
+        }
+
+        private void OnDisconnect(Link link)
+        {
+            Console.WriteLine("OnDisconnect called");
+            OnLinkDisconnected?.Invoke(link.DeviceId, link);
         }
     }
 }
