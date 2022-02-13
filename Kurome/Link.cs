@@ -42,7 +42,12 @@ namespace Kurome
             while (true)
             {
                 var packet = await GetPacketAsync();
-                if (packet == null) break;
+                if (packet == null)
+                {
+                    StopConnection();
+                    break;
+                }
+
                 if (_packetTasks.ContainsKey(packet.Value!.Id))
                     _packetTasks[packet.Value!.Id].SetResult(packet.Value!);
                 _packetTasks.TryRemove(packet.Value!.Id, out _);
@@ -58,29 +63,35 @@ namespace Kurome
         {
             var sizeBuffer = new byte[4];
             var bytesRead = 0;
-            int current;
-            while (bytesRead != 4)
+            try
             {
-                current = await _stream.ReadAsync(sizeBuffer, 0 + bytesRead, 4 - bytesRead);
-                bytesRead += current;
-                if (current != 0) continue;
-                StopConnection();
+                int current;
+                while (bytesRead != 4)
+                {
+                    current = await _stream.ReadAsync(sizeBuffer, 0 + bytesRead, 4 - bytesRead);
+                    bytesRead += current;
+                    if (current != 0) continue;
+                    return null;
+                }
+                var size = BitConverter.ToInt32(sizeBuffer);
+                bytesRead = 0;
+                var readBuffer = new byte[size];
+                while (bytesRead != size)
+                {
+                    current = await _stream.ReadAsync(readBuffer.AsMemory(0 + bytesRead, size - bytesRead));
+                    bytesRead += current;
+                    if (current != 0) continue;
+                    return null;
+                }
+                var bb = new ByteBuffer(readBuffer);
+                var packet = Packet.GetRootAsPacket(bb);
+                return packet;
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine(e);
                 return null;
             }
-            var size = BitConverter.ToInt32(sizeBuffer);
-            bytesRead = 0;
-            var readBuffer = new byte[size];
-            while (bytesRead != size)
-            {
-                current = await _stream.ReadAsync(readBuffer.AsMemory(0 + bytesRead, size - bytesRead));
-                bytesRead += current;
-                if (current != 0) continue;
-                StopConnection();
-                return null;
-            }
-            var bb = new ByteBuffer(readBuffer);
-            var packet = Packet.GetRootAsPacket(bb);
-            return packet;
         }
 
         public void AddCompletionSource(int id, TaskCompletionSource<Packet> source)
