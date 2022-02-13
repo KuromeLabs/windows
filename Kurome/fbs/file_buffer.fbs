@@ -6,7 +6,7 @@ enum FileType: byte {
     PathNotFound = 3,
 }
 
-table FileNode {
+table FileBuffer {
   filename:string;
   file_type:FileType;
   length:long;

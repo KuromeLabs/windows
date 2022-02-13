@@ -105,7 +105,7 @@ namespace Kurome
                 cTime: cTime, laTime: laTime, lwTime: lwTime);
         }
 
-        public FileNode GetFileInfo(string fileName)
+        public FileBuffer GetFileInfo(string fileName)
         {
             var id = _random.Next(int.MaxValue - 1) + 1;
             var packetCompletionSource = new TaskCompletionSource<Packet>();
@@ -113,7 +113,7 @@ namespace Kurome
             SendPacket(fileName, ActionType.ActionGetFileInfo, id: id);
             var packet = packetCompletionSource.Task.Result;
 
-            var packetNode = packet.Nodes(0).GetValueOrDefault(new FileNode());
+            var packetNode = packet.Nodes(0).GetValueOrDefault(new FileBuffer());
             return packetNode;
         }
 
@@ -136,9 +136,9 @@ namespace Kurome
                 if (rawBuffer != null) byteVector = Raw.CreateDataVector(builder, rawBuffer);
                 var raw = Raw.CreateRaw(builder, byteVector, rawOffset, rawLength);
 
-                var nodesOffset = new Offset<FileNode>[1];
+                var nodesOffset = new Offset<FileBuffer>[1];
                 var nodeNameOffset = builder.CreateString(nodeName);
-                nodesOffset[0] = FileNode.CreateFileNode(builder, nodeNameOffset, fileType, fileLength, cTime,
+                nodesOffset[0] = FileBuffer.CreateFileBuffer(builder, nodeNameOffset, fileType, fileLength, cTime,
                     laTime, lwTime);
                 var nodesVector = Packet.CreateNodesVector(builder, nodesOffset);
 

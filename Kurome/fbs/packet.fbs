@@ -1,4 +1,4 @@
-include "file_node.fbs";
+include "file_buffer.fbs";
 include "device_info.fbs";
 include "raw.fbs";
 
@@ -37,6 +37,6 @@ table Packet {
     result:kurome.ResultType;
     device_info:kurome.DeviceInfo;
     file_buffer:kurome.Raw;
-    nodes:[kurome.FileNode];
+    nodes:[kurome.FileBuffer];
     id:int32;
 }

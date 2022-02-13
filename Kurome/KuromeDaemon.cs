@@ -33,8 +33,6 @@ public class KuromeDaemon
     private void OnLinkConnected(string name, string id, Link link)
     {
         _numOfConnectedClients++;
-        var packetCompletionSource = new TaskCompletionSource<Packet>();
-        link.AddCompletionSource(0, packetCompletionSource);
         Console.WriteLine("Device connected name: " + name + ", id: " + id);
 
         var driveLetters = Enumerable.Range('C', 'Z' - 'C').Select(i => (char) i + ":")

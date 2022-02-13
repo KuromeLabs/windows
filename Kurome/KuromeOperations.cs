@@ -122,7 +122,7 @@ namespace Kurome
         public NtStatus ReadFile(string fileName, byte[] buffer, out int bytesRead, long offset, IDokanFileInfo info)
         {
             info.Context ??= _device.GetFileInfo(fileName);
-            var size = (info.Context as FileNode? ?? default).Length;
+            var size = (info.Context as FileBuffer? ?? default).Length;
             if (offset >= size)
             {
                 bytesRead = 0;
@@ -149,7 +149,7 @@ namespace Kurome
 
         public NtStatus GetFileInformation(string fileName, out FileInformation fileInfo, IDokanFileInfo info)
         {
-            var fileNode = (info.Context as FileNode? ?? default);
+            var fileNode = (info.Context as FileBuffer? ?? default);
             fileInfo = new FileInformation
             {
                 FileName = fileNode.Filename,
@@ -197,7 +197,7 @@ namespace Kurome
 
         public NtStatus DeleteFile(string fileName, IDokanFileInfo info)
         {
-            var type = (info.Context as FileNode? ?? default).FileType;
+            var type = (info.Context as FileBuffer? ?? default).FileType;
             
             if (type == FileType.FileNotFound)
                 return DokanResult.FileNotFound;
@@ -208,7 +208,7 @@ namespace Kurome
 
         public NtStatus DeleteDirectory(string fileName, IDokanFileInfo info)
         {
-            var type = ((FileNode) info.Context).FileType;
+            var type = ((FileBuffer) info.Context).FileType;
             if (type == FileType.FileNotFound)
                 return DokanResult.FileNotFound;
             else if (type == FileType.File)
