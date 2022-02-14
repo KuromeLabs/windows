@@ -18,6 +18,19 @@ namespace Kurome
             _device = device;
         }
 
+        private DirectoryNode root;
+
+        private BaseNode GetNode(string name)
+        {
+            var result = root ?? (BaseNode) (root = new DirectoryNode(_device.GetRoot()));
+            var parts = new Queue<string>(name.Split('\\', StringSplitOptions.RemoveEmptyEntries));
+
+            while (result != null && parts.Count > 0)
+                result = (result as DirectoryNode)?.GetChild(_device, parts.Dequeue());
+
+            return result;
+        }
+
         public NtStatus CreateFile(
             string fileName,
             FileAccess access,
@@ -164,7 +177,18 @@ namespace Kurome
 
         public NtStatus FindFiles(string fileName, out IList<FileInformation> files, IDokanFileInfo info)
         {
-            files = _device.GetFileNodes(fileName);
+            var parent = GetNode(fileName) as DirectoryNode;
+            var children = parent.GetChildren(_device).ToList();
+            files = children.Any() ? children.Select(x => new FileInformation()
+            {
+                FileName = x.Name,
+                Attributes = (x.FileInformation.Attributes & FileAttributes.Directory) != 0 ? FileAttributes.Directory : FileAttributes.Normal,
+                LastAccessTime = x.FileInformation.LastAccessTime,
+                LastWriteTime = x.FileInformation.LastWriteTime,
+                CreationTime = x.FileInformation.CreationTime,
+                Length = (x.FileInformation.Attributes & FileAttributes.Directory) != 0 ? 0 : x.FileInformation.Length
+            }).ToList() : new List<FileInformation>();
+
             return DokanResult.Success;
         }
 

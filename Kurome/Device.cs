@@ -59,7 +59,34 @@ namespace Kurome
             return files;
         }
 
+        public FileInformation GetFileNode(string fileName)
+        {
+            var id = _random.Next(int.MaxValue - 1) + 1;
+            var packetCompletionSource = new TaskCompletionSource<Packet>();
+            _link.AddCompletionSource(id, packetCompletionSource);
+            SendPacket(fileName, ActionType.ActionGetFileInfo, id: id);
+            var packet = packetCompletionSource.Task.Result;
 
+            var fileBuffer = packet.Nodes(0)!.Value;
+            return new FileInformation
+            {
+                FileName = fileBuffer.Filename,
+                Attributes = fileBuffer.FileType == FileType.Directory
+                    ? FileAttributes.Directory
+                    : FileAttributes.Normal,
+                LastAccessTime = DateTimeOffset.FromUnixTimeMilliseconds(fileBuffer.LastAccessTime).LocalDateTime,
+                LastWriteTime = DateTimeOffset.FromUnixTimeMilliseconds(fileBuffer.LastWriteTime).LocalDateTime,
+                CreationTime = DateTimeOffset.FromUnixTimeMilliseconds(fileBuffer.CreationTime).LocalDateTime,
+                Length = fileBuffer.Length
+            };
+        }
+
+        public FileInformation GetRoot()
+        {
+            var result = GetFileNode("\\");
+            result.FileName = "";
+            return result;
+        }
         public void CreateDirectory(string fileName)
         {
             SendPacket(fileName, ActionType.ActionCreateDirectory);
