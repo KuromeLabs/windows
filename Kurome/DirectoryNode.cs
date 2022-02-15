@@ -16,13 +16,13 @@ public class DirectoryNode : BaseNode
     }
 
     //If children cache is null, get this node's children synchronously
-    //Otherwise return the cache and update it in the background
+    //Otherwise return the cache and update it in the background TODO: limit cache updates
     public IEnumerable<BaseNode> GetChildren(Device device)
     {
         if (_children == null)
             UpdateChildren(device);
-        else
-            Task.Run(() => UpdateChildren(device));
+        // else
+        //     Task.Run(() => UpdateChildren(device));
         return _children.Values;
     }
 
