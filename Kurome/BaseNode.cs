@@ -44,7 +44,7 @@ public abstract class BaseNode
 
     public void Move(Device device, string newName, DirectoryNode destination)
     {
-        device.Rename(Name, newName);
+        device.Rename(Fullname, newName);
         var newNode = Create(device.GetFileNode(newName));
         if (destination._children == null)
             destination.GetChildrenNodes(device);
