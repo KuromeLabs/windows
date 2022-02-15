@@ -126,7 +126,7 @@ namespace Kurome
         {
             info.Context = null;
             if (info.DeleteOnClose)
-                _device.Delete(fileName);
+                GetNode(fileName).Delete(_device);
         }
 
         public void CloseFile(string fileName, IDokanFileInfo info)
@@ -182,7 +182,7 @@ namespace Kurome
         public NtStatus FindFiles(string fileName, out IList<FileInformation> files, IDokanFileInfo info)
         {
             var parent = GetNode(fileName) as DirectoryNode;
-            var children = parent.GetChildren(_device).ToList();
+            var children = parent.GetChildrenNodes(_device).ToList();
             files = children.Any()
                 ? children.Select(x => new FileInformation()
                 {
@@ -203,11 +203,11 @@ namespace Kurome
         public NtStatus FindFilesWithPattern(string fileName, string searchPattern, out IList<FileInformation> files,
             IDokanFileInfo info)
         {
-            var nodes = _device.GetFileNodes(fileName);
+            var nodes = ((DirectoryNode) GetNode(fileName)).GetChildrenNodes(_device).ToList();
             files = new List<FileInformation>(nodes.Count);
             foreach (var node in nodes.Where(node =>
-                         DokanHelper.DokanIsNameInExpression(searchPattern, node.FileName, true)))
-                files.Add(node);
+                         DokanHelper.DokanIsNameInExpression(searchPattern, node.Name, true)))
+                files.Add(node.FileInformation);
             return DokanResult.Success;
         }
 
@@ -220,47 +220,47 @@ namespace Kurome
             DateTime? lastWriteTime,
             IDokanFileInfo info)
         {
-            var cTime = creationTime == null ? 0 : ((DateTimeOffset) creationTime).ToUnixTimeMilliseconds();
-            var laTime = lastAccessTime == null ? 0 : ((DateTimeOffset) lastAccessTime).ToUnixTimeMilliseconds();
-            var lwTime = lastWriteTime == null ? 0 : ((DateTimeOffset) lastWriteTime).ToUnixTimeMilliseconds();
-            _device.SetFileTime(fileName, cTime, laTime, lwTime);
+            var node = GetNode(fileName);
+            node.SetFileTime(creationTime, lastAccessTime, lastWriteTime, _device);
             return DokanResult.Success;
         }
 
         public NtStatus DeleteFile(string fileName, IDokanFileInfo info)
         {
-            var type = (info.Context as FileBuffer? ?? default).FileType;
-            if (type == FileType.FileNotFound)
+            var node = GetNode(fileName);
+            if (node == null)
                 return DokanResult.FileNotFound;
-            else if (type == FileType.Directory)
+            else if ((node.FileInformation.Attributes & FileAttributes.Directory) != 0)
                 return DokanResult.AccessDenied;
             return DokanResult.Success;
         }
 
         public NtStatus DeleteDirectory(string fileName, IDokanFileInfo info)
         {
-            var type = ((FileBuffer) info.Context).FileType;
-            if (type == FileType.FileNotFound)
+            var node = GetNode(fileName);
+            if (node == null)
                 return DokanResult.FileNotFound;
-            else if (type == FileType.File)
+            else if ((node.FileInformation.Attributes & FileAttributes.Directory) == 0)
                 return DokanResult.AccessDenied;
             return DokanResult.Success;
         }
 
         public NtStatus MoveFile(string oldName, string newName, bool replace, IDokanFileInfo info)
         {
-            var fileType = _device.GetFileInfo(newName).FileType;
-            var fileExists = fileType != FileType.FileNotFound;
-            if (!fileExists)
+            var newNode = GetNode(newName);
+            var oldNode = GetNode(oldName);
+            var destination = GetNode(Path.GetDirectoryName(newName)) as DirectoryNode;
+            if (newNode == null)
             {
-                _device.Rename(oldName, newName);
+                if (destination == null) return DokanResult.PathNotFound;
+                oldNode.Move(_device, newName, destination);
                 return DokanResult.Success;
             }
             else if (replace)
             {
                 if (info.IsDirectory) return DokanResult.AccessDenied;
-                _device.Delete(newName);
-                _device.Rename(oldName, newName);
+                newNode.Delete(_device);
+                oldNode.Move(_device, newName, destination);
                 return DokanResult.Success;
             }
 
@@ -269,13 +269,15 @@ namespace Kurome
 
         public NtStatus SetEndOfFile(string fileName, long length, IDokanFileInfo info)
         {
-            _device.SetLength(fileName, length);
+            var node = GetNode(fileName) as FileNode;
+            node.SetLength(length, _device);
             return DokanResult.Success;
         }
 
         public NtStatus SetAllocationSize(string fileName, long length, IDokanFileInfo info)
         {
-            _device.SetLength(fileName, length);
+            var node = GetNode(fileName) as FileNode;
+            node.SetLength(length, _device);
             return DokanResult.Success;
         }
 
@@ -333,7 +335,7 @@ namespace Kurome
 
         public NtStatus Mounted(string mountPoint, IDokanFileInfo info)
         {
-            throw new NotImplementedException();
+            return DokanResult.Success;
         }
 
         public NtStatus Unmounted(IDokanFileInfo info)
