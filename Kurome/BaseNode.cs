@@ -54,9 +54,9 @@ public abstract class BaseNode
             destination._children.Add(newNode.Name, newNode);
             newNode.SetParent(destination);
         }
+        device.Rename(Fullname, newNode.Fullname);
         Parent._children.Remove(Name);
         SetParent(null);
-        device.Rename(Fullname, newName);
     }
 
     public void Delete(Device device)
