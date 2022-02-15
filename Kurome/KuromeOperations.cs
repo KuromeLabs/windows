@@ -66,7 +66,7 @@ namespace Kurome
                         if (nodeExists)
                             return DokanResult.FileExists;
                         Console.WriteLine("Called CreateDirectory");
-                        _device.CreateDirectory(fileName);
+                        parentNode.CreateDirectoryChild(_device, fileName);
                         break;
                 }
             }
@@ -96,21 +96,21 @@ namespace Kurome
                             return DokanResult.FileExists;
                         else if (!parentNodeExists)
                             return DokanResult.PathNotFound;
-                        _device.CreateEmptyFile(fileName);
+                        parentNode.CreateFileChild(_device, fileName);
                         break;
                     case FileMode.Create:
                         if (!parentNodeExists)
                             return DokanResult.PathNotFound;
                         if (nodeExists)
                             return DokanResult.AlreadyExists;
-                        _device.CreateEmptyFile(fileName);
+                        parentNode.CreateFileChild(_device, fileName);
                         break;
                     case FileMode.OpenOrCreate:
                         if (nodeExists)
                             return DokanResult.AlreadyExists;
                         if (!parentNodeExists)
                             return DokanResult.PathNotFound;
-                        _device.CreateEmptyFile(fileName);
+                        parentNode.CreateFileChild(_device, fileName);
                         break;
                     case FileMode.Truncate:
                         if (!nodeExists)

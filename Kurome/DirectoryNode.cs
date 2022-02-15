@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
@@ -37,5 +38,37 @@ public class DirectoryNode : BaseNode
     {
         GetChildrenNodes(device);
         return _children.TryGetValue(name, out var node) ? node : null;
+    }
+
+    public void CreateFileChild(Device device, string fileName)
+    {
+        var node = Create(new FileInformation
+        {
+            FileName = Path.GetFileName(fileName),
+            Attributes = FileAttributes.Normal,
+            CreationTime = DateTime.Now,
+            LastWriteTime = DateTime.Now,
+            LastAccessTime = DateTime.Now,
+            Length = 0
+        }) as FileNode;
+        _children.Add(Path.GetFileName(fileName), node);
+        node.SetParent(this);
+        device.CreateEmptyFile(fileName);
+    }
+
+    public void CreateDirectoryChild(Device device, string directoryName)
+    {
+        var node = Create(new FileInformation
+        {
+            FileName = Path.GetFileName(directoryName),
+            Attributes = FileAttributes.Directory,
+            CreationTime = DateTime.Now,
+            LastWriteTime = DateTime.Now,
+            LastAccessTime = DateTime.Now,
+            Length = 0
+        }) as DirectoryNode;
+        _children.Add(node.Name, node);
+        node.SetParent(this);
+        device.CreateDirectory(directoryName);
     }
 }
