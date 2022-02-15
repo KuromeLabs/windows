@@ -1,3 +1,4 @@
+using System;
 using DokanNet;
 
 namespace Kurome;
@@ -15,4 +16,13 @@ public class FileNode : BaseNode
         FileInformation = fileInformation;
         device.SetLength(Fullname, length);
     }
+    
+    public void Write(byte[] data, long offset, Device device)
+    {
+        var fileInformation = FileInformation;
+        fileInformation.Length = offset + data.Length;
+        FileInformation = fileInformation;
+        device.WriteFileBuffer(data,Fullname,offset);
+    }
+    
 }

@@ -152,7 +152,8 @@ namespace Kurome
         public NtStatus WriteFile(string fileName, byte[] buffer, out int bytesWritten, long offset,
             IDokanFileInfo info)
         {
-            _device.WriteFileBuffer(buffer, fileName, offset);
+            var node = GetNode(fileName) as FileNode;
+            node.Write(buffer, offset, _device);
             bytesWritten = buffer.Length;
             return DokanResult.Success;
         }
