@@ -1,9 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Security.AccessControl;
 using DokanNet;
-using kurome;
 using FileAccess = DokanNet.FileAccess;
 
 namespace Kurome
@@ -15,6 +15,19 @@ namespace Kurome
         public KuromeOperations(Device device)
         {
             _device = device;
+        }
+
+        private DirectoryNode root;
+
+        private BaseNode GetNode(string name)
+        {
+            var result = root ?? (BaseNode) (root = new DirectoryNode(_device.GetRoot()));
+            var parts = new Queue<string>(name.Split('\\', StringSplitOptions.RemoveEmptyEntries));
+
+            while (result != null && parts.Count > 0)
+                result = (result as DirectoryNode)?.GetChild(_device, parts.Dequeue());
+
+            return result;
         }
 
         public NtStatus CreateFile(
@@ -31,24 +44,28 @@ namespace Kurome
             //TODO: Find workaround/ask for root/ask permission (for obb)/etc.
             if (fileName is "\\Android\\data" or "\\Android\\obb")
                 return DokanResult.AccessDenied;
-            var fileType = _device.GetFileType(fileName);
-            var pathExists = fileType is ResultType.ResultFileIsFile or ResultType.ResultFileIsDirectory;
+            var node = GetNode(fileName);
+            var nodeExists = node != null;
+            var parentPath = Path.GetDirectoryName(fileName);
+            var parentNode = parentPath == null ? null : GetNode(parentPath) as DirectoryNode;
+            var parentNodeExists = parentNode != null;
+            var nodeIsDirectory = nodeExists && (node.FileInformation.Attributes & FileAttributes.Directory) != 0;
             if (info.IsDirectory)
             {
                 switch (mode)
                 {
                     case FileMode.Open:
-                        if (!pathExists)
+                        if (!nodeExists)
                             return DokanResult.FileNotFound;
-                        else if (fileType == ResultType.ResultFileIsFile)
+                        else if (!nodeIsDirectory)
                             return DokanResult.NotADirectory;
                         break;
 
                     case FileMode.CreateNew:
-                        if (pathExists)
+                        if (nodeExists)
                             return DokanResult.FileExists;
                         Console.WriteLine("Called CreateDirectory");
-                        _device.CreateDirectory(fileName);
+                        parentNode.CreateDirectoryChild(_device, fileName);
                         break;
                 }
             }
@@ -57,12 +74,15 @@ namespace Kurome
                 switch (mode)
                 {
                     case FileMode.Open:
-                        if (fileType != ResultType.ResultFileNotFound && fileType != ResultType.ResultPathNotFound)
+                        if (nodeExists)
                         {
-                            if (fileType == ResultType.ResultFileIsDirectory)
+                            if (nodeIsDirectory)
                             {
+                                if ((access & FileAccess.Delete) == FileAccess.Delete &&
+                                    (access & FileAccess.Synchronize) != FileAccess.Synchronize)
+                                    return DokanResult.AccessDenied;
                                 info.IsDirectory = true;
-                                info.Context = new object();
+                                // info.Context = new object();
                                 return DokanResult.Success;
                             }
                         }
@@ -71,28 +91,28 @@ namespace Kurome
 
                         break;
                     case FileMode.CreateNew:
-                        if (fileType == ResultType.ResultFileIsFile)
+                        if (nodeExists)
                             return DokanResult.FileExists;
-                        else if (fileType == ResultType.ResultPathNotFound)
+                        else if (!parentNodeExists)
                             return DokanResult.PathNotFound;
-                        _device.CreateEmptyFile(fileName);
+                        parentNode.CreateFileChild(_device, fileName);
                         break;
                     case FileMode.Create:
-                        if (fileType == ResultType.ResultPathNotFound)
+                        if (!parentNodeExists)
                             return DokanResult.PathNotFound;
-                        if (pathExists)
+                        if (nodeExists)
                             return DokanResult.AlreadyExists;
-                        _device.CreateEmptyFile(fileName);
+                        parentNode.CreateFileChild(_device, fileName);
                         break;
                     case FileMode.OpenOrCreate:
-                        if (pathExists)
+                        if (nodeExists)
                             return DokanResult.AlreadyExists;
-                        if (fileType == ResultType.ResultPathNotFound)
+                        if (!parentNodeExists)
                             return DokanResult.PathNotFound;
-                        _device.CreateEmptyFile(fileName);
+                        parentNode.CreateFileChild(_device, fileName);
                         break;
                     case FileMode.Truncate:
-                        if (!pathExists)
+                        if (!nodeExists)
                             return DokanResult.FileNotFound;
                         break;
                 }
@@ -105,7 +125,7 @@ namespace Kurome
         {
             info.Context = null;
             if (info.DeleteOnClose)
-                _device.Delete(fileName);
+                GetNode(fileName).Delete(_device);
         }
 
         public void CloseFile(string fileName, IDokanFileInfo info)
@@ -115,8 +135,8 @@ namespace Kurome
 
         public NtStatus ReadFile(string fileName, byte[] buffer, out int bytesRead, long offset, IDokanFileInfo info)
         {
-            info.Context ??= _device.GetFileInfo(fileName);
-            var size = (info.Context as FileNode? ?? default).Length;
+            var node = GetNode(fileName);
+            var size = node.FileInformation.Length;
             if (offset >= size)
             {
                 bytesRead = 0;
@@ -131,7 +151,8 @@ namespace Kurome
         public NtStatus WriteFile(string fileName, byte[] buffer, out int bytesWritten, long offset,
             IDokanFileInfo info)
         {
-            _device.WriteFileBuffer(buffer, fileName, offset);
+            var node = GetNode(fileName) as FileNode;
+            node.Write(buffer, offset, _device);
             bytesWritten = buffer.Length;
             return DokanResult.Success;
         }
@@ -143,33 +164,50 @@ namespace Kurome
 
         public NtStatus GetFileInformation(string fileName, out FileInformation fileInfo, IDokanFileInfo info)
         {
-            var fileNode = _device.GetFileInfo(fileName);
+            var fileNode = GetNode(fileName);
             fileInfo = new FileInformation
             {
-                FileName = fileNode.Filename,
-                Attributes = fileNode.IsDirectory ? FileAttributes.Directory : FileAttributes.Normal,
-                LastAccessTime = DateTimeOffset.FromUnixTimeMilliseconds(fileNode.LastAccessTime).LocalDateTime,
-                LastWriteTime = DateTimeOffset.FromUnixTimeMilliseconds(fileNode.LastWriteTime).LocalDateTime,
-                CreationTime = DateTimeOffset.FromUnixTimeMilliseconds(fileNode.CreationTime).LocalDateTime,
-                Length = fileNode.IsDirectory ? 0 : fileNode.Length
+                FileName = fileNode.Name,
+                Attributes = (fileNode.FileInformation.Attributes & FileAttributes.Directory) != 0
+                    ? FileAttributes.Directory
+                    : FileAttributes.Normal,
+                LastAccessTime = fileNode.FileInformation.LastAccessTime,
+                LastWriteTime = fileNode.FileInformation.LastWriteTime,
+                CreationTime = fileNode.FileInformation.CreationTime,
+                Length = fileNode.FileInformation.Length
             };
             return DokanResult.Success;
         }
 
         public NtStatus FindFiles(string fileName, out IList<FileInformation> files, IDokanFileInfo info)
         {
-            files = _device.GetFileNodes(fileName);
+            var parent = GetNode(fileName) as DirectoryNode;
+            var children = parent.GetChildrenNodes(_device).ToList();
+            files = children.Any()
+                ? children.Select(x => new FileInformation()
+                {
+                    FileName = x.Name,
+                    Attributes = (x.FileInformation.Attributes & FileAttributes.Directory) != 0
+                        ? FileAttributes.Directory
+                        : FileAttributes.Normal,
+                    LastAccessTime = x.FileInformation.LastAccessTime,
+                    LastWriteTime = x.FileInformation.LastWriteTime,
+                    CreationTime = x.FileInformation.CreationTime,
+                    Length = x.FileInformation.Length
+                }).ToList()
+                : new List<FileInformation>();
+
             return DokanResult.Success;
         }
 
         public NtStatus FindFilesWithPattern(string fileName, string searchPattern, out IList<FileInformation> files,
             IDokanFileInfo info)
         {
-            var nodes = _device.GetFileNodes(fileName);
+            var nodes = ((DirectoryNode) GetNode(fileName)).GetChildrenNodes(_device).ToList();
             files = new List<FileInformation>(nodes.Count);
             foreach (var node in nodes.Where(node =>
-                         DokanHelper.DokanIsNameInExpression(searchPattern, node.FileName, true)))
-                files.Add(node);
+                         DokanHelper.DokanIsNameInExpression(searchPattern, node.Name, true)))
+                files.Add(node.FileInformation);
             return DokanResult.Success;
         }
 
@@ -182,47 +220,47 @@ namespace Kurome
             DateTime? lastWriteTime,
             IDokanFileInfo info)
         {
-            var cTime = creationTime == null ? 0 : ((DateTimeOffset) creationTime).ToUnixTimeMilliseconds();
-            var laTime = lastAccessTime == null ? 0 : ((DateTimeOffset) lastAccessTime).ToUnixTimeMilliseconds();
-            var lwTime = lastWriteTime == null ? 0 : ((DateTimeOffset) lastWriteTime).ToUnixTimeMilliseconds();
-            _device.SetFileTime(fileName, cTime, laTime, lwTime);
+            var node = GetNode(fileName);
+            node.SetFileTime(creationTime, lastAccessTime, lastWriteTime, _device);
             return DokanResult.Success;
         }
 
         public NtStatus DeleteFile(string fileName, IDokanFileInfo info)
         {
-            var type = _device.GetFileType(fileName);
-            if (type == ResultType.ResultFileNotFound)
+            var node = GetNode(fileName);
+            if (node == null)
                 return DokanResult.FileNotFound;
-            else if (type == ResultType.ResultFileIsDirectory)
+            else if ((node.FileInformation.Attributes & FileAttributes.Directory) != 0)
                 return DokanResult.AccessDenied;
             return DokanResult.Success;
         }
 
         public NtStatus DeleteDirectory(string fileName, IDokanFileInfo info)
         {
-            var type = _device.GetFileType(fileName);
-            if (type == ResultType.ResultFileNotFound)
+            var node = GetNode(fileName);
+            if (node == null)
                 return DokanResult.FileNotFound;
-            else if (type == ResultType.ResultFileIsFile)
+            else if ((node.FileInformation.Attributes & FileAttributes.Directory) == 0)
                 return DokanResult.AccessDenied;
             return DokanResult.Success;
         }
 
         public NtStatus MoveFile(string oldName, string newName, bool replace, IDokanFileInfo info)
         {
-            var fileType = _device.GetFileType(newName);
-            var fileExists = fileType != ResultType.ResultFileNotFound;
-            if (!fileExists)
+            var newNode = GetNode(newName);
+            var oldNode = GetNode(oldName);
+            var destination = GetNode(Path.GetDirectoryName(newName)) as DirectoryNode;
+            if (newNode == null)
             {
-                _device.Rename(oldName, newName);
+                if (destination == null) return DokanResult.PathNotFound;
+                oldNode.Move(_device, newName, destination);
                 return DokanResult.Success;
             }
             else if (replace)
             {
                 if (info.IsDirectory) return DokanResult.AccessDenied;
-                _device.Delete(newName);
-                _device.Rename(oldName, newName);
+                newNode.Delete(_device);
+                oldNode.Move(_device, newName, destination);
                 return DokanResult.Success;
             }
 
@@ -231,13 +269,15 @@ namespace Kurome
 
         public NtStatus SetEndOfFile(string fileName, long length, IDokanFileInfo info)
         {
-            _device.SetLength(fileName, length);
+            var node = GetNode(fileName) as FileNode;
+            node.SetLength(length, _device);
             return DokanResult.Success;
         }
 
         public NtStatus SetAllocationSize(string fileName, long length, IDokanFileInfo info)
         {
-            _device.SetLength(fileName, length);
+            var node = GetNode(fileName) as FileNode;
+            node.SetLength(length, _device);
             return DokanResult.Success;
         }
 
@@ -260,7 +300,7 @@ namespace Kurome
             totalNumberOfBytes = freeBytesAvailable = totalNumberOfFreeBytes = 0;
             var spaces = _device.GetSpace();
             var total = spaces.TotalBytes;
-            long free = spaces.FreeBytes;
+            var free = spaces.FreeBytes;
             totalNumberOfBytes = total;
             freeBytesAvailable = free;
             totalNumberOfFreeBytes = free;
@@ -295,12 +335,12 @@ namespace Kurome
 
         public NtStatus Mounted(string mountPoint, IDokanFileInfo info)
         {
-            throw new NotImplementedException();
+            return DokanResult.Success;
         }
 
         public NtStatus Unmounted(IDokanFileInfo info)
         {
-            throw new NotImplementedException();
+            return DokanResult.Success;
         }
 
         public NtStatus FindStreams(string fileName, out IList<FileInformation> streams, IDokanFileInfo info)

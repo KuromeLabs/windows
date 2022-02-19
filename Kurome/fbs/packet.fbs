@@ -1,15 +1,14 @@
-include "file_node.fbs";
+include "file_buffer.fbs";
 include "device_info.fbs";
 include "raw.fbs";
 
 namespace kurome;
-
+attribute "fs_serializer";
 //FlatBuffers snake_case does not compile to proper C# grammar for enums, so we set it to PascalCase 
 enum ActionType : byte {
     NoAction = 0,
     ActionGetDirectory = 1,
     ActionGetSpaceInfo = 2,
-    ActionGetFileType = 3,
     ActionCreateDirectory = 4,
     ActionDelete = 5,
     ActionReadFileBuffer = 6,
@@ -29,18 +28,15 @@ enum ActionType : byte {
 enum ResultType : byte {
     NoResult = 0,
     ResultActionSuccess = 1,
-    ResultFileIsDirectory = 2,
-    ResultFileIsFile = 3,
-    ResultFileNotFound = 4,
-    ResultPathNotFound = 5,
-    ResultActionFail = 6
+    ResultActionFail = 2
 }
 
-table Packet {
+table Packet (fs_serializer:"lazy"){
     path:string;
     action:kurome.ActionType;
     result:kurome.ResultType;
     device_info:kurome.DeviceInfo;
     file_buffer:kurome.Raw;
-    nodes:[kurome.FileNode];
+    nodes:[kurome.FileBuffer];
+    id:int32;
 }

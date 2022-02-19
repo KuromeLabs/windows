@@ -1,9 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Net.Sockets;
+using System.Threading.Tasks;
 using DokanNet;
-using FlatBuffers;
+using FlatSharp;
 using kurome;
 
 namespace Kurome
@@ -11,137 +11,167 @@ namespace Kurome
     public class Device
     {
         public readonly char _driveLetter;
-        public string Name { get; set; }
-        public string Id { get; set; }
-        public Link Link;
+        private readonly Link _link;
+        private readonly object _lock = new();
+        private readonly Random _random = new();
 
         public Device(Link link, char driveLetter)
         {
-            Link = link;
+            _link = link;
             _driveLetter = driveLetter;
         }
 
+        public string Name { get; set; }
+        public string Id { get; set; }
+
         public DeviceInfo GetSpace()
         {
-            var packet = ExchangePacket(action: ActionType.ActionGetSpaceInfo);
-            return packet.DeviceInfo!.Value;
+            var id = _random.Next(int.MaxValue - 1) + 1;
+            var packetCompletionSource = new TaskCompletionSource<Packet>();
+            _link.AddCompletionSource(id, packetCompletionSource);
+            SendPacket(action: ActionType.ActionGetSpaceInfo, id: id);
+            var packet = packetCompletionSource.Task.Result;
+            return packet.DeviceInfo!;
         }
 
         public List<FileInformation> GetFileNodes(string fileName)
         {
-            var packet = ExchangePacket(fileName, ActionType.ActionGetDirectory);
+            var id = _random.Next(int.MaxValue - 1) + 1;
+            var packetCompletionSource = new TaskCompletionSource<Packet>();
+            _link.AddCompletionSource(id, packetCompletionSource);
+            SendPacket(fileName, ActionType.ActionGetDirectory, id: id);
+            var packet = packetCompletionSource.Task.Result;
             var files = new List<FileInformation>();
-            for (var i = 0; i < packet.NodesLength; i++)
+            for (var i = 0; i < packet.Nodes!.Count; i++)
             {
-                var node = packet.Nodes(i)!.Value;
+                var node = packet.Nodes![i];
                 files.Add(new FileInformation
                 {
                     FileName = node.Filename,
-                    Attributes = node.IsDirectory ? FileAttributes.Directory : FileAttributes.Normal,
+                    Attributes = node.FileType == FileType.Directory ? FileAttributes.Directory : FileAttributes.Normal,
                     LastAccessTime = DateTimeOffset.FromUnixTimeMilliseconds(node.LastAccessTime).LocalDateTime,
                     LastWriteTime = DateTimeOffset.FromUnixTimeMilliseconds(node.LastWriteTime).LocalDateTime,
                     CreationTime = DateTimeOffset.FromUnixTimeMilliseconds(node.CreationTime).LocalDateTime,
                     Length = node.Length
                 });
             }
+
             return files;
         }
 
-        public ResultType GetFileType(string fileName)
+        public FileInformation GetFileNode(string fileName)
         {
-            var packet = ExchangePacket(fileName, ActionType.ActionGetFileType);
-            return packet.Result;
+            var id = _random.Next(int.MaxValue - 1) + 1;
+            var packetCompletionSource = new TaskCompletionSource<Packet>();
+            _link.AddCompletionSource(id, packetCompletionSource);
+            SendPacket(fileName, ActionType.ActionGetFileInfo, id: id);
+            var packet = packetCompletionSource.Task.Result;
+
+            var fileBuffer = packet.Nodes![0];
+            return new FileInformation
+            {
+                FileName = fileBuffer.Filename,
+                Attributes = fileBuffer.FileType == FileType.Directory
+                    ? FileAttributes.Directory
+                    : FileAttributes.Normal,
+                LastAccessTime = DateTimeOffset.FromUnixTimeMilliseconds(fileBuffer.LastAccessTime).LocalDateTime,
+                LastWriteTime = DateTimeOffset.FromUnixTimeMilliseconds(fileBuffer.LastWriteTime).LocalDateTime,
+                CreationTime = DateTimeOffset.FromUnixTimeMilliseconds(fileBuffer.CreationTime).LocalDateTime,
+                Length = fileBuffer.Length
+            };
         }
 
-        public byte CreateDirectory(string fileName)
+        public FileInformation GetRoot()
         {
-            var packet = ExchangePacket(fileName, ActionType.ActionCreateDirectory);
-            return (byte) packet.Result;
+            var result = GetFileNode("\\");
+            result.FileName = "";
+            return result;
         }
 
-        public byte Delete(string fileName)
+        public void CreateDirectory(string fileName)
         {
-            var packet = ExchangePacket(fileName, ActionType.ActionDelete);
-            return (byte) packet.Result;
+            SendPacket(fileName, ActionType.ActionCreateDirectory);
+        }
+
+        public void Delete(string fileName)
+        {
+            SendPacket(fileName, ActionType.ActionDelete);
         }
 
         public int ReceiveFileBuffer(byte[] buffer, string fileName, long offset, int bytesToRead, long fileSize)
         {
-            var packet = ExchangePacket(fileName, ActionType.ActionReadFileBuffer, rawOffset: offset,
-                rawLength: bytesToRead);
-            var rSpan = new Span<byte>(buffer);
-            packet.FileBuffer?.GetDataBytes().CopyTo(rSpan);
+            var id = _random.Next(int.MaxValue - 1) + 1;
+            var packetCompletionSource = new TaskCompletionSource<Packet>();
+            _link.AddCompletionSource(id, packetCompletionSource);
+            SendPacket(fileName, ActionType.ActionReadFileBuffer, rawOffset: offset,
+                rawLength: bytesToRead, id: id);
+            var packet = packetCompletionSource.Task.Result;
+            packet.FileBuffer?.Data!.Value.CopyTo(buffer);
             return bytesToRead;
         }
 
-        public byte WriteFileBuffer(byte[] buffer, string fileName, long offset)
+        public void WriteFileBuffer(byte[] buffer, string fileName, long offset)
         {
-            var packet = ExchangePacket(fileName, ActionType.ActionWriteFileBuffer, rawOffset: offset,
-                rawBuffer: buffer);
-            Console.WriteLine("buffer size: " + buffer.Length);
-            return (byte) packet.Result;
+            SendPacket(fileName, ActionType.ActionWriteFileBuffer, rawOffset: offset,
+                rawBuffer: buffer, id: 0);
         }
 
-        public byte Rename(string oldName, string newName)
+        public void Rename(string oldName, string newName)
         {
-            var packet = ExchangePacket(oldName, ActionType.ActionRename, newName);
-            return (byte) packet.Result;
+            SendPacket(oldName, ActionType.ActionRename, newName);
         }
 
-        public byte SetLength(string fileName, long length)
+        public void SetLength(string fileName, long length)
         {
-            var packet = ExchangePacket(nodeName: fileName, action: ActionType.ActionSetFileTime, fileLength: length);
-            return (byte) packet.Result;
+            SendPacket(nodeName: fileName, action: ActionType.ActionSetFileTime, fileLength: length);
         }
 
-        public byte SetFileTime(string fileName, long cTime, long laTime, long lwTime)
+        public void SetFileTime(string fileName, long cTime, long laTime, long lwTime)
         {
-            var packet = ExchangePacket(nodeName: fileName, action: ActionType.ActionSetFileTime,
+            SendPacket(nodeName: fileName, action: ActionType.ActionSetFileTime,
                 cTime: cTime, laTime: laTime, lwTime: lwTime);
-            return (byte) packet.Result;
         }
 
-        public FileNode GetFileInfo(string fileName)
+        public void CreateEmptyFile(string fileName)
         {
-            var packet = ExchangePacket(fileName, ActionType.ActionGetFileInfo);
-            var packetNode = packet.Nodes(0).GetValueOrDefault(new FileNode());
-            return packetNode;
+            SendPacket(fileName, ActionType.ActionCreateFile);
         }
 
-        public byte CreateEmptyFile(string fileName)
-        {
-            var packet = ExchangePacket(fileName, ActionType.ActionCreateFile);
-            return (byte) packet.Result;
-        }
-
-        private Packet ExchangePacket(string filename = "", ActionType action = ActionType.NoAction,
+        private void SendPacket(string filename = "", ActionType action = ActionType.NoAction,
             string nodeName = "", long cTime = 0, long laTime = 0, long lwTime = 0,
-            bool fileIsDirectory = false, long fileLength = 0, long rawOffset = 0, byte[] rawBuffer = null,
-            long rawLength = 0)
+            FileType fileType = 0, long fileLength = 0, long rawOffset = 0, byte[] rawBuffer = null,
+            int rawLength = 0, int id = 0)
         {
-            lock (Link)
+            filename = filename.Replace('\\', '/');
+            nodeName = nodeName.Replace('\\', '/');
+            var packet = new Packet
             {
-                filename = filename.Replace('\\', '/');
-                nodeName = nodeName.Replace('\\', '/');
-                var builder = Link.BufferBuilder;
-                var byteVector = new VectorOffset(0);
-                if (rawBuffer != null) byteVector = Raw.CreateDataVector(builder, rawBuffer);
-                var raw = Raw.CreateRaw(builder, byteVector, rawOffset, rawLength);
-
-                var nodesOffset = new Offset<FileNode>[1];
-                var nodeNameOffset = builder.CreateString(nodeName);
-                nodesOffset[0] = FileNode.CreateFileNode(builder, nodeNameOffset, fileIsDirectory, fileLength, cTime,
-                    laTime, lwTime);
-                var nodesVector = Packet.CreateNodesVector(builder, nodesOffset);
-
-                var path = builder.CreateString(filename);
-                var packet = Packet.CreatePacket(builder, path, action, default, default, raw, nodesVector);
-                builder.FinishSizePrefixed(packet.Value);
-                Link.SendBuffer(builder.DataBuffer);
-                builder.Clear();
-                var res = Link.GetPacket();
-                return res;
-            }
+                Action = action,
+                Path = filename,
+                FileBuffer = new Raw
+                {
+                    Data = rawBuffer,
+                    Length = rawLength,
+                    Offset = rawOffset
+                },
+                Nodes = new FileBuffer[]
+                {
+                    new()
+                    {
+                        CreationTime = cTime,
+                        Filename = nodeName,
+                        FileType = fileType,
+                        LastAccessTime = laTime,
+                        LastWriteTime = lwTime,
+                        Length = fileLength
+                    }
+                },
+                Id = id
+            };
+            var size = Packet.Serializer.GetMaxSize(packet);
+            Span<byte> buffer = stackalloc byte[size];
+            Packet.Serializer.Write(buffer, packet);
+            _link.SendBuffer(buffer);
         }
     }
 }

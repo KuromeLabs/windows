@@ -5,109 +5,75 @@ using System.Net;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using System.Text;
-using System.Threading;
 using System.Threading.Tasks;
-using FlatBuffers;
 using kurome;
 
 namespace Kurome
 {
-    public sealed class LinkProvider
+    public class LinkProvider
     {
-        private static readonly Lazy<LinkProvider> Lazy = new(() => new LinkProvider());
-        private readonly TcpListener _controlListener = TcpListener.Create(33587);
-        public static LinkProvider Instance => Lazy.Value;
-        private readonly object _lock = new();
+        private readonly TcpListener _tcpListener = TcpListener.Create(33587);
+        private readonly int UdpPort = 33586;
         private readonly string UdpSubnet = "235.132.20.12";
-        private readonly int Port = 33586;
         private string _id;
-        private FlatBufferBuilder _builder = new(1024);
+        public bool Listening { get; set; }
 
-        private IEnumerable<string> _localIpAddresses = Array.Empty<string>();
+        public event KuromeDaemon.LinkConnected OnLinkConnected;
+        public event KuromeDaemon.LinkDisconnected OnLinkDisconnected;
 
-        private Dictionary<string, UdpClient> _udpDictionary = new();
 
-        public void InitializeUdpListener()
+        public delegate void LinkDisconnected(Link link);
+
+
+        public void Initialize()
+        {
+            var addresses = GetLocalIpAddresses();
+
+            StartTcpListener();
+            CastUdp(addresses);
+        }
+
+        private void CastUdp(IEnumerable<string> addresses)
         {
             _id = IdentityProvider.GetGuid();
-            _localIpAddresses = GetLocalIpAddress();
-            foreach (var ip in _localIpAddresses)
+            foreach (var ip in addresses)
             {
                 var udpClient = new UdpClient(AddressFamily.InterNetwork);
                 udpClient.JoinMulticastGroup(IPAddress.Parse(UdpSubnet));
-                udpClient.Client.Bind(new IPEndPoint(IPAddress.Parse(ip), Port));
+                udpClient.Client.Bind(new IPEndPoint(IPAddress.Parse(ip), UdpPort));
                 udpClient.Ttl = 32;
-                _udpDictionary.Add(ip, udpClient);
-            }
-        }
-
-        public Link CreateLink(Link controlLink)
-        {
-            lock (_lock)
-            {
-                var listener = TcpListener.Create(33588);
-                listener.Start();
-                var packet = Packet.CreatePacket(_builder, action: ActionType.ActionCreateLink);
-                _builder.FinishSizePrefixed(packet.Value);
-                controlLink.SendBuffer(_builder.DataBuffer);
-                _builder.Clear();
-                // controlLink.WritePrefixed(Packets.ActionCreateNewLink);
-                var client = listener.AcceptTcpClient();
-                listener.Stop();
-                return new Link(client);
-            }
-        }
-
-        public async void StartCasting(TimeSpan interval, CancellationToken token)
-        {
-            var address = IPAddress.Parse(UdpSubnet);
-            var ipEndPoint = new IPEndPoint(address, Port);
-            _id = IdentityProvider.GetGuid();
-            // using var udpClient = new UdpClient();
-            _ = Task.Run(async () =>
-            {
-                while (!token.IsCancellationRequested)
-                {
-                    _localIpAddresses = GetLocalIpAddress();
-                    await Task.Delay(TimeSpan.FromSeconds(10), token);
-                }
-            }, token);
-            while (!token.IsCancellationRequested)
-            {
-                CastUdpInfo(address, ipEndPoint);
-                await Task.Delay(interval, token);
-            }
-        }
-
-        public void StartListening()
-        {
-            _controlListener.Start();
-        }
-
-        public async Task<Link> GetIncomingLink()
-        {
-            return new Link(await _controlListener.AcceptTcpClientAsync());
-        }
-
-        public async void CastUdpInfo(IPAddress address, IPEndPoint endpoint)
-        {
-            foreach (var addr in _udpDictionary.Keys)
-            {
-                var message = "kurome:" + addr + ":" + IdentityProvider.GetMachineName() + ":" + _id;
+                var message = "kurome:" + ip + ":" + IdentityProvider.GetMachineName() + ":" + _id;
                 var data = Encoding.Default.GetBytes(message);
+                Console.WriteLine("Broadcast: \"{0}\" to {1}", message, ip);
+                udpClient.Send(data, data.Length, new IPEndPoint(IPAddress.Parse(UdpSubnet), UdpPort));
+            }
+        }
+
+        private async void StartTcpListener()
+        {
+            _tcpListener.Start();
+            while (Listening)
+            {
                 try
                 {
-                    await _udpDictionary[addr].SendAsync(data, data.Length, endpoint);
-                    // Console.WriteLine("Broadcast: \"{0}\" to {1}", message, addr);
+                    var link = new Link(await _tcpListener.AcceptTcpClientAsync());
+                    link.OnLinkDisconnected += OnDisconnect;
+                    var packetCompletionSource = new TaskCompletionSource<Packet>();
+                    link.AddCompletionSource(0, packetCompletionSource);
+                    link.StartListeningAsync();
+                    var result = packetCompletionSource.Task.Result;
+                    var info = result.DeviceInfo!;
+                    link.DeviceId = info.Id;
+                    OnLinkConnected?.Invoke(info.Name, info.Id, link);
                 }
-                catch (SocketException e)
+                catch (Exception e)
                 {
-                    Console.WriteLine(e);
+                    Console.WriteLine("Exception at StartTcpListener: {0}", e);
                 }
             }
         }
 
-        public IEnumerable<string> GetLocalIpAddress()
+        private IEnumerable<string> GetLocalIpAddresses()
         {
             var networkInterfaces = NetworkInterface.GetAllNetworkInterfaces();
             return (from network in networkInterfaces
@@ -118,6 +84,12 @@ namespace Kurome
                 where address.Address.AddressFamily == AddressFamily.InterNetwork
                 where !IPAddress.IsLoopback(address.Address)
                 select address.Address.ToString()).ToList();
+        }
+
+        private void OnDisconnect(Link link)
+        {
+            Console.WriteLine("OnDisconnect called");
+            OnLinkDisconnected?.Invoke(link.DeviceId, link);
         }
     }
 }

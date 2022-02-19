@@ -1,0 +1,17 @@
+namespace kurome;
+attribute "fs_serializer";
+enum FileType: byte {
+    Directory = 0,
+    File = 1,
+    FileNotFound = 2,
+    PathNotFound = 3,
+}
+
+table FileBuffer (fs_serializer:"lazy"){
+  filename:string;
+  file_type:FileType;
+  length:long;
+  creation_time:long;
+  last_access_time:long;
+  last_write_time:long;
+}

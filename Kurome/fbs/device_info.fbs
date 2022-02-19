@@ -1,6 +1,6 @@
 namespace kurome;
-
-table DeviceInfo {
+attribute "fs_serializer";
+table DeviceInfo (fs_serializer:"lazy"){
   name:string;
   id:string;
   total_bytes:long;
