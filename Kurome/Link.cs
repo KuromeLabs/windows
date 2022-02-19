@@ -5,7 +5,7 @@ using System.Net.Sockets;
 using System.Security.Authentication;
 using System.Security.Cryptography.X509Certificates;
 using System.Threading.Tasks;
-using FlatBuffers;
+using FlatSharp;
 using kurome;
 
 namespace Kurome
@@ -19,10 +19,9 @@ namespace Kurome
         private readonly SslStream _stream;
         public string DeviceId;
 
-        public readonly FlatBufferBuilder BufferBuilder = new(1024);
-
         public bool IsDisposed = false;
         public event LinkProvider.LinkDisconnected OnLinkDisconnected;
+
         public Link(TcpClient client)
         {
             _client = client;
@@ -48,15 +47,16 @@ namespace Kurome
                     break;
                 }
 
-                if (_packetTasks.ContainsKey(packet.Value!.Id))
-                    _packetTasks[packet.Value!.Id].SetResult(packet.Value!);
-                _packetTasks.TryRemove(packet.Value!.Id, out _);
+                if (_packetTasks.ContainsKey(packet.Id))
+                    _packetTasks[packet.Id].SetResult(packet);
+                _packetTasks.TryRemove(packet.Id, out _);
             }
         }
 
-        public void SendBuffer(ByteBuffer buffer)
+        public void SendBuffer(ReadOnlySpan<byte> buffer)
         {
-            _stream.Write(buffer.ToSpan(buffer.Position, buffer.Length - buffer.Position));
+            _stream.Write(BitConverter.GetBytes(buffer.Length));
+            _stream.Write(buffer);
         }
 
         private async Task<Packet?> GetPacketAsync()
@@ -73,6 +73,7 @@ namespace Kurome
                     if (current != 0) continue;
                     return null;
                 }
+
                 var size = BitConverter.ToInt32(sizeBuffer);
                 bytesRead = 0;
                 var readBuffer = new byte[size];
@@ -83,8 +84,8 @@ namespace Kurome
                     if (current != 0) continue;
                     return null;
                 }
-                var bb = new ByteBuffer(readBuffer);
-                var packet = Packet.GetRootAsPacket(bb);
+
+                var packet = Packet.Serializer.Parse(readBuffer);
                 return packet;
             }
             catch (Exception e)
@@ -105,7 +106,7 @@ namespace Kurome
             Dispose();
             foreach (var (key, value) in _packetTasks)
                 value.SetCanceled();
-            
+
             _packetTasks.Clear();
             OnLinkDisconnected?.Invoke(this);
         }

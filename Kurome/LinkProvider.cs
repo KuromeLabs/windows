@@ -62,7 +62,7 @@ namespace Kurome
                     link.AddCompletionSource(0, packetCompletionSource);
                     link.StartListeningAsync();
                     var result = packetCompletionSource.Task.Result;
-                    var info = result.DeviceInfo!.Value;
+                    var info = result.DeviceInfo!;
                     link.DeviceId = info.Id;
                     OnLinkConnected?.Invoke(info.Name, info.Id, link);
                 }

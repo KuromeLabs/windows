@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
 using DokanNet;
-using FlatBuffers;
+using FlatSharp;
 using kurome;
 
 namespace Kurome
@@ -31,7 +31,7 @@ namespace Kurome
             _link.AddCompletionSource(id, packetCompletionSource);
             SendPacket(action: ActionType.ActionGetSpaceInfo, id: id);
             var packet = packetCompletionSource.Task.Result;
-            return packet.DeviceInfo!.Value;
+            return packet.DeviceInfo!;
         }
 
         public List<FileInformation> GetFileNodes(string fileName)
@@ -42,9 +42,9 @@ namespace Kurome
             SendPacket(fileName, ActionType.ActionGetDirectory, id: id);
             var packet = packetCompletionSource.Task.Result;
             var files = new List<FileInformation>();
-            for (var i = 0; i < packet.NodesLength; i++)
+            for (var i = 0; i < packet.Nodes!.Count; i++)
             {
-                var node = packet.Nodes(i)!.Value;
+                var node = packet.Nodes![i];
                 files.Add(new FileInformation
                 {
                     FileName = node.Filename,
@@ -67,7 +67,7 @@ namespace Kurome
             SendPacket(fileName, ActionType.ActionGetFileInfo, id: id);
             var packet = packetCompletionSource.Task.Result;
 
-            var fileBuffer = packet.Nodes(0)!.Value;
+            var fileBuffer = packet.Nodes![0];
             return new FileInformation
             {
                 FileName = fileBuffer.Filename,
@@ -87,6 +87,7 @@ namespace Kurome
             result.FileName = "";
             return result;
         }
+
         public void CreateDirectory(string fileName)
         {
             SendPacket(fileName, ActionType.ActionCreateDirectory);
@@ -105,8 +106,7 @@ namespace Kurome
             SendPacket(fileName, ActionType.ActionReadFileBuffer, rawOffset: offset,
                 rawLength: bytesToRead, id: id);
             var packet = packetCompletionSource.Task.Result;
-            var rSpan = new Span<byte>(buffer);
-            packet.FileBuffer?.GetDataBytes().CopyTo(rSpan);
+            packet.FileBuffer?.Data!.Value.CopyTo(buffer);
             return bytesToRead;
         }
 
@@ -132,18 +132,6 @@ namespace Kurome
                 cTime: cTime, laTime: laTime, lwTime: lwTime);
         }
 
-        public FileBuffer GetFileInfo(string fileName)
-        {
-            var id = _random.Next(int.MaxValue - 1) + 1;
-            var packetCompletionSource = new TaskCompletionSource<Packet>();
-            _link.AddCompletionSource(id, packetCompletionSource);
-            SendPacket(fileName, ActionType.ActionGetFileInfo, id: id);
-            var packet = packetCompletionSource.Task.Result;
-
-            var packetNode = packet.Nodes(0).GetValueOrDefault(new FileBuffer());
-            return packetNode;
-        }
-
         public void CreateEmptyFile(string fileName)
         {
             SendPacket(fileName, ActionType.ActionCreateFile);
@@ -154,27 +142,36 @@ namespace Kurome
             FileType fileType = 0, long fileLength = 0, long rawOffset = 0, byte[] rawBuffer = null,
             int rawLength = 0, int id = 0)
         {
-            lock (_lock)
+            filename = filename.Replace('\\', '/');
+            nodeName = nodeName.Replace('\\', '/');
+            var packet = new Packet
             {
-                filename = filename.Replace('\\', '/');
-                nodeName = nodeName.Replace('\\', '/');
-                var builder = _link.BufferBuilder;
-                var byteVector = new VectorOffset(0);
-                if (rawBuffer != null) byteVector = Raw.CreateDataVector(builder, rawBuffer);
-                var raw = Raw.CreateRaw(builder, byteVector, rawOffset, rawLength);
-
-                var nodesOffset = new Offset<FileBuffer>[1];
-                var nodeNameOffset = builder.CreateString(nodeName);
-                nodesOffset[0] = FileBuffer.CreateFileBuffer(builder, nodeNameOffset, fileType, fileLength, cTime,
-                    laTime, lwTime);
-                var nodesVector = Packet.CreateNodesVector(builder, nodesOffset);
-
-                var path = builder.CreateString(filename);
-                var packet = Packet.CreatePacket(builder, path, action, default, default, raw, nodesVector, id);
-                builder.FinishSizePrefixed(packet.Value);
-                _link.SendBuffer(builder.DataBuffer);
-                builder.Clear();
-            }
+                Action = action,
+                Path = filename,
+                FileBuffer = new Raw
+                {
+                    Data = rawBuffer,
+                    Length = rawLength,
+                    Offset = rawOffset
+                },
+                Nodes = new FileBuffer[]
+                {
+                    new()
+                    {
+                        CreationTime = cTime,
+                        Filename = nodeName,
+                        FileType = fileType,
+                        LastAccessTime = laTime,
+                        LastWriteTime = lwTime,
+                        Length = fileLength
+                    }
+                },
+                Id = id
+            };
+            var size = Packet.Serializer.GetMaxSize(packet);
+            Span<byte> buffer = stackalloc byte[size];
+            Packet.Serializer.Write(buffer, packet);
+            _link.SendBuffer(buffer);
         }
     }
 }

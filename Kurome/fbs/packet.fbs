@@ -3,7 +3,7 @@ include "device_info.fbs";
 include "raw.fbs";
 
 namespace kurome;
-
+attribute "fs_serializer";
 //FlatBuffers snake_case does not compile to proper C# grammar for enums, so we set it to PascalCase 
 enum ActionType : byte {
     NoAction = 0,
@@ -31,7 +31,7 @@ enum ResultType : byte {
     ResultActionFail = 2
 }
 
-table Packet {
+table Packet (fs_serializer:"lazy"){
     path:string;
     action:kurome.ActionType;
     result:kurome.ResultType;

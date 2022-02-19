@@ -1,7 +1,7 @@
 namespace kurome;
-
+attribute "fs_vector";
 table Raw {
-    data:[ubyte];
+    data:[ubyte] (fs_vector:"Memory");
     offset:long;
     length:int;
 }

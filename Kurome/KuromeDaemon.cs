@@ -5,8 +5,6 @@ using System.Linq;
 using System.Threading.Tasks;
 using DokanNet;
 using DokanNet.Logging;
-using FlatBuffers;
-using kurome;
 
 namespace Kurome;
 
