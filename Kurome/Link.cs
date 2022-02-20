@@ -53,10 +53,9 @@ namespace Kurome
             }
         }
 
-        public void SendBuffer(ReadOnlySpan<byte> buffer)
+        public void SendBuffer(ReadOnlySpan<byte> buffer, int length)
         {
-            _stream.Write(BitConverter.GetBytes(buffer.Length));
-            _stream.Write(buffer);
+            _stream.Write(buffer[..length]);;
         }
 
         private async Task<Packet?> GetPacketAsync()

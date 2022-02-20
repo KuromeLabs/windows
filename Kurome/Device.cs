@@ -1,4 +1,6 @@
 using System;
+using System.Buffers;
+using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
@@ -169,9 +171,12 @@ namespace Kurome
                 Id = id
             };
             var size = Packet.Serializer.GetMaxSize(packet);
-            Span<byte> buffer = stackalloc byte[size];
-            Packet.Serializer.Write(buffer, packet);
-            _link.SendBuffer(buffer);
+            var bytes = ArrayPool<byte>.Shared.Rent(size + 4);
+            Span<byte> buffer = bytes;
+            var length = Packet.Serializer.Write(buffer[4..], packet);
+            BinaryPrimitives.WriteInt32LittleEndian(buffer[..4], length);
+            _link.SendBuffer(buffer, length + 4);
+            ArrayPool<byte>.Shared.Return(bytes);
         }
     }
 }
