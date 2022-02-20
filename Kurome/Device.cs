@@ -29,24 +29,26 @@ namespace Kurome
         public DeviceInfo GetSpace()
         {
             var id = _random.Next(int.MaxValue - 1) + 1;
-            var packetCompletionSource = new TaskCompletionSource<Packet>();
-            _link.AddCompletionSource(id, packetCompletionSource);
+            var contextCompletionSource = new TaskCompletionSource<Link.LinkContext>();
+            _link.AddCompletionSource(id, contextCompletionSource);
             SendPacket(action: ActionType.ActionGetSpaceInfo, id: id);
-            var packet = packetCompletionSource.Task.Result;
-            return packet.DeviceInfo!;
+            var context = contextCompletionSource.Task.Result;
+            var deviceInfo = new DeviceInfo(context.Packet.DeviceInfo!);
+            context.Dispose();
+            return deviceInfo;
         }
 
         public List<FileInformation> GetFileNodes(string fileName)
         {
             var id = _random.Next(int.MaxValue - 1) + 1;
-            var packetCompletionSource = new TaskCompletionSource<Packet>();
-            _link.AddCompletionSource(id, packetCompletionSource);
+            var contextCompletionSource = new TaskCompletionSource<Link.LinkContext>();
+            _link.AddCompletionSource(id, contextCompletionSource);
             SendPacket(fileName, ActionType.ActionGetDirectory, id: id);
-            var packet = packetCompletionSource.Task.Result;
+            var context = contextCompletionSource.Task.Result;
             var files = new List<FileInformation>();
-            for (var i = 0; i < packet.Nodes!.Count; i++)
+            for (var i = 0; i < context.Packet.Nodes!.Count; i++)
             {
-                var node = packet.Nodes![i];
+                var node = context.Packet.Nodes![i];
                 files.Add(new FileInformation
                 {
                     FileName = node.Filename,
@@ -58,19 +60,20 @@ namespace Kurome
                 });
             }
 
+            context.Dispose();
             return files;
         }
 
         public FileInformation GetFileNode(string fileName)
         {
             var id = _random.Next(int.MaxValue - 1) + 1;
-            var packetCompletionSource = new TaskCompletionSource<Packet>();
-            _link.AddCompletionSource(id, packetCompletionSource);
+            var contextCompletionSource = new TaskCompletionSource<Link.LinkContext>();
+            _link.AddCompletionSource(id, contextCompletionSource);
             SendPacket(fileName, ActionType.ActionGetFileInfo, id: id);
-            var packet = packetCompletionSource.Task.Result;
+            var context = contextCompletionSource.Task.Result;
 
-            var fileBuffer = packet.Nodes![0];
-            return new FileInformation
+            var fileBuffer = context.Packet.Nodes![0];
+            var fileInfo = new FileInformation
             {
                 FileName = fileBuffer.Filename,
                 Attributes = fileBuffer.FileType == FileType.Directory
@@ -81,6 +84,8 @@ namespace Kurome
                 CreationTime = DateTimeOffset.FromUnixTimeMilliseconds(fileBuffer.CreationTime).LocalDateTime,
                 Length = fileBuffer.Length
             };
+            context.Dispose();
+            return fileInfo;
         }
 
         public FileInformation GetRoot()
@@ -103,12 +108,13 @@ namespace Kurome
         public int ReceiveFileBuffer(byte[] buffer, string fileName, long offset, int bytesToRead, long fileSize)
         {
             var id = _random.Next(int.MaxValue - 1) + 1;
-            var packetCompletionSource = new TaskCompletionSource<Packet>();
-            _link.AddCompletionSource(id, packetCompletionSource);
+            var contextCompletionSource = new TaskCompletionSource<Link.LinkContext>();
+            _link.AddCompletionSource(id, contextCompletionSource);
             SendPacket(fileName, ActionType.ActionReadFileBuffer, rawOffset: offset,
                 rawLength: bytesToRead, id: id);
-            var packet = packetCompletionSource.Task.Result;
-            packet.FileBuffer?.Data!.Value.CopyTo(buffer);
+            var context = contextCompletionSource.Task.Result;
+            context.Packet.FileBuffer?.Data!.Value.CopyTo(buffer);
+            context.Dispose();
             return bytesToRead;
         }
 
@@ -144,39 +150,42 @@ namespace Kurome
             FileType fileType = 0, long fileLength = 0, long rawOffset = 0, byte[] rawBuffer = null,
             int rawLength = 0, int id = 0)
         {
-            filename = filename.Replace('\\', '/');
-            nodeName = nodeName.Replace('\\', '/');
-            var packet = new Packet
+            lock (_lock)
             {
-                Action = action,
-                Path = filename,
-                FileBuffer = new Raw
+                filename = filename.Replace('\\', '/');
+                nodeName = nodeName.Replace('\\', '/');
+                var packet = new Packet
                 {
-                    Data = rawBuffer,
-                    Length = rawLength,
-                    Offset = rawOffset
-                },
-                Nodes = new FileBuffer[]
-                {
-                    new()
+                    Action = action,
+                    Path = filename,
+                    FileBuffer = new Raw
                     {
-                        CreationTime = cTime,
-                        Filename = nodeName,
-                        FileType = fileType,
-                        LastAccessTime = laTime,
-                        LastWriteTime = lwTime,
-                        Length = fileLength
-                    }
-                },
-                Id = id
-            };
-            var size = Packet.Serializer.GetMaxSize(packet);
-            var bytes = ArrayPool<byte>.Shared.Rent(size + 4);
-            Span<byte> buffer = bytes;
-            var length = Packet.Serializer.Write(buffer[4..], packet);
-            BinaryPrimitives.WriteInt32LittleEndian(buffer[..4], length);
-            _link.SendBuffer(buffer, length + 4);
-            ArrayPool<byte>.Shared.Return(bytes);
+                        Data = rawBuffer,
+                        Length = rawLength,
+                        Offset = rawOffset
+                    },
+                    Nodes = new FileBuffer[]
+                    {
+                        new()
+                        {
+                            CreationTime = cTime,
+                            Filename = nodeName,
+                            FileType = fileType,
+                            LastAccessTime = laTime,
+                            LastWriteTime = lwTime,
+                            Length = fileLength
+                        }
+                    },
+                    Id = id
+                };
+                var size = Packet.Serializer.GetMaxSize(packet);
+                var bytes = ArrayPool<byte>.Shared.Rent(size + 4);
+                Span<byte> buffer = bytes;
+                var length = Packet.Serializer.Write(buffer[4..], packet);
+                BinaryPrimitives.WriteInt32LittleEndian(buffer[..4], length);
+                _link.SendBuffer(buffer, length + 4);
+                ArrayPool<byte>.Shared.Return(bytes);
+            }
         }
     }
 }

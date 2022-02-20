@@ -5,6 +5,7 @@ using System.Net;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using kurome;
 
@@ -58,13 +59,14 @@ namespace Kurome
                 {
                     var link = new Link(await _tcpListener.AcceptTcpClientAsync());
                     link.OnLinkDisconnected += OnDisconnect;
-                    var packetCompletionSource = new TaskCompletionSource<Packet>();
-                    link.AddCompletionSource(0, packetCompletionSource);
+                    var contextCompletionSource = new TaskCompletionSource<Link.LinkContext>();
+                    link.AddCompletionSource(0, contextCompletionSource);
                     link.StartListeningAsync();
-                    var result = packetCompletionSource.Task.Result;
-                    var info = result.DeviceInfo!;
+                    var result = contextCompletionSource.Task.Result;
+                    var info = new DeviceInfo(result.Packet.DeviceInfo!);
                     link.DeviceId = info.Id;
                     OnLinkConnected?.Invoke(info.Name, info.Id, link);
+                    result.Dispose();
                 }
                 catch (Exception e)
                 {
