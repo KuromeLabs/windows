@@ -1,42 +1,43 @@
 using System;
 using System.Buffers;
+using System.Buffers.Binary;
 using System.Collections.Concurrent;
 using System.Net.Security;
 using System.Net.Sockets;
 using System.Security.Authentication;
 using System.Security.Cryptography.X509Certificates;
+using System.Threading;
 using System.Threading.Tasks;
 using FlatSharp;
 using kurome;
-using Kurome;
 
 namespace Kurome
-{
+{public class LinkContext
+    {
+        public Packet Packet;
+        public byte[] Buffer;
+        public ManualResetEventSlim ResponseEvent;
+
+        public LinkContext(int id, ManualResetEventSlim responseEvent)
+        {
+            ResponseEvent = responseEvent;
+            Packet = null;
+            Buffer = null;
+        }
+
+        public void Dispose()
+        {
+            ResponseEvent.Dispose();
+            ArrayPool<byte>.Shared.Return(Buffer);
+        }
+    }
     public class Link : IDisposable
     {
-        public readonly struct LinkContext
-        {
-            public readonly Packet Packet;
-            private readonly byte[] _buffer;
-            public readonly int Id;
-
-            public LinkContext(Packet packet, byte[] buffer, int id)
-            {
-                Packet = packet;
-                _buffer = buffer;
-                Id = id;
-            }
-
-            public void Dispose()
-            {
-                ArrayPool<byte>.Shared.Return(_buffer);
-            }
-        }
 
         private readonly X509Certificate2 _certificate = SslHelper.Certificate;
         private readonly TcpClient _client;
 
-        private readonly ConcurrentDictionary<int, TaskCompletionSource<LinkContext>> _packetTasks = new();
+        private readonly ConcurrentDictionary<int, LinkContext> _linkContexts = new();
         private readonly SslStream _stream;
         public string DeviceId;
 
@@ -61,16 +62,21 @@ namespace Kurome
         {
             while (true)
             {
-                var context = await GetContextAsync();
-                if (context == null)
+                var buffer = await GetBufferAsync();
+                if (buffer == null)
                 {
                     StopConnection();
                     break;
                 }
 
-                if (_packetTasks.ContainsKey(context.Value.Id))
-                    _packetTasks[context.Value.Id].SetResult(context.Value);
-                _packetTasks.TryRemove(context.Value.Id, out _);
+                var packet = Packet.Serializer.Parse(buffer);
+                if (_linkContexts.ContainsKey(packet.Id))
+                {
+                    _linkContexts[packet.Id].Packet = packet;
+                    _linkContexts[packet.Id].Buffer = buffer;
+                    _linkContexts[packet.Id].ResponseEvent.Set();
+                    _linkContexts.TryRemove(packet.Id, out _);
+                }
             }
         }
 
@@ -79,7 +85,7 @@ namespace Kurome
             _stream.Write(buffer[..length]);
         }
 
-        private async Task<LinkContext?> GetContextAsync()
+        private async Task<byte[]?> GetBufferAsync()
         {
             var sizeBuffer = new byte[4];
             var bytesRead = 0;
@@ -105,8 +111,7 @@ namespace Kurome
                     return null;
                 }
 
-                var packet = Packet.Serializer.Parse(readBuffer);
-                return new LinkContext(packet, readBuffer, packet.Id);
+                return readBuffer;
             }
             catch (Exception e)
             {
@@ -115,19 +120,19 @@ namespace Kurome
             }
         }
 
-        public void AddCompletionSource(int id, TaskCompletionSource<LinkContext> source)
+        public void AddLinkContextWait(int id, LinkContext source)
         {
-            _packetTasks.TryAdd(id, source);
+            _linkContexts.TryAdd(id, source);
         }
 
         private void StopConnection()
         {
             Console.WriteLine("Disconnected");
             Dispose();
-            foreach (var (key, value) in _packetTasks)
-                value.SetCanceled();
+            foreach (var (key, value) in _linkContexts)
+                value.Dispose();
 
-            _packetTasks.Clear();
+            _linkContexts.Clear();
             OnLinkDisconnected?.Invoke(this);
         }
     }

@@ -3,7 +3,7 @@ using System.Buffers;
 using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.IO;
-using System.Threading.Tasks;
+using System.Threading;
 using DokanNet;
 using FlatSharp;
 using kurome;
@@ -29,10 +29,11 @@ namespace Kurome
         public DeviceInfo GetSpace()
         {
             var id = _random.Next(int.MaxValue - 1) + 1;
-            var contextCompletionSource = new TaskCompletionSource<Link.LinkContext>();
-            _link.AddCompletionSource(id, contextCompletionSource);
+            var responseEvent = new ManualResetEventSlim(false);
+            var context = new LinkContext(id, responseEvent);
+            _link.AddLinkContextWait(id, context);
             SendPacket(action: ActionType.ActionGetSpaceInfo, id: id);
-            var context = contextCompletionSource.Task.Result;
+            responseEvent.Wait();
             var deviceInfo = new DeviceInfo(context.Packet.DeviceInfo!);
             context.Dispose();
             return deviceInfo;
@@ -41,10 +42,11 @@ namespace Kurome
         public List<FileInformation> GetFileNodes(string fileName)
         {
             var id = _random.Next(int.MaxValue - 1) + 1;
-            var contextCompletionSource = new TaskCompletionSource<Link.LinkContext>();
-            _link.AddCompletionSource(id, contextCompletionSource);
+            var responseEvent = new ManualResetEventSlim(false);
+            var context = new LinkContext(id, responseEvent);
+            _link.AddLinkContextWait(id, context);
             SendPacket(fileName, ActionType.ActionGetDirectory, id: id);
-            var context = contextCompletionSource.Task.Result;
+            responseEvent.Wait();
             var files = new List<FileInformation>();
             for (var i = 0; i < context.Packet.Nodes!.Count; i++)
             {
@@ -67,11 +69,11 @@ namespace Kurome
         public FileInformation GetFileNode(string fileName)
         {
             var id = _random.Next(int.MaxValue - 1) + 1;
-            var contextCompletionSource = new TaskCompletionSource<Link.LinkContext>();
-            _link.AddCompletionSource(id, contextCompletionSource);
+            var responseEvent = new ManualResetEventSlim(false);
+            var context = new LinkContext(id, responseEvent);
+            _link.AddLinkContextWait(id, context);
             SendPacket(fileName, ActionType.ActionGetFileInfo, id: id);
-            var context = contextCompletionSource.Task.Result;
-
+            responseEvent.Wait();
             var fileBuffer = context.Packet.Nodes![0];
             var fileInfo = new FileInformation
             {
@@ -108,11 +110,12 @@ namespace Kurome
         public int ReceiveFileBuffer(byte[] buffer, string fileName, long offset, int bytesToRead, long fileSize)
         {
             var id = _random.Next(int.MaxValue - 1) + 1;
-            var contextCompletionSource = new TaskCompletionSource<Link.LinkContext>();
-            _link.AddCompletionSource(id, contextCompletionSource);
+            var responseEvent = new ManualResetEventSlim(false);
+            var context = new LinkContext(id, responseEvent);
+            _link.AddLinkContextWait(id, context);
             SendPacket(fileName, ActionType.ActionReadFileBuffer, rawOffset: offset,
                 rawLength: bytesToRead, id: id);
-            var context = contextCompletionSource.Task.Result;
+            responseEvent.Wait();
             context.Packet.FileBuffer?.Data!.Value.CopyTo(buffer);
             context.Dispose();
             return bytesToRead;

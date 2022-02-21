@@ -59,14 +59,16 @@ namespace Kurome
                 {
                     var link = new Link(await _tcpListener.AcceptTcpClientAsync());
                     link.OnLinkDisconnected += OnDisconnect;
-                    var contextCompletionSource = new TaskCompletionSource<Link.LinkContext>();
-                    link.AddCompletionSource(0, contextCompletionSource);
+                    var responseEvent = new ManualResetEventSlim(false);
+                    var context = new LinkContext(0, responseEvent);
+                    link.AddLinkContextWait(0, context);
                     link.StartListeningAsync();
-                    var result = contextCompletionSource.Task.Result;
-                    var info = new DeviceInfo(result.Packet.DeviceInfo!);
+                    responseEvent.Wait();
+                    var result = context.Packet;
+                    var info = new DeviceInfo(result.DeviceInfo!);
                     link.DeviceId = info.Id;
                     OnLinkConnected?.Invoke(info.Name, info.Id, link);
-                    result.Dispose();
+                    context.Dispose();
                 }
                 catch (Exception e)
                 {
