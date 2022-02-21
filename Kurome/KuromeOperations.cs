@@ -135,7 +135,7 @@ namespace Kurome
 
         public NtStatus ReadFile(string fileName, byte[] buffer, out int bytesRead, long offset, IDokanFileInfo info)
         {
-            var node = GetNode(fileName);
+            var node = GetNode(fileName) as FileNode;
             var size = node.FileInformation.Length;
             if (offset >= size)
             {
@@ -144,7 +144,7 @@ namespace Kurome
             }
 
             var bytesToRead = (offset + buffer.Length) > size ? (size - offset) : buffer.Length;
-            bytesRead = _device.ReceiveFileBuffer(buffer, fileName, offset, (int) bytesToRead, size);
+            bytesRead = node.ReadFile(buffer, offset, (int) bytesToRead, size, _device);
             return DokanResult.Success;
         }
 

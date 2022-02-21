@@ -21,7 +21,13 @@ public class FileNode : BaseNode
         var fileInformation = FileInformation;
         fileInformation.Length = offset + data.Length;
         FileInformation = fileInformation;
-        device.WriteFileBuffer(data,Fullname,offset);
+        device.WriteFileBuffer(data, Fullname, offset);
     }
-    
+
+    //we can cache this
+    public int ReadFile(byte[] buffer, long offset, int bytesToRead, long fileSize, Device device)
+    {
+        var data = device.ReceiveFileBuffer(buffer, Fullname, offset, bytesToRead, fileSize);
+        return data;
+    }
 }
