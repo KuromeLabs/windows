@@ -94,7 +94,7 @@ namespace Kurome
                     return null;
                 }
 
-                var size = BitConverter.ToInt32(sizeBuffer);
+                var size = BinaryPrimitives.ReadInt32LittleEndian(sizeBuffer);
                 bytesRead = 0;
                 var readBuffer = ArrayPool<byte>.Shared.Rent(size);
                 while (bytesRead != size)
