@@ -12,7 +12,8 @@ using FlatSharp;
 using kurome;
 
 namespace Kurome
-{public class LinkContext
+{
+    public class LinkContext
     {
         public Packet Packet;
         public byte[] Buffer;
@@ -28,12 +29,12 @@ namespace Kurome
         public void Dispose()
         {
             ResponseEvent.Dispose();
-            ArrayPool<byte>.Shared.Return(Buffer);
+            if (Buffer != null) ArrayPool<byte>.Shared.Return(Buffer);
         }
     }
+
     public class Link : IDisposable
     {
-
         private readonly X509Certificate2 _certificate = SslHelper.Certificate;
         private readonly TcpClient _client;
 
@@ -77,6 +78,7 @@ namespace Kurome
                     _linkContexts[packet.Id].ResponseEvent.Set();
                     _linkContexts.TryRemove(packet.Id, out _);
                 }
+                else ArrayPool<byte>.Shared.Return(buffer);
             }
         }
 
