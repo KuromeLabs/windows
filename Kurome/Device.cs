@@ -28,12 +28,7 @@ namespace Kurome
 
         public DeviceInfo GetSpace()
         {
-            var id = _random.Next(int.MaxValue - 1) + 1;
-            var responseEvent = new ManualResetEventSlim(false);
-            var context = new LinkContext(id, responseEvent);
-            _link.AddLinkContextWait(id, context);
-            SendPacket(action: ActionType.ActionGetSpaceInfo, id: id);
-            responseEvent.Wait();
+            var context = SendPacketWithResponse(action: ActionType.ActionGetSpaceInfo);
             var deviceInfo = new DeviceInfo(context.Packet.DeviceInfo!);
             context.Dispose();
             return deviceInfo;
@@ -41,12 +36,7 @@ namespace Kurome
 
         public List<FileInformation> GetFileNodes(string fileName)
         {
-            var id = _random.Next(int.MaxValue - 1) + 1;
-            var responseEvent = new ManualResetEventSlim(false);
-            var context = new LinkContext(id, responseEvent);
-            _link.AddLinkContextWait(id, context);
-            SendPacket(fileName, ActionType.ActionGetDirectory, id: id);
-            responseEvent.Wait();
+            var context = SendPacketWithResponse(fileName, ActionType.ActionGetDirectory);
             var files = new List<FileInformation>();
             for (var i = 0; i < context.Packet.Nodes!.Count; i++)
             {
@@ -66,14 +56,9 @@ namespace Kurome
             return files;
         }
 
-        public FileInformation GetFileNode(string fileName)
+        private FileInformation GetFileNode(string fileName)
         {
-            var id = _random.Next(int.MaxValue - 1) + 1;
-            var responseEvent = new ManualResetEventSlim(false);
-            var context = new LinkContext(id, responseEvent);
-            _link.AddLinkContextWait(id, context);
-            SendPacket(fileName, ActionType.ActionGetFileInfo, id: id);
-            responseEvent.Wait();
+            var context = SendPacketWithResponse(fileName, ActionType.ActionGetFileInfo);
             var fileBuffer = context.Packet.Nodes![0];
             var fileInfo = new FileInformation
             {
@@ -109,13 +94,8 @@ namespace Kurome
 
         public int ReceiveFileBuffer(byte[] buffer, string fileName, long offset, int bytesToRead, long fileSize)
         {
-            var id = _random.Next(int.MaxValue - 1) + 1;
-            var responseEvent = new ManualResetEventSlim(false);
-            var context = new LinkContext(id, responseEvent);
-            _link.AddLinkContextWait(id, context);
-            SendPacket(fileName, ActionType.ActionReadFileBuffer, rawOffset: offset,
-                rawLength: bytesToRead, id: id);
-            responseEvent.Wait();
+            var context = SendPacketWithResponse(fileName, ActionType.ActionReadFileBuffer, rawOffset: offset,
+                rawLength: bytesToRead);
             context.Packet.FileBuffer?.Data!.Value.CopyTo(buffer);
             context.Dispose();
             return bytesToRead;
@@ -149,9 +129,8 @@ namespace Kurome
         }
 
         private void SendPacket(string filename = "", ActionType action = ActionType.NoAction,
-            string nodeName = "", long cTime = 0, long laTime = 0, long lwTime = 0,
-            FileType fileType = 0, long fileLength = 0, long rawOffset = 0, byte[] rawBuffer = null,
-            int rawLength = 0, int id = 0)
+            string nodeName = "", long cTime = 0, long laTime = 0, long lwTime = 0, FileType fileType = 0,
+            long fileLength = 0, long rawOffset = 0, byte[] rawBuffer = null, int rawLength = 0, int id = 0)
         {
             lock (_lock)
             {
@@ -189,6 +168,20 @@ namespace Kurome
                 _link.SendBuffer(buffer, length + 4);
                 ArrayPool<byte>.Shared.Return(bytes);
             }
+        }
+
+        private LinkContext SendPacketWithResponse(string filename = "", ActionType action = ActionType.NoAction,
+            string nodeName = "", long cTime = 0, long laTime = 0, long lwTime = 0, FileType fileType = 0,
+            long fileLength = 0, long rawOffset = 0, byte[] rawBuffer = null, int rawLength = 0)
+        {
+            var packetId = _random.Next(int.MaxValue - 1) + 1;
+            var responseEvent = new ManualResetEventSlim(false);
+            var context = new LinkContext(packetId, responseEvent);
+            _link.AddLinkContextWait(packetId, context);
+            SendPacket(filename, action, nodeName, cTime, laTime, lwTime, fileType, fileLength, rawOffset, rawBuffer,
+                rawLength, packetId);
+            responseEvent.Wait();
+            return context;
         }
     }
 }
