@@ -6,3 +6,7 @@ table DeviceInfo (fs_serializer:"lazy"){
   total_bytes:long;
   free_bytes:long;
 }
+
+table DeviceInfoVector (fs_serializer:"lazy"){
+  vector:[DeviceInfo];
+}

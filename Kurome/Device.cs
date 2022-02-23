@@ -17,6 +17,9 @@ namespace Kurome
         private readonly object _lock = new();
         private readonly Random _random = new();
 
+        public Device()
+        {
+        }
         public Device(Link link, char driveLetter)
         {
             _link = link;
