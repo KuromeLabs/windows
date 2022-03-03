@@ -7,6 +7,7 @@ using System.Threading;
 using DokanNet;
 using FlatSharp;
 using kurome;
+using Action = kurome.Action;
 
 namespace Kurome
 {
@@ -20,6 +21,7 @@ namespace Kurome
         public Device()
         {
         }
+
         public Device(Link link, char driveLetter)
         {
             _link = link;
@@ -31,19 +33,19 @@ namespace Kurome
 
         public DeviceInfo GetSpace()
         {
-            var context = SendPacketWithResponse(action: ActionType.ActionGetSpaceInfo);
-            var deviceInfo = new DeviceInfo(context.Packet.DeviceInfo!);
-            context.Dispose();
+            var response = SendPacketWithResponse(action: Action.ActionGetSpaceInfo);
+            var deviceInfo = new DeviceInfo(response.Packet.DeviceInfo!);
+            response.Dispose();
             return deviceInfo;
         }
 
         public List<FileInformation> GetFileNodes(string fileName)
         {
-            var context = SendPacketWithResponse(fileName, ActionType.ActionGetDirectory);
+            var response = SendPacketWithResponse(fileName, Action.ActionGetDirectory);
             var files = new List<FileInformation>();
-            for (var i = 0; i < context.Packet.Nodes!.Count; i++)
+            for (var i = 0; i < response.Packet.Nodes!.Count; i++)
             {
-                var node = context.Packet.Nodes![i];
+                var node = response.Packet.Nodes![i];
                 files.Add(new FileInformation
                 {
                     FileName = node.Filename,
@@ -55,26 +57,24 @@ namespace Kurome
                 });
             }
 
-            context.Dispose();
+            response.Dispose();
             return files;
         }
 
         private FileInformation GetFileNode(string fileName)
         {
-            var context = SendPacketWithResponse(fileName, ActionType.ActionGetFileInfo);
-            var fileBuffer = context.Packet.Nodes![0];
+            var response = SendPacketWithResponse(fileName, Action.ActionGetFileInfo);
+            var file = response.Packet.Nodes![0];
             var fileInfo = new FileInformation
             {
-                FileName = fileBuffer.Filename,
-                Attributes = fileBuffer.FileType == FileType.Directory
-                    ? FileAttributes.Directory
-                    : FileAttributes.Normal,
-                LastAccessTime = DateTimeOffset.FromUnixTimeMilliseconds(fileBuffer.LastAccessTime).LocalDateTime,
-                LastWriteTime = DateTimeOffset.FromUnixTimeMilliseconds(fileBuffer.LastWriteTime).LocalDateTime,
-                CreationTime = DateTimeOffset.FromUnixTimeMilliseconds(fileBuffer.CreationTime).LocalDateTime,
-                Length = fileBuffer.Length
+                FileName = file.Filename,
+                Attributes = file.FileType == FileType.Directory ? FileAttributes.Directory : FileAttributes.Normal,
+                LastAccessTime = DateTimeOffset.FromUnixTimeMilliseconds(file.LastAccessTime).LocalDateTime,
+                LastWriteTime = DateTimeOffset.FromUnixTimeMilliseconds(file.LastWriteTime).LocalDateTime,
+                CreationTime = DateTimeOffset.FromUnixTimeMilliseconds(file.CreationTime).LocalDateTime,
+                Length = file.Length
             };
-            context.Dispose();
+            response.Dispose();
             return fileInfo;
         }
 
@@ -87,51 +87,49 @@ namespace Kurome
 
         public void CreateDirectory(string fileName)
         {
-            SendPacket(fileName, ActionType.ActionCreateDirectory);
+            SendPacket(fileName, Action.ActionCreateDirectory);
         }
 
         public void Delete(string fileName)
         {
-            SendPacket(fileName, ActionType.ActionDelete);
+            SendPacket(fileName, Action.ActionDelete);
         }
 
         public int ReceiveFileBuffer(byte[] buffer, string fileName, long offset, int bytesToRead, long fileSize)
         {
-            var context = SendPacketWithResponse(fileName, ActionType.ActionReadFileBuffer, rawOffset: offset,
+            var response = SendPacketWithResponse(fileName, Action.ActionReadFileBuffer, rawOffset: offset,
                 rawLength: bytesToRead);
-            context.Packet.FileBuffer?.Data!.Value.CopyTo(buffer);
-            context.Dispose();
+            response.Packet.FileBuffer?.Data!.Value.CopyTo(buffer);
+            response.Dispose();
             return bytesToRead;
         }
 
         public void WriteFileBuffer(byte[] buffer, string fileName, long offset)
         {
-            SendPacket(fileName, ActionType.ActionWriteFileBuffer, rawOffset: offset,
-                rawBuffer: buffer, id: 0);
+            SendPacket(fileName, Action.ActionWriteFileBuffer, rawOffset: offset, rawBuffer: buffer, id: 0);
         }
 
         public void Rename(string oldName, string newName)
         {
-            SendPacket(oldName, ActionType.ActionRename, newName);
+            SendPacket(oldName, Action.ActionRename, newName);
         }
 
         public void SetLength(string fileName, long length)
         {
-            SendPacket(nodeName: fileName, action: ActionType.ActionSetFileTime, fileLength: length);
+            SendPacket(fileName, Action.ActionSetFileTime, fileLength: length);
         }
 
         public void SetFileTime(string fileName, long cTime, long laTime, long lwTime)
         {
-            SendPacket(nodeName: fileName, action: ActionType.ActionSetFileTime,
-                cTime: cTime, laTime: laTime, lwTime: lwTime);
+            SendPacket(fileName, Action.ActionSetFileTime, cTime: cTime, laTime: laTime, lwTime: lwTime);
         }
 
         public void CreateEmptyFile(string fileName)
         {
-            SendPacket(fileName, ActionType.ActionCreateFile);
+            SendPacket(fileName, Action.ActionCreateFile);
         }
 
-        private void SendPacket(string filename = "", ActionType action = ActionType.NoAction,
+        private void SendPacket(string filename = "", Action action = Action.NoAction,
             string nodeName = "", long cTime = 0, long laTime = 0, long lwTime = 0, FileType fileType = 0,
             long fileLength = 0, long rawOffset = 0, byte[] rawBuffer = null, int rawLength = 0, int id = 0)
         {
@@ -173,7 +171,7 @@ namespace Kurome
             }
         }
 
-        private LinkContext SendPacketWithResponse(string filename = "", ActionType action = ActionType.NoAction,
+        private LinkContext SendPacketWithResponse(string filename = "", Action action = Action.NoAction,
             string nodeName = "", long cTime = 0, long laTime = 0, long lwTime = 0, FileType fileType = 0,
             long fileLength = 0, long rawOffset = 0, byte[] rawBuffer = null, int rawLength = 0)
         {
