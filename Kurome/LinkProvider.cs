@@ -15,7 +15,7 @@ namespace Kurome
     {
         private readonly TcpListener _tcpListener = TcpListener.Create(33587);
         private readonly int UdpPort = 33586;
-        private readonly string UdpSubnet = "235.132.20.12";
+        private readonly string UdpSubnet = "255.255.255.255";
         private string _id;
         public bool Listening { get; set; }
 
@@ -40,7 +40,6 @@ namespace Kurome
             foreach (var ip in addresses)
             {
                 var udpClient = new UdpClient(AddressFamily.InterNetwork);
-                udpClient.JoinMulticastGroup(IPAddress.Parse(UdpSubnet));
                 udpClient.Client.Bind(new IPEndPoint(IPAddress.Parse(ip), UdpPort));
                 udpClient.Ttl = 32;
                 var message = "kurome:" + ip + ":" + IdentityProvider.GetMachineName() + ":" + _id;
