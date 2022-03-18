@@ -42,7 +42,7 @@ namespace Kurome
             //Access to these directories is prohibited in newer version of Android.
             //Android\obb can be accessed with REQUEST_INSTALL_PACKAGES Android permission.
             //TODO: Find workaround/ask for root/ask permission (for obb)/etc.
-            if (fileName is "\\Android\\data" or "\\Android\\obb")
+            if (fileName.StartsWith("\\Android\\data") || fileName.StartsWith("\\Android\\obb") )
                 return DokanResult.AccessDenied;
             var node = GetNode(fileName);
             var nodeExists = node != null;
