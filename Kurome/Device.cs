@@ -4,6 +4,7 @@ using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.IO;
 using System.Threading;
+using DefaultNamespace;
 using DokanNet;
 using FlatSharp;
 using kurome;
@@ -13,21 +14,41 @@ namespace Kurome
 {
     public class Device
     {
-        public readonly char _driveLetter;
-        private readonly Link _link;
+        public char DriveLetter;
+        private Link _link;
         private readonly object _lock = new();
         private readonly Random _random = new();
+        public bool IsPaired = false;
+        public delegate void PacketReceived(Packet packet);
+
+        private PairingHandler _pairingHandler;
+
+        public event PairingHandler.PairStatusDelegate OnPairStatus;
 
         public Device()
         {
         }
 
-        public Device(Link link, char driveLetter)
+        public Device(Link link)
         {
-            _link = link;
-            _driveLetter = driveLetter;
+            SetLink(link);
         }
 
+        public void SetLink(Link link)
+        {
+            _link = link;
+            _link.OnPacketReceived += OnPacketReceived;
+            _pairingHandler = new PairingHandler(this);
+            
+        }
+
+        private void OnPacketReceived(Packet packet)
+        {
+            if (packet.Pair == Pair.Requested)
+            {
+                _pairingHandler.PairPacketReceived(packet);
+            }
+        }
         public string Name { get; set; }
         public string Id { get; set; }
 
@@ -129,9 +150,9 @@ namespace Kurome
             SendPacket(fileName, Action.ActionCreateFile);
         }
 
-        private void SendPacket(string filename = "", Action action = Action.NoAction,
+        public void SendPacket(string filename = "", Action action = Action.NoAction,
             string nodeName = "", long cTime = 0, long laTime = 0, long lwTime = 0, FileType fileType = 0,
-            long fileLength = 0, long rawOffset = 0, byte[] rawBuffer = null, int rawLength = 0, int id = 0)
+            long fileLength = 0, long rawOffset = 0, byte[] rawBuffer = null, int rawLength = 0, int id = 0, Pair pair = 0)
         {
             lock (_lock)
             {
@@ -159,7 +180,15 @@ namespace Kurome
                             Length = fileLength
                         }
                     },
-                    Id = id
+                    Id = id,
+                    Pair = pair,
+                    DeviceInfo = new DeviceInfo
+                    {
+                        FreeBytes = 0,
+                        Id = IdentityProvider.GetGuid(),
+                        Name = IdentityProvider.GetMachineName(),
+                        TotalBytes = 0
+                    }
                 };
                 var size = Packet.Serializer.GetMaxSize(packet);
                 var bytes = ArrayPool<byte>.Shared.Rent(size + 4);
@@ -175,14 +204,24 @@ namespace Kurome
             string nodeName = "", long cTime = 0, long laTime = 0, long lwTime = 0, FileType fileType = 0,
             long fileLength = 0, long rawOffset = 0, byte[] rawBuffer = null, int rawLength = 0)
         {
-            var packetId = _random.Next(int.MaxValue - 1) + 1;
-            var responseEvent = new ManualResetEventSlim(false);
-            var context = new LinkContext(packetId, responseEvent);
-            _link.AddLinkContextWait(packetId, context);
-            SendPacket(filename, action, nodeName, cTime, laTime, lwTime, fileType, fileLength, rawOffset, rawBuffer,
-                rawLength, packetId);
-            responseEvent.Wait();
-            return context;
+            lock (_lock)
+            {
+                var packetId = _random.Next(int.MaxValue - 1) + 1;
+                var responseEvent = new ManualResetEventSlim(false);
+                var context = new LinkContext(packetId, responseEvent);
+                _link.AddLinkContextWait(packetId, context);
+                SendPacket(filename, action, nodeName, cTime, laTime, lwTime, fileType, fileLength, rawOffset,
+                    rawBuffer,
+                    rawLength, packetId);
+                responseEvent.Wait();
+                return context;
+            }
+        }
+
+        public void AcceptPairing()
+        {
+            SendPacket(action: Action.ActionPair, pair: Pair.Paired);
+            OnPairStatus?.Invoke(PairingHandler.PairStatus.Paired, this);
         }
     }
 }

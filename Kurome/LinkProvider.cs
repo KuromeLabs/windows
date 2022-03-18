@@ -66,7 +66,8 @@ namespace Kurome
                     var result = context.Packet;
                     var info = new DeviceInfo(result.DeviceInfo!);
                     link.DeviceId = info.Id;
-                    OnLinkConnected?.Invoke(info.Name, info.Id, link);
+                    link.DeviceName = info.Name;
+                    OnLinkConnected?.Invoke(link);
                     context.Dispose();
                 }
                 catch (Exception e)
@@ -92,7 +93,7 @@ namespace Kurome
         private void OnDisconnect(Link link)
         {
             Console.WriteLine("OnDisconnect called");
-            OnLinkDisconnected?.Invoke(link.DeviceId, link);
+            OnLinkDisconnected?.Invoke(link);
         }
     }
 }

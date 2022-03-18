@@ -18,10 +18,8 @@ namespace Kurome
             var daemon = new KuromeDaemon();
             daemon.Start();
 
-            while (true)
-            {
-                Console.ReadKey();
-            }
+            var handle = new ManualResetEventSlim(false);
+            handle.Wait();
         }
     }
 }

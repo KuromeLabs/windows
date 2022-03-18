@@ -283,12 +283,12 @@ namespace Kurome
 
         public NtStatus LockFile(string fileName, long offset, long length, IDokanFileInfo info)
         {
-            throw new NotImplementedException();
+            return DokanResult.Success;
         }
 
         public NtStatus UnlockFile(string fileName, long offset, long length, IDokanFileInfo info)
         {
-            throw new NotImplementedException();
+            return DokanResult.Success;
         }
 
         public NtStatus GetDiskFreeSpace(

@@ -41,9 +41,10 @@ namespace Kurome
         private readonly ConcurrentDictionary<int, LinkContext> _linkContexts = new();
         private readonly SslStream _stream;
         public string DeviceId;
-
+        public string DeviceName;
         public bool IsDisposed = false;
         public event LinkProvider.LinkDisconnected OnLinkDisconnected;
+        public event Device.PacketReceived OnPacketReceived;
 
         public Link(TcpClient client)
         {
@@ -57,6 +58,9 @@ namespace Kurome
             IsDisposed = true;
             _client.Close();
             _client.Dispose();
+            foreach (var (key, value) in _linkContexts)
+                value.Dispose();
+            _linkContexts.Clear();
         }
 
         public async void StartListeningAsync()
@@ -71,6 +75,7 @@ namespace Kurome
                 }
 
                 var packet = Packet.Serializer.Parse(buffer);
+                OnPacketReceived?.Invoke(packet);
                 if (_linkContexts.ContainsKey(packet.Id))
                 {
                     _linkContexts[packet.Id].Packet = packet;
@@ -131,10 +136,6 @@ namespace Kurome
         {
             Console.WriteLine("Disconnected");
             Dispose();
-            foreach (var (key, value) in _linkContexts)
-                value.Dispose();
-
-            _linkContexts.Clear();
             OnLinkDisconnected?.Invoke(this);
         }
     }

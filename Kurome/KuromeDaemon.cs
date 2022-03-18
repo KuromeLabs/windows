@@ -1,12 +1,15 @@
 using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
+using DefaultNamespace;
 using DokanNet;
 using DokanNet.Logging;
 using FlatSharp;
 using kurome;
+using Action = kurome.Action;
 
 namespace Kurome;
 
@@ -14,9 +17,9 @@ public class KuromeDaemon
 {
     private int _numOfConnectedClients;
 
-    public delegate void LinkConnected(string name, string id, Link link);
+    public delegate void LinkConnected(Link link);
 
-    public delegate void LinkDisconnected(string id, Link link);
+    public delegate void LinkDisconnected(Link link);
 
     private readonly ConcurrentDictionary<string, Device> _devices = new();
     private readonly LinkProvider _linkProvider = new();
@@ -32,25 +35,46 @@ public class KuromeDaemon
     }
 
 
-    private void OnLinkConnected(string name, string id, Link link)
+    private void OnLinkConnected(Link link)
     {
         _numOfConnectedClients++;
-        Console.WriteLine("Device connected name: " + name + ", id: " + id);
+        Console.WriteLine("Device connected name: " + link.DeviceName + ", id: " + link.DeviceId);
 
+        var id = link.DeviceId;
+        Device device;
+        if (_devices.ContainsKey(id))
+        {
+            device = _devices[id];
+        }
+        else
+            device = new Device();
+        device.SetLink(link);
+
+
+        device.Name = link.DeviceName;
+        device.Id = link.DeviceId;
+        device.OnPairStatus += OnPairStatus;
+        if (device.IsPaired)
+            MountDevice(device);
+        
+        
+    }
+
+    private void MountDevice(Device device)
+    {
         var driveLetters = Enumerable.Range('C', 'Z' - 'C').Select(i => (char) i + ":")
             .Except(DriveInfo.GetDrives().Select(s => s.Name.Replace("\\", ""))).ToList();
         var letter = driveLetters[_numOfConnectedClients - 1][0];
-        var device = new Device(link, letter);
-        device.Name = name;
-        device.Id = id;
-        _devices.TryAdd(id, device);
+        device.DriveLetter = letter;
+        _devices.TryAdd(device.Id, device);
         var rfs = new KuromeOperations(device);
         Dokan.Init();
         Task.Run(() => rfs.Mount(letter + ":\\",
             DokanOptions.FixedDrive, false, new ConsoleLogger("[Kurome] ")));
-        Console.WriteLine("Device {0}:{1} has been mounted on {2}:\\ ", name, id, letter.ToString());
+        
+        Console.WriteLine("Device {0}:{1} has been mounted on {2}:\\ ", device.Name, device.Id, letter.ToString());
+        
     }
-
     private void LoadDevices()
     {
         var dir = Path.Combine(
@@ -71,8 +95,10 @@ public class KuromeDaemon
                 var device = new Device
                 {
                     Name = d.Name,
-                    Id = d.Id
+                    Id = d.Id,
+                    IsPaired = true
                 };
+                device.OnPairStatus += OnPairStatus;
                 _devices.TryAdd(d.Id, device);
             }
         }
@@ -82,6 +108,18 @@ public class KuromeDaemon
         }
     }
 
+    private void OnPairStatus(PairingHandler.PairStatus status, Device device)
+    {
+        switch (status)
+        {
+            case PairingHandler.PairStatus.Paired:
+                Console.WriteLine("KuromeDaemon: Device paired");
+                _devices[device.Id] = device;
+                SaveDevices();
+                MountDevice(device);
+                break;
+        }
+    }
     private void SaveDevices()
     {
         var dir = Path.Combine(
@@ -95,9 +133,18 @@ public class KuromeDaemon
         }
 
         var devices = new DeviceInfoVector();
+        devices.Vector = new List<DeviceInfo>();
         foreach (var device in _devices.Values)
         {
-            devices.Vector!.Add(new DeviceInfo {Name = device.Name, Id = device.Id});
+            Console.WriteLine("Saving device. Name: {0}, id: {1}", device.Name, device.Id);
+            var info = new DeviceInfo
+            {
+                Name = device.Name,
+                Id = device.Id,
+                TotalBytes = 0,
+                FreeBytes = 0
+            };
+            devices.Vector.Add(info);
         }
 
         var buffer = new byte[DeviceInfoVector.Serializer.GetMaxSize(devices)];
@@ -106,8 +153,8 @@ public class KuromeDaemon
         fs.Write(buffer);
     }
 
-    private void OnLinkDisconnected(string id, Link link)
+    private void OnLinkDisconnected(Link link)
     {
-        Dokan.Unmount(_devices[id]._driveLetter);
+        Dokan.Unmount(_devices[link.DeviceId].DriveLetter);
     }
 }
