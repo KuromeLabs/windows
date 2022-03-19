@@ -25,8 +25,8 @@ public class PairingHandler
 
     public void PairPacketReceived(Packet packet)
     {
-        bool wantsPair = packet.Pair == Pair.Requested;
-        bool isPaired = status == PairStatus.Paired;
+        var wantsPair = packet.Pair == PairEvent.Pair;
+        var isPaired = status == PairStatus.Paired;
         if (wantsPair == isPaired)
         {
             Console.WriteLine("Pairing cancelled");
@@ -44,7 +44,7 @@ public class PairingHandler
             }
             else
             {
-                device.SendPacket(action: Action.ActionPair, pair: Pair.NotPaired);
+                device.SendPacket(action: Action.ActionPair, pair: PairEvent.Unpair);
                 Console.WriteLine("Request Packet sent");
             }
 

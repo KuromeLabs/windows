@@ -31,10 +31,9 @@ enum Result : byte {
     ResultActionFail = 2
 }
 
-enum Pair: byte {
-    NotPaired = 0,
-    Requested = 1,
-    Paired = 2
+enum PairEvent: byte {
+    Pair = 0,
+    Unpair = 1
 }
 
 table Packet (fs_serializer:"lazy"){
@@ -45,5 +44,5 @@ table Packet (fs_serializer:"lazy"){
     file_buffer:kurome.Raw;
     nodes:[kurome.FileBuffer];
     id:int32;
-    pair:kurome.Pair;
+    pair:kurome.PairEvent;
 }

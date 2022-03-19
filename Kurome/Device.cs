@@ -44,7 +44,7 @@ namespace Kurome
 
         private void OnPacketReceived(Packet packet)
         {
-            if (packet.Pair == Pair.Requested)
+            if (packet.Action == Action.ActionPair)
             {
                 _pairingHandler.PairPacketReceived(packet);
             }
@@ -152,7 +152,7 @@ namespace Kurome
 
         public void SendPacket(string filename = "", Action action = Action.NoAction,
             string nodeName = "", long cTime = 0, long laTime = 0, long lwTime = 0, FileType fileType = 0,
-            long fileLength = 0, long rawOffset = 0, byte[] rawBuffer = null, int rawLength = 0, int id = 0, Pair pair = 0)
+            long fileLength = 0, long rawOffset = 0, byte[] rawBuffer = null, int rawLength = 0, int id = 0, PairEvent pair = 0)
         {
             lock (_lock)
             {
@@ -220,7 +220,7 @@ namespace Kurome
 
         public void AcceptPairing()
         {
-            SendPacket(action: Action.ActionPair, pair: Pair.Paired);
+            SendPacket(action: Action.ActionPair, pair: PairEvent.Pair);
             OnPairStatus?.Invoke(PairingHandler.PairStatus.Paired, this);
         }
     }
