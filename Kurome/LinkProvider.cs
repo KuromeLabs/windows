@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net;
@@ -18,6 +19,8 @@ namespace Kurome
         private readonly string UdpSubnet = "255.255.255.255";
         private string _id;
         public bool Listening { get; set; }
+
+        public ConcurrentDictionary<string, Link> ActiveLinks = new();
 
         public event KuromeDaemon.LinkConnected OnLinkConnected;
         public event KuromeDaemon.LinkDisconnected OnLinkDisconnected;
@@ -67,6 +70,7 @@ namespace Kurome
                     var info = new DeviceInfo(result.DeviceInfo!);
                     link.DeviceId = info.Id;
                     link.DeviceName = info.Name;
+                    ActiveLinks.TryAdd(link.DeviceId, link);
                     OnLinkConnected?.Invoke(link);
                     context.Dispose();
                 }
@@ -94,6 +98,7 @@ namespace Kurome
         {
             Console.WriteLine("OnDisconnect called");
             OnLinkDisconnected?.Invoke(link);
+            if (ActiveLinks.ContainsKey(link.DeviceId)) ActiveLinks.Remove(link.DeviceId, out _);
         }
     }
 }
