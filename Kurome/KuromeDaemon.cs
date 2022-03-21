@@ -26,11 +26,11 @@ public class KuromeDaemon
 
     public void Start()
     {
+        SslHelper.InitializeSsl();
         LoadDevices();
         _linkProvider.Listening = true;
         _linkProvider.OnLinkConnected += OnLinkConnected;
         _linkProvider.OnLinkDisconnected += OnLinkDisconnected;
-        SslHelper.InitializeSsl();
         _linkProvider.Initialize();
     }
 

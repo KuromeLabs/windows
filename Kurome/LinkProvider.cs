@@ -59,20 +59,21 @@ namespace Kurome
             {
                 try
                 {
-                    var link = new Link(await _tcpListener.AcceptTcpClientAsync());
-                    link.OnLinkDisconnected += OnDisconnect;
-                    var responseEvent = new ManualResetEventSlim(false);
-                    var context = new LinkContext(0, responseEvent);
-                    link.AddLinkContextWait(0, context);
+                    var client = await _tcpListener.AcceptTcpClientAsync();
+                    var buffer = await GetBufferAsync(client.GetStream());
+                    if (buffer == null) continue;
+                    var packet = Packet.Serializer.Parse(buffer!);
+                    var stream = new SslStream(client.GetStream(), false);
+                    await stream.AuthenticateAsServerAsync(SslHelper.Certificate, false, SslProtocols.None, true);
+                    var link = new Link(client, stream);
                     link.StartListeningAsync();
-                    responseEvent.Wait();
-                    var result = context.Packet;
-                    var info = new DeviceInfo(result.DeviceInfo!);
+                    link.OnLinkDisconnected += OnDisconnect;
+                    var info = new DeviceInfo(packet.DeviceInfo!);
                     link.DeviceId = info.Id;
                     link.DeviceName = info.Name;
                     ActiveLinks.TryAdd(link.DeviceId, link);
                     OnLinkConnected?.Invoke(link);
-                    context.Dispose();
+                    ArrayPool<byte>.Shared.Return(buffer);
                 }
                 catch (Exception e)
                 {
@@ -99,6 +100,41 @@ namespace Kurome
             Console.WriteLine("OnDisconnect called");
             OnLinkDisconnected?.Invoke(link);
             if (ActiveLinks.ContainsKey(link.DeviceId)) ActiveLinks.Remove(link.DeviceId, out _);
+        }
+        
+        private async Task<byte[]?> GetBufferAsync(NetworkStream stream)
+        {
+            var sizeBuffer = new byte[4];
+            var bytesRead = 0;
+            try
+            {
+                int current;
+                while (bytesRead != 4)
+                {
+                    current = await stream.ReadAsync(sizeBuffer.AsMemory(0 + bytesRead, 4 - bytesRead));
+                    bytesRead += current;
+                    if (current != 0) continue;
+                    return null;
+                }
+
+                var size = BinaryPrimitives.ReadInt32LittleEndian(sizeBuffer);
+                bytesRead = 0;
+                var readBuffer = ArrayPool<byte>.Shared.Rent(size);
+                while (bytesRead != size)
+                {
+                    current = await stream.ReadAsync(readBuffer.AsMemory(0 + bytesRead, size - bytesRead));
+                    bytesRead += current;
+                    if (current != 0) continue;
+                    return null;
+                }
+
+                return readBuffer;
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine(e);
+                return null;
+            }
         }
     }
 }

@@ -4,8 +4,6 @@ using System.Buffers.Binary;
 using System.Collections.Concurrent;
 using System.Net.Security;
 using System.Net.Sockets;
-using System.Security.Authentication;
-using System.Security.Cryptography.X509Certificates;
 using System.Threading;
 using System.Threading.Tasks;
 using FlatSharp;
@@ -35,22 +33,21 @@ namespace Kurome
 
     public class Link : IDisposable
     {
-        private readonly X509Certificate2 _certificate = SslHelper.Certificate;
         private readonly TcpClient _client;
 
         private readonly ConcurrentDictionary<int, LinkContext> _linkContexts = new();
-        private readonly SslStream _stream;
+        private SslStream _stream;
         public string DeviceId;
         public string DeviceName;
         public bool IsDisposed = false;
         public event LinkProvider.LinkDisconnected OnLinkDisconnected;
         public event Device.PacketReceived OnPacketReceived;
 
-        public Link(TcpClient client)
+        public Link(TcpClient client, SslStream stream)
         {
             _client = client;
-            _stream = new SslStream(client.GetStream(), false);
-            _stream.AuthenticateAsServer(_certificate, false, SslProtocols.None, true);
+            _stream = stream;
+            Console.WriteLine("Authenticating...");
         }
 
         public void Dispose()
