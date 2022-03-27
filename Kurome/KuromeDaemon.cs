@@ -156,5 +156,6 @@ public class KuromeDaemon
     private void OnLinkDisconnected(Link link)
     {
         Dokan.Unmount(_devices[link.DeviceId].DriveLetter);
+        _numOfConnectedClients--;
     }
 }

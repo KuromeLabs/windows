@@ -1,14 +1,20 @@
 using System;
+using System.Buffers;
+using System.Buffers.Binary;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net;
 using System.Net.NetworkInformation;
+using System.Net.Security;
 using System.Net.Sockets;
+using System.Security.Authentication;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using FlatSharp;
 using kurome;
+using Action = kurome.Action;
 
 namespace Kurome
 {
@@ -32,7 +38,7 @@ namespace Kurome
         public void Initialize()
         {
             var addresses = GetLocalIpAddresses();
-
+            StartUdpListener();
             StartTcpListener();
             CastUdp(addresses);
         }
@@ -50,6 +56,66 @@ namespace Kurome
                 Console.WriteLine("Broadcast: \"{0}\" to {1}", message, ip);
                 udpClient.Send(data, data.Length, new IPEndPoint(IPAddress.Parse(UdpSubnet), UdpPort));
             }
+        }
+
+        private async void StartUdpListener()
+        {
+            Console.WriteLine("Starting UDP Listener");
+            var udpSocket = new UdpClient(33588);
+            while (true)
+            {
+                var receivedBytes = (await udpSocket.ReceiveAsync(CancellationToken.None)).Buffer;
+                var message = Encoding.Default.GetString(receivedBytes);
+                Console.WriteLine("Received UDP: \"{0}\"", message);
+                DatagramPacketReceived(message);
+                
+            }
+        }
+
+        private async void DatagramPacketReceived(string message)
+        {
+            var split = message.Split(':');
+            var ip = split[1];
+            var name = split[2];
+            var id = split[3];
+            if (ActiveLinks.ContainsKey(id))
+                return;
+            var client = new TcpClient();
+            await client.ConnectAsync(IPAddress.Parse(ip), 33587);
+            Console.WriteLine("Connected to {0}", ip);
+
+            SendIdentity(client);
+            var stream = new SslStream(client.GetStream(), true,
+                (_, _, _, _) => true);
+            await stream.AuthenticateAsClientAsync("Kurome", null, SslProtocols.None, false);
+            var link = new Link(client, stream);
+            link.StartListeningAsync();
+            link.OnLinkDisconnected += OnDisconnect;
+            link.DeviceId = id;
+            link.DeviceName = name;
+            ActiveLinks.TryAdd(link.DeviceId, link);
+            OnLinkConnected?.Invoke(link);
+        }
+
+        private void SendIdentity(TcpClient client)
+        {
+            var packet = new Packet
+            {
+                Action = Action.ActionConnect,
+                DeviceInfo = new DeviceInfo
+                {
+                    Id = IdentityProvider.GetGuid(),
+                    Name = IdentityProvider.GetMachineName(),
+                }
+            };
+            var size = Packet.Serializer.GetMaxSize(packet);
+            var bytes = ArrayPool<byte>.Shared.Rent(size + 4);
+            Span<byte> buffer = bytes;
+            var length = Packet.Serializer.Write(buffer[4..], packet);
+            BinaryPrimitives.WriteInt32LittleEndian(buffer[..4], length);
+            Console.WriteLine("Sending buffer of size {0}", length + 4);
+            client.GetStream().Write(buffer[..(4+length)]);
+            ArrayPool<byte>.Shared.Return(bytes);
         }
 
         private async void StartTcpListener()
