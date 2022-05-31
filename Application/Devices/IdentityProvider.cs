@@ -1,6 +1,3 @@
-using System;
-using System.IO;
-
 namespace Kurome
 {
     public static class IdentityProvider
@@ -14,7 +11,7 @@ namespace Kurome
         {
             var dir = Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                "Kurome"
+                "Worker"
             );
             var file = Path.Combine(dir, "id");
             if (File.Exists(file))
