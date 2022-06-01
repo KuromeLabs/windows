@@ -21,39 +21,25 @@ public class Link : ILink
         _stream.Dispose();
     }
 
-    public async Task<byte[]?> ReceiveAsync(CancellationToken cancellationToken)
+    public async Task<int> ReceiveAsync(byte[] buffer, int size, CancellationToken cancellationToken)
     {
-        var sizeBuffer = new byte[4];
-        var bytesRead = 0;
         try
         {
-            int current;
-            while (bytesRead != 4)
-            {
-                current = await _stream.ReadAsync(sizeBuffer.AsMemory(0 + bytesRead, 4 - bytesRead), cancellationToken);
-                bytesRead += current;
-                if (current != 0) continue;
-                return null;
-            }
-
-            var size = BinaryPrimitives.ReadInt32LittleEndian(sizeBuffer);
-            bytesRead = 0;
-            var readBuffer = ArrayPool<byte>.Shared.Rent(size);
+            var bytesRead = 0;
             while (bytesRead != size)
             {
-                current = await _stream.ReadAsync(readBuffer.AsMemory(0 + bytesRead, size - bytesRead), cancellationToken);
+                var current = await _stream.ReadAsync(buffer.AsMemory(0 + bytesRead, size - bytesRead), cancellationToken);
                 bytesRead += current;
                 if (current != 0) continue;
-                return null;
+                return bytesRead;
             }
-
-            return readBuffer;
         }
         catch (Exception e)
         {
             Log.Error("{@Exception}", e.ToString());
-            return null;
         }
+
+        return 0;
     }
 
     public void SendAsync(ReadOnlySpan<byte> data, int length)

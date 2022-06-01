@@ -69,19 +69,22 @@ public class DeviceAccessor : IDeviceAccessor
     {
         while (!cancellationToken.IsCancellationRequested)
         {
-            var bytes = await _link.ReceiveAsync(cancellationToken);
-            if (bytes == null) break;
-            var packet = Packet.Serializer.Parse(bytes);
+            var sizeBuffer = new byte[4];
+            await _link.ReceiveAsync(sizeBuffer, 4, cancellationToken);
+            var size = BinaryPrimitives.ReadInt32LittleEndian(sizeBuffer);
+            var buffer = ArrayPool<byte>.Shared.Rent(size);
+            await _link.ReceiveAsync(buffer, size, cancellationToken);
+            var packet = Packet.Serializer.Parse(buffer);
             if (_contexts.ContainsKey(packet.Id))
             {
                 _contexts[packet.Id].Packet = packet;
-                _contexts[packet.Id].Buffer = bytes;
+                _contexts[packet.Id].Buffer = buffer;
                 _contexts[packet.Id].ResponseEvent.Set();
                 Log.Information("Received {BytesLength} bytes from: {DeviceName} - {DeviceId}",
-                    bytes.Length, _device.Name, _device.Id.ToString());
+                    buffer.Length, _device.Name, _device.Id.ToString());
                 _contexts.TryRemove(packet.Id, out _);
             }
-            else ArrayPool<byte>.Shared.Return(bytes);
+            else ArrayPool<byte>.Shared.Return(buffer);
         }
 
         Log.Information("DeviceAccessor Cancelled");
