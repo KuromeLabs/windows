@@ -70,10 +70,12 @@ public class DeviceAccessor : IDeviceAccessor
         while (!cancellationToken.IsCancellationRequested)
         {
             var sizeBuffer = new byte[4];
-            await _link.ReceiveAsync(sizeBuffer, 4, cancellationToken);
+            var bytesRead = await _link.ReceiveAsync(sizeBuffer, 4, cancellationToken);
+            if (bytesRead == 0) break;
             var size = BinaryPrimitives.ReadInt32LittleEndian(sizeBuffer);
             var buffer = ArrayPool<byte>.Shared.Rent(size);
-            await _link.ReceiveAsync(buffer, size, cancellationToken);
+            bytesRead = await _link.ReceiveAsync(buffer, size, cancellationToken);
+            if (bytesRead == 0) break;
             var packet = Packet.Serializer.Parse(buffer);
             if (_contexts.ContainsKey(packet.Id))
             {

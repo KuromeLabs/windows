@@ -23,9 +23,9 @@ public class Link : ILink
 
     public async Task<int> ReceiveAsync(byte[] buffer, int size, CancellationToken cancellationToken)
     {
+        var bytesRead = 0;
         try
         {
-            var bytesRead = 0;
             while (bytesRead != size)
             {
                 var current = await _stream.ReadAsync(buffer.AsMemory(0 + bytesRead, size - bytesRead), cancellationToken);
@@ -38,8 +38,7 @@ public class Link : ILink
         {
             Log.Error("{@Exception}", e.ToString());
         }
-
-        return 0;
+        return bytesRead;
     }
 
     public void SendAsync(ReadOnlySpan<byte> data, int length)
