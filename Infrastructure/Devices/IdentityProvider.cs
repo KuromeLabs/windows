@@ -1,17 +1,20 @@
-using System;
-using System.IO;
+using Application.Interfaces;
 
-namespace Kurome
+namespace Infrastructure.Devices
 {
-    public static class IdentityProvider
+    public class IdentityProvider : IIdentityProvider
     {
-        public static string GetMachineName()
+        private string? _id;
+        private string? Name;
+
+        public string GetEnvironmentName()
         {
-            return Environment.MachineName;
+            return Name ??= Environment.MachineName;
         }
 
-        public static string GetGuid()
+        public string GetEnvironmentId()
         {
+            if (_id != null) return _id;
             var dir = Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
                 "Kurome"
@@ -20,7 +23,7 @@ namespace Kurome
             if (File.Exists(file))
             {
                 using var fs = File.OpenText(file);
-                return fs.ReadLine();
+                _id = fs.ReadLine()!;
             }
             else
             {
@@ -28,8 +31,9 @@ namespace Kurome
                 using var fs = File.CreateText(file);
                 var guid = Guid.NewGuid().ToString();
                 fs.Write(guid);
-                return guid;
+                _id = guid;
             }
+            return _id;
         }
     }
 }
