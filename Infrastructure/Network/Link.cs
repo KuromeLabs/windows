@@ -2,6 +2,7 @@ using System.Buffers;
 using System.Buffers.Binary;
 using System.Net.Security;
 using Application.Interfaces;
+using Serilog;
 
 namespace Infrastructure.Network;
 
@@ -50,7 +51,7 @@ public class Link : ILink
         }
         catch (Exception e)
         {
-            Console.WriteLine(e);
+            Log.Error("{@Exception}", e.ToString());
             return null;
         }
     }

@@ -18,4 +18,6 @@ public interface IDeviceAccessor : IDisposable
     public int ReceiveFileBuffer(byte[] buffer, string fileName, long offset, int bytesToRead, long fileSize);
     public void WriteFileBuffer(byte[] buffer, string fileName, long offset);
     public void Delete(string fileName);
+    public void Mount();
+    public void Unmount();
 }

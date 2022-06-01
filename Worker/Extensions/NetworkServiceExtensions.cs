@@ -1,5 +1,5 @@
 using Application.Interfaces;
-using Infrastructure.Network;
+using Infrastructure.Devices;
 using Kurome.Network;
 using Microsoft.Extensions.DependencyInjection;
 

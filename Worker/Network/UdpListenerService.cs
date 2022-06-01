@@ -37,7 +37,6 @@ public class UdpListenerWorker : BackgroundService
             var receivedBytes = (await udpSocket.ReceiveAsync(CancellationToken.None)).Buffer;
             var message = Encoding.Default.GetString(receivedBytes);
             _logger.LogInformation("Received UDP: {Message}", message);
-            // DatagramPacketReceived(message);
 
             var link = await _mediator.Send(new Connect.Query {Ip = message.Split(':')[1], Port = 33587},
                 stoppingToken);

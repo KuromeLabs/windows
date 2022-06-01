@@ -1,16 +1,18 @@
 using System.Buffers;
 using System.Buffers.Binary;
 using System.Collections.Concurrent;
-using Application.Devices;
 using Application.Interfaces;
+using AutoMapper;
+using DokanNet;
+using DokanNet.Logging;
 using Domain;
 using FlatSharp;
-using Infrastructure.Devices;
+using Infrastructure.Dokany;
 using kurome;
 using Serilog;
 using Action = kurome.Action;
 
-namespace Infrastructure.Network;
+namespace Infrastructure.Devices;
 
 public class DeviceAccessor : IDeviceAccessor
 {
@@ -39,15 +41,20 @@ public class DeviceAccessor : IDeviceAccessor
     private readonly IDeviceAccessorFactory _deviceAccessorFactory;
     private readonly Device _device;
     private readonly IIdentityProvider _identityProvider;
+    private readonly IMapper _mapper;
     private readonly ConcurrentDictionary<int, NetworkQuery> _contexts = new();
+    private SemaphoreSlim? _mountSemaphore;
+    private Dokan? _mountInstance;
+    private char _mountLetter;
 
     public DeviceAccessor(ILink link, IDeviceAccessorFactory deviceAccessorFactory,
-        Device device, IIdentityProvider identityProvider)
+        Device device, IIdentityProvider identityProvider, IMapper mapper)
     {
         _link = link;
         _deviceAccessorFactory = deviceAccessorFactory;
         _device = device;
         _identityProvider = identityProvider;
+        _mapper = mapper;
     }
 
     public void Dispose()
@@ -55,6 +62,7 @@ public class DeviceAccessor : IDeviceAccessor
         _deviceAccessorFactory.Unregister(_device.Id.ToString());
         _link.Dispose();
         Log.Information("DeviceAccessor Disposed");
+        Unmount();
     }
 
     public async void Start(CancellationToken cancellationToken)
@@ -183,6 +191,35 @@ public class DeviceAccessor : IDeviceAccessor
     public void Delete(string fileName)
     {
         SendCommand(fileName, Action.ActionDelete);
+    }
+
+    public void Mount()
+    {
+        var driveLetters = Enumerable.Range('C', 'Z' - 'C' + 1).Select(i => (char) i + ":")
+            .Except(DriveInfo.GetDrives().Select(s => s.Name.Replace("\\", ""))).ToList();
+        var dokanLogger = new ConsoleLogger("[Kurome] ");
+        _mountInstance = new Dokan(dokanLogger);
+        var rfs = new KuromeOperations(_mapper, this);
+        Log.Information("Mounting {DeviceName} - {DeviceId} on letter {DriveLetter}", _device.Name, _device.Id.ToString(), driveLetters[0]);
+        var builder = new DokanInstanceBuilder(_mountInstance)
+            .ConfigureLogger(() => dokanLogger)
+            .ConfigureOptions(options =>
+            {
+                options.Options = DokanOptions.FixedDrive;
+                options.MountPoint = driveLetters[0] + "\\";
+            });
+        Task.Run(async () =>
+        {
+            _mountSemaphore = new SemaphoreSlim(0, 1);
+            using var instance = builder.Build(rfs);
+            await _mountSemaphore.WaitAsync();
+        });
+    }
+
+    public void Unmount()
+    {
+        _mountInstance?.Unmount(_mountLetter);
+        _mountSemaphore?.Release();
     }
 
     private readonly object _lock = new();
