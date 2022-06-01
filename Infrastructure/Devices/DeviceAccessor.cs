@@ -1,11 +1,12 @@
 using System.Buffers;
 using System.Buffers.Binary;
 using System.Collections.Concurrent;
+using Application.Devices;
 using Application.Interfaces;
 using Domain;
 using FlatSharp;
+using Infrastructure.Devices;
 using kurome;
-using Kurome;
 using Serilog;
 using Action = kurome.Action;
 
@@ -37,14 +38,16 @@ public class DeviceAccessor : IDeviceAccessor
     private readonly ILink _link;
     private readonly IDeviceAccessorFactory _deviceAccessorFactory;
     private readonly Device _device;
+    private readonly IIdentityProvider _identityProvider;
     private readonly ConcurrentDictionary<int, NetworkQuery> _contexts = new();
 
     public DeviceAccessor(ILink link, IDeviceAccessorFactory deviceAccessorFactory,
-        Device device)
+        Device device, IIdentityProvider identityProvider)
     {
         _link = link;
         _deviceAccessorFactory = deviceAccessorFactory;
         _device = device;
+        _identityProvider = identityProvider;
     }
 
     public void Dispose()
@@ -220,8 +223,8 @@ public class DeviceAccessor : IDeviceAccessor
                 DeviceInfo = new DeviceInfo
                 {
                     FreeBytes = 0,
-                    Id = IdentityProvider.GetGuid(),
-                    Name = IdentityProvider.GetMachineName(),
+                    Id = _identityProvider.GetEnvironmentId(),
+                    Name = _identityProvider.GetEnvironmentName(),
                     TotalBytes = 0
                 }
             };

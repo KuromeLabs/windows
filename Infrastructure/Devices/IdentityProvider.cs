@@ -1,23 +1,29 @@
-namespace Kurome
+using Application.Interfaces;
+
+namespace Infrastructure.Devices
 {
-    public static class IdentityProvider
+    public class IdentityProvider : IIdentityProvider
     {
-        public static string GetMachineName()
+        private string? _id;
+        private string? Name;
+
+        public string GetEnvironmentName()
         {
-            return Environment.MachineName;
+            return Name ??= Environment.MachineName;
         }
 
-        public static string GetGuid()
+        public string GetEnvironmentId()
         {
+            if (_id != null) return _id;
             var dir = Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                "Worker"
+                "Kurome"
             );
             var file = Path.Combine(dir, "id");
             if (File.Exists(file))
             {
                 using var fs = File.OpenText(file);
-                return fs.ReadLine();
+                _id = fs.ReadLine()!;
             }
             else
             {
@@ -25,8 +31,9 @@ namespace Kurome
                 using var fs = File.CreateText(file);
                 var guid = Guid.NewGuid().ToString();
                 fs.Write(guid);
-                return guid;
+                _id = guid;
             }
+            return _id;
         }
     }
 }

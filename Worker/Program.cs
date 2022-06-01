@@ -3,6 +3,7 @@ using System.Threading;
 using Application.Core;
 using Application.Devices;
 using Application.Interfaces;
+using Infrastructure.Devices;
 using Infrastructure.Network;
 using Kurome;
 using Kurome.Extensions;
@@ -31,6 +32,7 @@ var host = Host.CreateDefaultBuilder(args)
         .Enrich.FromLogContext())
     .ConfigureServices(services =>
     {
+        services.AddSingleton<IIdentityProvider, IdentityProvider>();
         services.AddMediatR(typeof(Connect.Handler).Assembly);
         services.AddSingleton<ILinkProvider, LinkProvider>();
         services.AddHostedService<KuromeWorker>();
