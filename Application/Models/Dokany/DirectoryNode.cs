@@ -5,7 +5,7 @@ namespace Application.Models.Dokany;
 
 public class DirectoryNode : BaseNode
 {
-    public Dictionary<string, BaseNode> Children = new();
+    public Dictionary<string, BaseNode>? Children = new();
 
     public DirectoryNode(KuromeInformation fileInformation) : base(fileInformation)
     {
@@ -15,7 +15,7 @@ public class DirectoryNode : BaseNode
     //Otherwise return the cache and update it in the background TODO: limit cache updates
     public IEnumerable<BaseNode> GetChildrenNodes(IDeviceAccessor deviceAccessor)
     {
-        if (Children.Values.Count == 0)
+        if (Children!.Values.Count == 0)
             UpdateChildrenNodes(deviceAccessor);
         // else
         //     Task.Run(() => UpdateChildren(device));
@@ -32,7 +32,7 @@ public class DirectoryNode : BaseNode
     public BaseNode? GetChild(IDeviceAccessor deviceAccessor, string name)
     {
         GetChildrenNodes(deviceAccessor);
-        return Children.TryGetValue(name, out var node) ? node : null;
+        return Children!.TryGetValue(name, out var node) ? node : null;
     }
 
     public void CreateFileChild(IDeviceAccessor deviceAccessor, string fileName)
@@ -46,8 +46,8 @@ public class DirectoryNode : BaseNode
             LastAccessTime = DateTime.Now,
             Length = 0
         }) as FileNode;
-        Children.Add(Path.GetFileName(fileName), node!);
-        node.SetParent(this);
+        Children!.Add(Path.GetFileName(fileName), node!);
+        node!.SetParent(this);
         deviceAccessor.CreateEmptyFile(fileName);
     }
 
@@ -62,7 +62,7 @@ public class DirectoryNode : BaseNode
             LastAccessTime = DateTime.Now,
             Length = 0
         }) as DirectoryNode;
-        Children.Add(node!.Name, node);
+        Children!.Add(node!.Name, node);
         node.SetParent(this);
         deviceAccessor.CreateDirectory(directoryName);
     }

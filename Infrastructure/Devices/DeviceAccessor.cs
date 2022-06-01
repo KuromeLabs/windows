@@ -45,7 +45,7 @@ public class DeviceAccessor : IDeviceAccessor
     private readonly ConcurrentDictionary<int, NetworkQuery> _contexts = new();
     private SemaphoreSlim? _mountSemaphore;
     private Dokan? _mountInstance;
-    private char _mountLetter;
+    private string _mountLetter;
 
     public DeviceAccessor(ILink link, IDeviceAccessorFactory deviceAccessorFactory,
         Device device, IIdentityProvider identityProvider, IMapper mapper)
@@ -197,6 +197,7 @@ public class DeviceAccessor : IDeviceAccessor
     {
         var driveLetters = Enumerable.Range('C', 'Z' - 'C' + 1).Select(i => (char) i + ":")
             .Except(DriveInfo.GetDrives().Select(s => s.Name.Replace("\\", ""))).ToList();
+        _mountLetter = driveLetters[0];
         var dokanLogger = new ConsoleLogger("[Kurome] ");
         _mountInstance = new Dokan(dokanLogger);
         var rfs = new KuromeOperations(_mapper, this);
@@ -218,7 +219,7 @@ public class DeviceAccessor : IDeviceAccessor
 
     public void Unmount()
     {
-        _mountInstance?.Unmount(_mountLetter);
+        _mountInstance?.Unmount(_mountLetter[0]);
         _mountSemaphore?.Release();
     }
 
