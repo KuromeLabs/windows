@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Net.Sockets;
 using System.Threading;
 using Application.Core;
 using Application.Devices;
@@ -34,7 +35,7 @@ var host = Host.CreateDefaultBuilder(args)
     {
         services.AddSingleton<IIdentityProvider, IdentityProvider>();
         services.AddMediatR(typeof(Connect.Handler).Assembly);
-        services.AddSingleton<ILinkProvider, LinkProvider>();
+        services.AddSingleton<ILinkProvider<TcpClient>, LinkProvider>();
         services.AddHostedService<KuromeWorker>();
         services.AddNetworkServices();
         services.AddDbContext<DataContext>();

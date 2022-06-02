@@ -12,12 +12,12 @@ using Monitor = Application.Devices.Monitor;
 
 namespace Kurome.Network;
 
-public class UdpListenerWorker : BackgroundService
+public class UdpListenerService : BackgroundService
 {
-    private readonly ILogger<UdpListenerWorker> _logger;
+    private readonly ILogger<UdpListenerService> _logger;
     private readonly IMediator _mediator;
 
-    public UdpListenerWorker(ILogger<UdpListenerWorker> logger, IMediator mediator)
+    public UdpListenerService(ILogger<UdpListenerService> logger, IMediator mediator)
     {
         _logger = logger;
         _mediator = mediator;

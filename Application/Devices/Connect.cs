@@ -1,7 +1,6 @@
+using System.Net.Sockets;
 using Application.Interfaces;
 using MediatR;
-using Microsoft.Extensions.Logging;
-using Serilog;
 
 namespace Application.Devices;
 
@@ -15,20 +14,16 @@ public class Connect
 
     public class Handler : IRequestHandler<Query, ILink>
     {
-        private readonly ILinkProvider _provider;
-        private readonly ILogger<Handler> _logger;
+        private readonly ILinkProvider<TcpClient>  _provider;
 
-        public Handler(ILinkProvider provider, ILogger<Handler> logger)
+        public Handler(ILinkProvider<TcpClient> provider)
         {
             _provider = provider;
-            _logger = logger;
         }
 
         public async Task<ILink> Handle(Query request, CancellationToken cancellationToken)
         {
-            var link = await _provider.CreateLinkAsync($"{request.Ip}:{request.Port}", cancellationToken);
-            _logger.LogInformation("Connected to {0}", request.Ip);
-            return link;
+            return await _provider.CreateClientLinkAsync($"{request.Ip}:{request.Port}", cancellationToken);
         }
     }
 }

@@ -1,5 +1,7 @@
+using System.Security.Cryptography.X509Certificates;
 using Application.Interfaces;
 using Infrastructure.Devices;
+using Infrastructure.Network;
 using Kurome.Network;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -9,7 +11,10 @@ public static class NetworkServiceExtensions
 {
     public static IServiceCollection AddNetworkServices(this IServiceCollection services)
     {
-        services.AddHostedService<UdpListenerWorker>();
+        services.AddSingleton<ISecurityService<X509Certificate2>, SslService>();
+        services.AddHostedService<TcpListenerService>();
+        services.AddHostedService<UdpCastService>();
+        services.AddHostedService<UdpListenerService>();
         services.AddSingleton<IDeviceAccessorFactory, DeviceAccessorFactory>();
         return services;
     }

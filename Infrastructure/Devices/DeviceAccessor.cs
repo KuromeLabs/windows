@@ -61,7 +61,7 @@ public class DeviceAccessor : IDeviceAccessor
     {
         _deviceAccessorFactory.Unregister(_device.Id.ToString());
         _link.Dispose();
-        Log.Information("DeviceAccessor Disposed");
+        Log.Information("Disposed DeviceAccessor for {DeviceName} - {DeviceId}", _device.Name, _device.Id.ToString()); 
         Unmount();
     }
 
@@ -89,7 +89,7 @@ public class DeviceAccessor : IDeviceAccessor
             else ArrayPool<byte>.Shared.Return(buffer);
         }
 
-        Log.Information("DeviceAccessor Cancelled");
+        Log.Information("Disposing DeviceAccessor for {DeviceName} - {DeviceId}", _device.Name, _device.Id.ToString()); 
         Dispose();
     }
 
