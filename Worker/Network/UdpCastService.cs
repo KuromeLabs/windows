@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net;
@@ -8,18 +7,20 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Application.Interfaces;
-using Infrastructure.Devices;
 using Microsoft.Extensions.Hosting;
+using Serilog;
 
 namespace Kurome.Network;
 
 public class UdpCastService : IHostedService
 {
     private readonly IIdentityProvider _identityProvider;
+    private readonly ILogger _logger;
 
-    public UdpCastService(IIdentityProvider identityProvider)
+    public UdpCastService(IIdentityProvider identityProvider, ILogger logger)
     {
         _identityProvider = identityProvider;
+        _logger = logger;
     }
 
     public Task StartAsync(CancellationToken cancellationToken)
@@ -43,7 +44,7 @@ public class UdpCastService : IHostedService
             udpClient.Ttl = 32;
             var message = "kurome:" + ip + ":" + _identityProvider.GetEnvironmentName() + ":" + id;
             var data = Encoding.Default.GetBytes(message);
-            Console.WriteLine("Broadcast: \"{0}\" to {1}", message, ip);
+            _logger.Information("UDP Broadcast: \"{0}\" to {1}", message, ip);
             udpClient.Send(data, data.Length, new IPEndPoint(IPAddress.Parse("255.255.255.255"), 33586));
         }
     }

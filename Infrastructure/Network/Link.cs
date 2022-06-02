@@ -1,5 +1,3 @@
-using System.Buffers;
-using System.Buffers.Binary;
 using System.Net.Security;
 using Application.Interfaces;
 using Serilog;
@@ -8,7 +6,7 @@ namespace Infrastructure.Network;
 
 public class Link : ILink
 {
-    public readonly SslStream _stream;
+    private readonly SslStream _stream;
 
     public Link(SslStream stream)
     {
@@ -36,7 +34,7 @@ public class Link : ILink
         }
         catch (Exception e)
         {
-            Log.Error("{@Exception}", e.ToString());
+            Log.Error("Exception at Link (This error can be ignored if there were intended changes in connectivity): {@Exception}", e.ToString());
         }
         return bytesRead;
     }

@@ -4,7 +4,6 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Application.Devices;
-using Application.Interfaces;
 using MediatR;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;

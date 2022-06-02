@@ -2,14 +2,11 @@ using System;
 using System.Buffers;
 using System.Buffers.Binary;
 using System.Net;
-using System.Net.Security;
 using System.Net.Sockets;
-using System.Security.Authentication;
 using System.Threading;
 using System.Threading.Tasks;
 using Application.Devices;
 using FlatSharp;
-using Infrastructure.Network;
 using kurome;
 using MediatR;
 using Microsoft.Extensions.Hosting;
@@ -41,26 +38,12 @@ public class TcpListenerService : BackgroundService
                 _logger.Information("Accepted connection from {Ip}", (client.Client.RemoteEndPoint as IPEndPoint));
                 var info = await ReadIdentityAsync(client, stoppingToken);
                 var link = await _mediator.Send(new AcceptConnection.Query { TcpClient = client }, stoppingToken);
-                
                 await _mediator.Send(new Monitor.Query {Id = Guid.Parse(info.Id!), Link = link, Name = info.Name!}, stoppingToken);
-
                 await _mediator.Send(new Mount.Command {Id = Guid.Parse(info.Id!)}, stoppingToken);
-                // if (buffer == null) continue;
-                // var packet = Packet.Serializer.Parse(buffer!);
-                // var stream = new SslStream(client.GetStream(), false);
-                // await stream.AuthenticateAsServerAsync(SslHelper.Certificate, false, SslProtocols.None, true);
-                // link.StartListeningAsync();
-                // link.OnLinkDisconnected += OnDisconnect;
-                // var info = new DeviceInfo(packet.DeviceInfo!);
-                // link.DeviceId = info.Id;
-                // link.DeviceName = info.Name;
-                // ActiveLinks.TryAdd(link.DeviceId, link);
-                // OnLinkConnected?.Invoke(link);
-                // ArrayPool<byte>.Shared.Return(buffer);
             }
             catch (Exception e)
             {
-                Console.WriteLine("Exception at StartTcpListener: {0}", e);
+                _logger.Information("Exception at StartTcpListener: {@Exception}", e.ToString());
             }
         }
     }
