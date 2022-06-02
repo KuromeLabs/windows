@@ -10,17 +10,17 @@ using Application.Interfaces;
 using FlatSharp;
 using kurome;
 using MediatR;
-using Serilog;
+using Microsoft.Extensions.Logging;
 using Monitor = Application.Devices.Monitor;
 
 namespace Kurome.Network;
 
 public class DeviceConnectionHandler
 {
-    private readonly ILogger _logger;
+    private readonly ILogger<DeviceConnectionHandler> _logger;
     private readonly IMediator _mediator;
 
-    public DeviceConnectionHandler(ILogger logger, IMediator mediator)
+    public DeviceConnectionHandler(ILogger<DeviceConnectionHandler> logger, IMediator mediator)
     {
         _logger = logger;
         _mediator = mediator;
@@ -38,7 +38,7 @@ public class DeviceConnectionHandler
         var mountResult = await _mediator.Send(new Mount.Command {Id = id}, cancellationToken);
 
         if (mountResult.ResultStatus == Result<Unit>.Status.Failure)
-            _logger.Error("{Error}", mountResult.Error);
+            _logger.LogError("{Error}", mountResult.Error);
     }
 
     public async void HandleServerConnection(TcpClient client, CancellationToken cancellationToken)
@@ -46,7 +46,7 @@ public class DeviceConnectionHandler
         var info = await ReadIdentityAsync(client, cancellationToken);
         if (info == null)
         {
-            _logger.Error("Failed to read device identity from incoming connection");
+            _logger.LogError("Failed to read device identity from incoming connection");
             return;
         }
 
@@ -61,7 +61,7 @@ public class DeviceConnectionHandler
         var mountResult = await _mediator.Send(new Mount.Command {Id = id}, cancellationToken);
 
         if (mountResult.ResultStatus == Result<Unit>.Status.Failure)
-            _logger.Error("{Error}", mountResult.Error);
+            _logger.LogError("{Error}", mountResult.Error);
     }
 
 
@@ -99,7 +99,7 @@ public class DeviceConnectionHandler
         }
         catch (Exception e)
         {
-            Log.Error("{@Exception}", e.ToString());
+            _logger.LogError("{@Exception}", e.ToString());
             return null;
         }
     }

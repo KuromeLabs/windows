@@ -21,9 +21,8 @@ public class UdpListenerService : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        _logger.LogInformation("Starting UDP Listener");
         var udpSocket = new UdpClient(33588);
-
+        _logger.LogInformation("Started UDP listener on port {Port}", 33588);
         while (!stoppingToken.IsCancellationRequested)
         {
             var receivedBytes = (await udpSocket.ReceiveAsync(CancellationToken.None)).Buffer;

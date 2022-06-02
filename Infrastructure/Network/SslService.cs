@@ -1,17 +1,17 @@
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using Application.Interfaces;
-using Serilog;
+using Microsoft.Extensions.Logging;
 
 namespace Infrastructure.Network;
 
 public class SslService : ISecurityService<X509Certificate2>
 {
-    private readonly ILogger _logger;
+    private readonly ILogger<SslService> _logger;
     private X509Certificate2? _certificate;
     private readonly IIdentityProvider _identityProvider;
 
-    public SslService(IIdentityProvider identityProvider, ILogger logger)
+    public SslService(IIdentityProvider identityProvider, ILogger<SslService> logger)
     {
         _identityProvider = identityProvider;
         _logger = logger;
@@ -55,12 +55,12 @@ public class SslService : ISecurityService<X509Certificate2>
             if (cert.FriendlyName != $"Kurome self-signed certificate for {Environment.MachineName}")
             {
                 mustGenerateCertificate = true;
-                _logger.Warning("SSL Certificate found but not for this machine, regenerating...");
+                _logger.LogWarning("SSL Certificate found but not for this machine, regenerating...");
             }
             else if (!cert.Subject.Contains($"{_identityProvider.GetEnvironmentId()}"))
             {
                 mustGenerateCertificate = true;
-                _logger.Warning("SSL Certificate found but not for this application ID, regenerating...");
+                _logger.LogWarning("SSL Certificate found but not for this application ID, regenerating...");
             }
 
             if (mustGenerateCertificate)
@@ -72,11 +72,11 @@ public class SslService : ISecurityService<X509Certificate2>
             var cert = BuildSelfSignedServerCertificate(_identityProvider);
             certStore.Add(cert);
             _certificate = cert;
-            _logger.Information("SSL Certificate generated and added to store");
+            _logger.LogWarning("SSL Certificate generated and added to store");
         }
         else
         {
-            _logger.Information("SSL Certificate found and loaded from store");
+            _logger.LogInformation("SSL Certificate found and loaded from store");
             _certificate = collection[0];
         }
     }

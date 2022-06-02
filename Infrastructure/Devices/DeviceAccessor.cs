@@ -59,10 +59,10 @@ public class DeviceAccessor : IDeviceAccessor
 
     public void Dispose()
     {
-        _deviceAccessorFactory.Unregister(_device.Id.ToString());
         _link.Dispose();
         Log.Information("Disposed DeviceAccessor for {DeviceName} - {DeviceId}", _device.Name, _device.Id.ToString()); 
         Unmount();
+        _deviceAccessorFactory.Unregister(_device.Id.ToString());
     }
 
     public async void Start(CancellationToken cancellationToken)
@@ -82,14 +82,12 @@ public class DeviceAccessor : IDeviceAccessor
                 _contexts[packet.Id].Packet = packet;
                 _contexts[packet.Id].Buffer = buffer;
                 _contexts[packet.Id].ResponseEvent.Set();
-                Log.Information("Received {BytesLength} bytes from: {DeviceName} - {DeviceId}",
+                Log.Debug("Received {BytesLength} bytes from: {DeviceName} - {DeviceId}",
                     buffer.Length, _device.Name, _device.Id.ToString());
                 _contexts.TryRemove(packet.Id, out _);
             }
             else ArrayPool<byte>.Shared.Return(buffer);
         }
-
-        Log.Information("Disposing DeviceAccessor for {DeviceName} - {DeviceId}", _device.Name, _device.Id.ToString()); 
         Dispose();
     }
 
@@ -203,10 +201,9 @@ public class DeviceAccessor : IDeviceAccessor
         var driveLetters = Enumerable.Range('C', 'Z' - 'C' + 1).Select(i => (char) i + ":")
             .Except(DriveInfo.GetDrives().Select(s => s.Name.Replace("\\", ""))).ToList();
         _mountLetter = driveLetters[0];
-        var dokanLogger = new ConsoleLogger("[Kurome] ");
+        var dokanLogger = new NullLogger();
         _mountInstance = new Dokan(dokanLogger);
         var rfs = new KuromeOperations(_mapper, this);
-        Log.Information("Mounting {DeviceName} - {DeviceId} on letter {DriveLetter}", _device.Name, _device.Id.ToString(), driveLetters[0]);
         var builder = new DokanInstanceBuilder(_mountInstance)
             .ConfigureLogger(() => dokanLogger)
             .ConfigureOptions(options =>
@@ -218,6 +215,7 @@ public class DeviceAccessor : IDeviceAccessor
         {
             _mountSemaphore = new SemaphoreSlim(0, 1);
             using var instance = builder.Build(rfs);
+            Log.Information("Mounted {DeviceName} - {DeviceId} on {DriveLetter}", _device.Name, _device.Id.ToString(), driveLetters[0]);
             await _mountSemaphore.WaitAsync();
         });
     }
@@ -226,6 +224,8 @@ public class DeviceAccessor : IDeviceAccessor
     {
         _mountInstance?.Unmount(_mountLetter[0]);
         _mountSemaphore?.Release();
+        _mountSemaphore?.Dispose();
+        Log.Information("Unmounted {DeviceName} - {DeviceId} on {DriveLetter}", _device.Name, _device.Id.ToString(), _mountLetter[0]);
     }
 
     private readonly object _lock = new();

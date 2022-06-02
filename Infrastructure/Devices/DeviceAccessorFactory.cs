@@ -12,7 +12,6 @@ public class DeviceAccessorFactory : IDeviceAccessorFactory
     private readonly IMapper _mapper;
     private readonly IIdentityProvider _identityProvider;
     private readonly ConcurrentDictionary<string, IDeviceAccessor> _monitors = new();
-    private readonly ConcurrentDictionary<string, SemaphoreSlim> _mountSemaphores = new();
 
     public DeviceAccessorFactory(ILogger<DeviceAccessorFactory> logger, IMapper mapper,
         IIdentityProvider identityProvider)
@@ -25,11 +24,14 @@ public class DeviceAccessorFactory : IDeviceAccessorFactory
     public void Register(string id, IDeviceAccessor deviceAccessor)
     {
         _monitors.TryAdd(id, deviceAccessor);
+        _logger.LogInformation("Registered device accessor for {Id}", id);
     }
 
     public void Unregister(string id)
     {
+        
         _monitors.TryRemove(id, out _);
+        _logger.LogInformation("Unregistered DeviceAccessor for {Id}", id);
     }
 
     public IDeviceAccessor? Get(string id)

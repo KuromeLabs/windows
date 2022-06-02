@@ -4,16 +4,16 @@ using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Hosting;
-using Serilog;
+using Microsoft.Extensions.Logging;
 
 namespace Kurome.Network;
 
 public class TcpListenerService : BackgroundService
 {
-    private readonly ILogger _logger;
+    private readonly ILogger<TcpListenerService> _logger;
     private readonly DeviceConnectionHandler _handler;
 
-    public TcpListenerService(ILogger logger, DeviceConnectionHandler handler)
+    public TcpListenerService(ILogger<TcpListenerService> logger, DeviceConnectionHandler handler)
     {
         _logger = logger;
         _handler = handler;
@@ -23,17 +23,18 @@ public class TcpListenerService : BackgroundService
     {
         var tcpListener = TcpListener.Create(33587);
         tcpListener.Start();
+        _logger.LogInformation("Started TCP Listener on port {Port}", 33587);
         while (!stoppingToken.IsCancellationRequested)
         {
             try
             {
                 var client = await tcpListener.AcceptTcpClientAsync(stoppingToken);
-                _logger.Information("Accepted connection from {Ip}", (client.Client.RemoteEndPoint as IPEndPoint));
+                _logger.LogInformation("Accepted connection from {Ip}", (client.Client.RemoteEndPoint as IPEndPoint));
                 _handler.HandleServerConnection(client, stoppingToken);
             }
             catch (Exception e)
             {
-                _logger.Debug("Exception at StartTcpListener: {@Exception}", e.ToString());
+                _logger.LogDebug("Exception at StartTcpListener: {@Exception}", e.ToString());
             }
         }
     }
