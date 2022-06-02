@@ -6,7 +6,6 @@ using Application.Devices;
 using Application.Interfaces;
 using Infrastructure.Devices;
 using Infrastructure.Network;
-using Kurome;
 using Kurome.Extensions;
 using MediatR;
 using Microsoft.Extensions.DependencyInjection;
@@ -36,7 +35,6 @@ var host = Host.CreateDefaultBuilder(args)
         services.AddSingleton<IIdentityProvider, IdentityProvider>();
         services.AddMediatR(typeof(Connect.Handler).Assembly);
         services.AddSingleton<ILinkProvider<TcpClient>, LinkProvider>();
-        services.AddHostedService<KuromeWorker>();
         services.AddNetworkServices();
         services.AddDbContext<DataContext>();
         services.AddAutoMapper(typeof(MappingProfile).Assembly);

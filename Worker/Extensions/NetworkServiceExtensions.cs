@@ -12,6 +12,7 @@ public static class NetworkServiceExtensions
     public static IServiceCollection AddNetworkServices(this IServiceCollection services)
     {
         services.AddSingleton<ISecurityService<X509Certificate2>, SslService>();
+        services.AddScoped<DeviceConnectionHandler>();
         services.AddHostedService<TcpListenerService>();
         services.AddHostedService<UdpCastService>();
         services.AddHostedService<UdpListenerService>();

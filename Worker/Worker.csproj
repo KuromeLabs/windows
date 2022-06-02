@@ -5,6 +5,7 @@
         <TargetFramework>netcoreapp6.0</TargetFramework>
         <RootNamespace>Kurome</RootNamespace>
         <AssemblyName>Kurome</AssemblyName>
+        <Nullable>enable</Nullable>
     </PropertyGroup>
 
     <PropertyGroup>

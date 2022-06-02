@@ -3,23 +3,20 @@ using System.Net.Sockets;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using Application.Devices;
-using MediatR;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using Monitor = Application.Devices.Monitor;
 
 namespace Kurome.Network;
 
 public class UdpListenerService : BackgroundService
 {
     private readonly ILogger<UdpListenerService> _logger;
-    private readonly IMediator _mediator;
+    private readonly DeviceConnectionHandler _handler;
 
-    public UdpListenerService(ILogger<UdpListenerService> logger, IMediator mediator)
+    public UdpListenerService(ILogger<UdpListenerService> logger, DeviceConnectionHandler handler)
     {
         _logger = logger;
-        _mediator = mediator;
+        _handler = handler;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -32,14 +29,11 @@ public class UdpListenerService : BackgroundService
             var receivedBytes = (await udpSocket.ReceiveAsync(CancellationToken.None)).Buffer;
             var message = Encoding.Default.GetString(receivedBytes);
             _logger.LogInformation("Received UDP: {Message}", message);
+            var ip = message.Split(':')[1];
             var id = Guid.Parse(message.Split(':')[3]);
             var name = message.Split(':')[2];
-            var link = await _mediator.Send(new Connect.Query {Ip = message.Split(':')[1], Port = 33587},
-                stoppingToken);
             
-            await _mediator.Send(new Monitor.Query {Id = id, Link = link, Name = name}, stoppingToken);
-
-            await _mediator.Send(new Mount.Command {Id = id}, stoppingToken);
+            _handler.HandleClientConnection(name, id, ip, 33587, stoppingToken);
         }
     }
 }

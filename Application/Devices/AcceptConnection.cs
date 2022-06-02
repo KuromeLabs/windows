@@ -1,4 +1,5 @@
 using System.Net.Sockets;
+using Application.Core;
 using Application.Interfaces;
 using MediatR;
 
@@ -6,12 +7,12 @@ namespace Application.Devices;
 
 public class AcceptConnection
 {
-    public class Query : IRequest<ILink>
+    public class Query : IRequest<Result<ILink>>
     {
         public TcpClient TcpClient { get; set; } = null!;
     }
 
-    public class Handler : IRequestHandler<Query, ILink>
+    public class Handler : IRequestHandler<Query, Result<ILink>>
     {
         private readonly ILinkProvider<TcpClient> _linkProvider;
 
@@ -20,9 +21,17 @@ public class AcceptConnection
             _linkProvider = linkProvider;
         }
 
-        public async Task<ILink> Handle(Query request, CancellationToken cancellationToken)
+        public async Task<Result<ILink>> Handle(Query request, CancellationToken cancellationToken)
         {
-            return await _linkProvider.CreateServerLinkAsync(request.TcpClient, cancellationToken);;
+            try
+            {
+                var link = await _linkProvider.CreateServerLinkAsync(request.TcpClient, cancellationToken);
+                return Result<ILink>.Success(link);
+            }
+            catch (Exception e)
+            {
+                return Result<ILink>.Failure(e.Message);
+            }
         }
     }
 }

@@ -34,7 +34,7 @@ public class Link : ILink
         }
         catch (Exception e)
         {
-            Log.Error("Exception at Link (This error can be ignored if there were intended changes in connectivity): {@Exception}", e.ToString());
+            Log.Debug("Exception at Link: {@Exception}", e.ToString());
         }
         return bytesRead;
     }

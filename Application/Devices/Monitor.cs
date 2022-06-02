@@ -1,3 +1,4 @@
+using Application.Core;
 using Application.Interfaces;
 using Domain;
 using MediatR;
@@ -8,14 +9,14 @@ namespace Application.Devices;
 
 public class Monitor
 {
-    public class Query : IRequest<IDeviceAccessor>
+    public class Query : IRequest<Result<IDeviceAccessor>>
     {
         public string Name { get; set; } = null!;
         public Guid Id;
         public ILink Link = null!;
     }
 
-    public class Handler : IRequestHandler<Query, IDeviceAccessor>
+    public class Handler : IRequestHandler<Query, Result<IDeviceAccessor>>
     {
         private readonly IDeviceAccessorFactory _deviceAccessorFactory;
         private readonly DataContext _dataContext;
@@ -26,7 +27,7 @@ public class Monitor
             _dataContext = dataContext;
         }
 
-        public async Task<IDeviceAccessor> Handle(Query request, CancellationToken cancellationToken)
+        public async Task<Result<IDeviceAccessor>> Handle(Query request, CancellationToken cancellationToken)
         {
             var device = await _dataContext.Devices.FirstOrDefaultAsync(x => x.Id == request.Id, cancellationToken);
             if (device == null)
@@ -39,7 +40,7 @@ public class Monitor
             }
             var deviceAccessor = _deviceAccessorFactory.Create(request.Link, device);
             deviceAccessor.Start(cancellationToken);
-            return deviceAccessor;
+            return Result<IDeviceAccessor>.Success(deviceAccessor);
         }
     }
 }
