@@ -17,6 +17,7 @@ public class Link : ILink
     {
         _stream.Close();
         _stream.Dispose();
+        GC.SuppressFinalize(this);
     }
 
     public async Task<int> ReceiveAsync(byte[] buffer, int size, CancellationToken cancellationToken)
@@ -35,6 +36,7 @@ public class Link : ILink
         catch (Exception e)
         {
             Log.Debug("Exception at Link: {@Exception}", e.ToString());
+            return 0;
         }
         return bytesRead;
     }

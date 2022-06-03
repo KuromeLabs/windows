@@ -60,9 +60,13 @@ public class DeviceAccessor : IDeviceAccessor
     public void Dispose()
     {
         _link.Dispose();
-        Log.Information("Disposed DeviceAccessor for {DeviceName} - {DeviceId}", _device.Name, _device.Id.ToString()); 
+        foreach (var query in _contexts)
+            query.Value.Dispose();
+        
         Unmount();
+        Log.Information("Disposed DeviceAccessor for {DeviceName} - {DeviceId}", _device.Name, _device.Id.ToString()); 
         _deviceAccessorFactory.Unregister(_device.Id.ToString());
+        GC.SuppressFinalize(this);
     }
 
     public async void Start(CancellationToken cancellationToken)
@@ -201,7 +205,7 @@ public class DeviceAccessor : IDeviceAccessor
         var driveLetters = Enumerable.Range('C', 'Z' - 'C' + 1).Select(i => (char) i + ":")
             .Except(DriveInfo.GetDrives().Select(s => s.Name.Replace("\\", ""))).ToList();
         _mountLetter = driveLetters[0];
-        var dokanLogger = new NullLogger();
+        var dokanLogger = new ConsoleLogger("[Kurome] ");
         _mountInstance = new Dokan(dokanLogger);
         var rfs = new KuromeOperations(_mapper, this);
         var builder = new DokanInstanceBuilder(_mountInstance)
