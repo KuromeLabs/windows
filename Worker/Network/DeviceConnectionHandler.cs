@@ -2,13 +2,12 @@ using System;
 using System.Buffers;
 using System.Buffers.Binary;
 using System.Net.Sockets;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Application.Core;
 using Application.Devices;
 using Application.Interfaces;
-using FlatSharp;
-using kurome;
 using MediatR;
 using Microsoft.Extensions.Logging;
 using Monitor = Application.Devices.Monitor;
@@ -43,19 +42,18 @@ public class DeviceConnectionHandler
 
     public async void HandleServerConnection(TcpClient client, CancellationToken cancellationToken)
     {
-        var info = await ReadIdentityAsync(client, cancellationToken);
+        var info = (await ReadIdentityAsync(client, cancellationToken))?.Split(':');
         if (info == null)
         {
             _logger.LogError("Failed to read device identity from incoming connection");
             return;
         }
 
-        var id = Guid.Parse(info.Id!);
+        var id = Guid.Parse(info[0]);
 
         var result = await _mediator.Send(new AcceptConnection.Query {TcpClient = client}, cancellationToken);
-
         if (result.ResultStatus == Result<ILink>.Status.Success)
-            await _mediator.Send(new Monitor.Query {Id = id, Link = result.Value!, Name = info.Name!},
+            await _mediator.Send(new Monitor.Query {Id = id, Link = result.Value!, Name = info[1]},
                 cancellationToken);
 
         var mountResult = await _mediator.Send(new Mount.Command {Id = id}, cancellationToken);
@@ -65,7 +63,7 @@ public class DeviceConnectionHandler
     }
 
 
-    private async Task<DeviceInfo?> ReadIdentityAsync(TcpClient client, CancellationToken cancellationToken)
+    private async Task<string?> ReadIdentityAsync(TcpClient client, CancellationToken cancellationToken)
     {
         var sizeBuffer = new byte[4];
         var bytesRead = 0;
@@ -93,7 +91,7 @@ public class DeviceConnectionHandler
                 return null;
             }
 
-            var info = new DeviceInfo(Packet.Serializer.Parse(readBuffer).DeviceInfo!);
+            var info = Encoding.UTF8.GetString(readBuffer);
             ArrayPool<byte>.Shared.Return(readBuffer);
             return info;
         }
