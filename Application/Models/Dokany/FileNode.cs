@@ -8,13 +8,13 @@ public class FileNode : BaseNode
     public FileNode(KuromeInformation fileInformation) : base(fileInformation)
     {
     }
-    
+
     public void SetLength(long length, IDeviceAccessor deviceAccessor)
     {
         KuromeInformation.Length = length;
         deviceAccessor.SetLength(Fullname, length);
     }
-    
+
     public void Write(byte[] data, long offset, IDeviceAccessor deviceAccessor)
     {
         KuromeInformation.Length = offset + data.Length;

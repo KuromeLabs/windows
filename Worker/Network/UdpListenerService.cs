@@ -31,7 +31,7 @@ public class UdpListenerService : BackgroundService
             var ip = message.Split(':')[1];
             var id = Guid.Parse(message.Split(':')[3]);
             var name = message.Split(':')[2];
-            
+
             _handler.HandleClientConnection(name, id, ip, 33587, stoppingToken);
         }
     }

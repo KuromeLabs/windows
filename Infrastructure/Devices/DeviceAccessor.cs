@@ -20,9 +20,9 @@ public class DeviceAccessor : IDeviceAccessor
     {
         public Packet? Packet;
         public byte[]? Buffer;
-        public ManualResetEventSlim ResponseEvent;
+        public readonly ManualResetEventSlim ResponseEvent;
 
-        public NetworkQuery(int id, ManualResetEventSlim responseEvent)
+        public NetworkQuery(ManualResetEventSlim responseEvent)
         {
             ResponseEvent = responseEvent;
             Packet = null;
@@ -45,7 +45,7 @@ public class DeviceAccessor : IDeviceAccessor
     private readonly ConcurrentDictionary<int, NetworkQuery> _contexts = new();
     private SemaphoreSlim? _mountSemaphore;
     private Dokan? _mountInstance;
-    private string _mountLetter;
+    private string? _mountLetter;
 
     public DeviceAccessor(ILink link, IDeviceAccessorFactory deviceAccessorFactory,
         Device device, IIdentityProvider identityProvider, IMapper mapper)
@@ -62,9 +62,9 @@ public class DeviceAccessor : IDeviceAccessor
         _link.Dispose();
         foreach (var query in _contexts)
             query.Value.Dispose();
-        
+
         Unmount();
-        Log.Information("Disposed DeviceAccessor for {DeviceName} - {DeviceId}", _device.Name, _device.Id.ToString()); 
+        Log.Information("Disposed DeviceAccessor for {DeviceName} - {DeviceId}", _device.Name, _device.Id.ToString());
         _deviceAccessorFactory.Unregister(_device.Id.ToString());
         GC.SuppressFinalize(this);
     }
@@ -92,6 +92,7 @@ public class DeviceAccessor : IDeviceAccessor
             }
             else ArrayPool<byte>.Shared.Return(buffer);
         }
+
         Dispose();
     }
 
@@ -214,12 +215,14 @@ public class DeviceAccessor : IDeviceAccessor
             {
                 options.Options = DokanOptions.FixedDrive;
                 options.MountPoint = driveLetters[0] + "\\";
+                options.SingleThread = true;
             });
         Task.Run(async () =>
         {
             _mountSemaphore = new SemaphoreSlim(0, 1);
             using var instance = builder.Build(rfs);
-            Log.Information("Mounted {DeviceName} - {DeviceId} on {DriveLetter}", _device.Name, _device.Id.ToString(), driveLetters[0]);
+            Log.Information("Mounted {DeviceName} - {DeviceId} on {DriveLetter}", _device.Name, _device.Id.ToString(),
+                driveLetters[0]);
             await _mountSemaphore.WaitAsync();
         });
     }
@@ -229,7 +232,8 @@ public class DeviceAccessor : IDeviceAccessor
         _mountInstance?.Unmount(_mountLetter[0]);
         _mountSemaphore?.Release();
         _mountSemaphore?.Dispose();
-        Log.Information("Unmounted {DeviceName} - {DeviceId} on {DriveLetter}", _device.Name, _device.Id.ToString(), _mountLetter[0]);
+        Log.Information("Unmounted {DeviceName} - {DeviceId} on {DriveLetter}", _device.Name, _device.Id.ToString(),
+            _mountLetter[0]);
     }
 
     private readonly object _lock = new();
@@ -294,7 +298,7 @@ public class DeviceAccessor : IDeviceAccessor
     {
         var packetId = _random.Next(int.MaxValue - 1) + 1;
         var responseEvent = new ManualResetEventSlim(false);
-        var context = new NetworkQuery(packetId, responseEvent);
+        var context = new NetworkQuery(responseEvent);
         _contexts.TryAdd(packetId, context);
         SendCommand(filename, action, nodeName, cTime, laTime, lwTime, fileType, fileLength, rawOffset,
             rawBuffer,

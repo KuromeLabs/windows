@@ -29,7 +29,6 @@ public class DeviceAccessorFactory : IDeviceAccessorFactory
 
     public void Unregister(string id)
     {
-        
         _monitors.TryRemove(id, out _);
         _logger.LogInformation("Unregistered DeviceAccessor for {Id}", id);
     }
@@ -42,7 +41,7 @@ public class DeviceAccessorFactory : IDeviceAccessorFactory
 
     public IDeviceAccessor Create(ILink link, Device device)
     {
-        var monitor = new DeviceAccessor(link, this, device, _identityProvider, _mapper);
+        IDeviceAccessor monitor = new DeviceAccessor(link, this, device, _identityProvider, _mapper);
         Register(device.Id.ToString(), monitor);
         return monitor;
     }

@@ -27,7 +27,8 @@ public class Link : ILink
         {
             while (bytesRead != size)
             {
-                var current = await _stream.ReadAsync(buffer.AsMemory(0 + bytesRead, size - bytesRead), cancellationToken);
+                var current =
+                    await _stream.ReadAsync(buffer.AsMemory(0 + bytesRead, size - bytesRead), cancellationToken);
                 bytesRead += current;
                 if (current != 0) continue;
                 return bytesRead;
@@ -38,6 +39,7 @@ public class Link : ILink
             Log.Debug("Exception at Link: {@Exception}", e.ToString());
             return 0;
         }
+
         return bytesRead;
     }
 

@@ -33,7 +33,7 @@ public class UdpCastService : IHostedService
     {
         return Task.CompletedTask;
     }
-    
+
     private void CastUdp(IEnumerable<string> addresses)
     {
         var id = _identityProvider.GetEnvironmentId();
@@ -48,7 +48,7 @@ public class UdpCastService : IHostedService
             udpClient.Send(data, data.Length, new IPEndPoint(IPAddress.Parse("255.255.255.255"), 33586));
         }
     }
-    
+
     private static IEnumerable<string> GetLocalIpAddresses()
     {
         var networkInterfaces = NetworkInterface.GetAllNetworkInterfaces();

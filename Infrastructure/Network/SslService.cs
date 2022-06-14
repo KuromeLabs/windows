@@ -19,7 +19,8 @@ public class SslService : ISecurityService<X509Certificate2>
 
     private X509Certificate2 BuildSelfSignedServerCertificate(IIdentityProvider identityProvider)
     {
-        var distinguishedName = new X500DistinguishedName($"CN={identityProvider.GetEnvironmentId()}, OU=Kurome, O=Kurome Labs");
+        var distinguishedName =
+            new X500DistinguishedName($"CN={identityProvider.GetEnvironmentId()}, OU=Kurome, O=Kurome Labs");
 
         using var rsa = RSA.Create(2048);
         var request = new CertificateRequest(distinguishedName, rsa, HashAlgorithmName.SHA256,

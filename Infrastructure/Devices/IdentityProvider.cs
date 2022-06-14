@@ -33,6 +33,7 @@ namespace Infrastructure.Devices
                 fs.Write(guid);
                 _id = guid;
             }
+
             return _id;
         }
     }

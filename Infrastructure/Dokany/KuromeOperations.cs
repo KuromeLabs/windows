@@ -43,7 +43,7 @@ namespace Infrastructure.Dokany
             //Access to these directories is prohibited in newer version of Android.
             //Android\obb can be accessed with REQUEST_INSTALL_PACKAGES Android permission.
             //TODO: Find workaround/ask for root/ask permission (for obb)/etc.
-            if (fileName.StartsWith("\\Android\\data") || fileName.StartsWith("\\Android\\obb") )
+            if (fileName.StartsWith("\\Android\\data") || fileName.StartsWith("\\Android\\obb"))
                 return DokanResult.AccessDenied;
             var node = GetNode(fileName);
             var nodeExists = node != null;
@@ -185,16 +185,16 @@ namespace Infrastructure.Dokany
             var children = parent!.GetChildrenNodes(_deviceAccessor).ToList();
             files = children.Any()
                 ? children.Select(x => new FileInformation
-                {
-                    FileName = x.Name,
-                    Attributes = (x.KuromeInformation.IsDirectory
-                        ? FileAttributes.Directory
-                        : FileAttributes.Normal),
-                    LastAccessTime = x.KuromeInformation.LastAccessTime,
-                    LastWriteTime = x.KuromeInformation.LastWriteTime,
-                    CreationTime = x.KuromeInformation.CreationTime,
-                    Length = x.KuromeInformation.Length
-                })
+                    {
+                        FileName = x.Name,
+                        Attributes = (x.KuromeInformation.IsDirectory
+                            ? FileAttributes.Directory
+                            : FileAttributes.Normal),
+                        LastAccessTime = x.KuromeInformation.LastAccessTime,
+                        LastWriteTime = x.KuromeInformation.LastWriteTime,
+                        CreationTime = x.KuromeInformation.CreationTime,
+                        Length = x.KuromeInformation.Length
+                    })
                     .ToList()
                 : new List<FileInformation>();
 
@@ -231,7 +231,7 @@ namespace Infrastructure.Dokany
             var node = GetNode(fileName);
             if (node == null)
                 return DokanResult.FileNotFound;
-            else if (node.KuromeInformation.IsDirectory )
+            else if (node.KuromeInformation.IsDirectory)
                 return DokanResult.AccessDenied;
             return DokanResult.Success;
         }
@@ -261,7 +261,7 @@ namespace Infrastructure.Dokany
             {
                 if (info.IsDirectory) return DokanResult.AccessDenied;
                 newNode.Delete(_deviceAccessor);
-                oldNode!.Move(_deviceAccessor,newName, destination!);
+                oldNode!.Move(_deviceAccessor, newName, destination!);
                 return DokanResult.Success;
             }
 

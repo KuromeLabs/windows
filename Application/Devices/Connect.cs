@@ -15,7 +15,7 @@ public class Connect
 
     public class Handler : IRequestHandler<Query, Result<ILink>>
     {
-        private readonly ILinkProvider<TcpClient>  _provider;
+        private readonly ILinkProvider<TcpClient> _provider;
 
         public Handler(ILinkProvider<TcpClient> provider)
         {

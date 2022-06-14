@@ -38,6 +38,7 @@ public class Monitor
                     Name = request.Name,
                 };
             }
+
             var deviceAccessor = _deviceAccessorFactory.Create(request.Link, device);
             deviceAccessor.Start(cancellationToken);
             return Result<IDeviceAccessor>.Success(deviceAccessor);

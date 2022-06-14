@@ -27,8 +27,9 @@ public abstract class BaseNode
     {
         Parent = parent;
     }
-    
-    public void SetFileTime(DateTime? creationTime, DateTime? lastAccessTime, DateTime? lastWriteTime, IDeviceAccessor deviceAccessor)
+
+    public void SetFileTime(DateTime? creationTime, DateTime? lastAccessTime, DateTime? lastWriteTime,
+        IDeviceAccessor deviceAccessor)
     {
         KuromeInformation.CreationTime = creationTime;
         KuromeInformation.LastAccessTime = lastAccessTime;
@@ -52,7 +53,7 @@ public abstract class BaseNode
             destination.Children.Add(newNode.Name, newNode);
             newNode.SetParent(destination);
         }
-        
+
         SetParent(null);
     }
 
