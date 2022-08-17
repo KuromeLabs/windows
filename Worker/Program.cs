@@ -40,4 +40,5 @@ var host = Host.CreateDefaultBuilder(args)
         services.AddAutoMapper(typeof(MappingProfile).Assembly);
     })
     .Build();
+host.Services.GetRequiredService<DataContext>().Database.EnsureCreated();
 await host.RunAsync();
