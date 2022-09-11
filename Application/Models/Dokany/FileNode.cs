@@ -17,7 +17,8 @@ public class FileNode : BaseNode
 
     public void Write(byte[] data, long offset, IDeviceAccessor deviceAccessor)
     {
-        KuromeInformation.Length = offset + data.Length;
+        if (KuromeInformation.Length < offset + data.Length)
+            KuromeInformation.Length = offset + data.Length;
         deviceAccessor.WriteFileBuffer(data, Fullname, offset);
     }
 

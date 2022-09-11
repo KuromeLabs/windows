@@ -38,4 +38,5 @@ var host = Host.CreateDefaultBuilder(args)
         services.AddDbContext<DataContext>();
     })
     .Build();
+host.Services.GetRequiredService<DataContext>().Database.EnsureCreated();
 await host.RunAsync();
