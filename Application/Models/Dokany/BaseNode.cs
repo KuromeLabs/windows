@@ -11,6 +11,7 @@ public abstract class BaseNode
     }
 
     public KuromeInformation KuromeInformation { get; protected set; }
+    
     private DirectoryNode? Parent { get; set; }
     public string Name => KuromeInformation.FileName;
     protected string Fullname => (Parent?.Fullname ?? string.Empty) + Name + "\\";

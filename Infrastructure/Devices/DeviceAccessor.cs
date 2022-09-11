@@ -2,7 +2,6 @@ using System.Buffers;
 using System.Buffers.Binary;
 using System.Collections.Concurrent;
 using Application.Interfaces;
-using AutoMapper;
 using DokanNet;
 using DokanNet.Logging;
 using Domain;
@@ -41,20 +40,18 @@ public class DeviceAccessor : IDeviceAccessor
     private readonly IDeviceAccessorFactory _deviceAccessorFactory;
     private readonly Device _device;
     private readonly IIdentityProvider _identityProvider;
-    private readonly IMapper _mapper;
     private readonly ConcurrentDictionary<int, NetworkQuery> _contexts = new();
     private SemaphoreSlim? _mountSemaphore;
     private Dokan? _mountInstance;
     private string? _mountLetter;
 
     public DeviceAccessor(ILink link, IDeviceAccessorFactory deviceAccessorFactory,
-        Device device, IIdentityProvider identityProvider, IMapper mapper)
+        Device device, IIdentityProvider identityProvider)
     {
         _link = link;
         _deviceAccessorFactory = deviceAccessorFactory;
         _device = device;
         _identityProvider = identityProvider;
-        _mapper = mapper;
     }
 
     public void Dispose()
@@ -87,7 +84,7 @@ public class DeviceAccessor : IDeviceAccessor
                 _contexts[packet.Id].Buffer = buffer;
                 _contexts[packet.Id].ResponseEvent.Set();
                 Log.Debug("Received {BytesLength} bytes from: {DeviceName} - {DeviceId}",
-                    buffer.Length, _device.Name, _device.Id.ToString());
+                    bytesRead, _device.Name, _device.Id.ToString());
                 _contexts.TryRemove(packet.Id, out _);
             }
             else ArrayPool<byte>.Shared.Return(buffer);
@@ -208,14 +205,14 @@ public class DeviceAccessor : IDeviceAccessor
         _mountLetter = driveLetters[0];
         var dokanLogger = new ConsoleLogger("[Kurome] ");
         _mountInstance = new Dokan(dokanLogger);
-        var rfs = new KuromeOperations(_mapper, this);
+        var rfs = new KuromeOperations(this);
         var builder = new DokanInstanceBuilder(_mountInstance)
             .ConfigureLogger(() => dokanLogger)
             .ConfigureOptions(options =>
             {
                 options.Options = DokanOptions.FixedDrive;
                 options.MountPoint = driveLetters[0] + "\\";
-                options.SingleThread = true;
+                options.SingleThread = false;
             });
         Task.Run(async () =>
         {
@@ -243,50 +240,48 @@ public class DeviceAccessor : IDeviceAccessor
         long fileLength = 0, long rawOffset = 0, byte[]? rawBuffer = null, int rawLength = 0, int id = 0,
         PairEvent pair = 0)
     {
-        lock (_lock)
+        filename = filename.Replace('\\', '/');
+        nodeName = nodeName.Replace('\\', '/');
+        var packet = new Packet
         {
-            filename = filename.Replace('\\', '/');
-            nodeName = nodeName.Replace('\\', '/');
-            var packet = new Packet
+            Action = action,
+            Path = filename,
+            FileBuffer = new Raw
             {
-                Action = action,
-                Path = filename,
-                FileBuffer = new Raw
+                Data = rawBuffer,
+                Length = rawLength,
+                Offset = rawOffset
+            },
+            Nodes = new FileBuffer[]
+            {
+                new()
                 {
-                    Data = rawBuffer,
-                    Length = rawLength,
-                    Offset = rawOffset
-                },
-                Nodes = new FileBuffer[]
-                {
-                    new()
-                    {
-                        CreationTime = cTime,
-                        Filename = nodeName,
-                        FileType = fileType,
-                        LastAccessTime = laTime,
-                        LastWriteTime = lwTime,
-                        Length = fileLength
-                    }
-                },
-                Id = id,
-                Pair = pair,
-                DeviceInfo = new DeviceInfo
-                {
-                    FreeBytes = 0,
-                    Id = _identityProvider.GetEnvironmentId(),
-                    Name = _identityProvider.GetEnvironmentName(),
-                    TotalBytes = 0
+                    CreationTime = cTime,
+                    Filename = nodeName,
+                    FileType = fileType,
+                    LastAccessTime = laTime,
+                    LastWriteTime = lwTime,
+                    Length = fileLength
                 }
-            };
-            var size = Packet.Serializer.GetMaxSize(packet);
-            var bytes = ArrayPool<byte>.Shared.Rent(size + 4);
-            Span<byte> buffer = bytes;
-            var length = Packet.Serializer.Write(buffer[4..], packet);
-            BinaryPrimitives.WriteInt32LittleEndian(buffer[..4], length);
+            },
+            Id = id,
+            Pair = pair,
+            DeviceInfo = new DeviceInfo
+            {
+                FreeBytes = 0,
+                Id = _identityProvider.GetEnvironmentId(),
+                Name = _identityProvider.GetEnvironmentName(),
+                TotalBytes = 0
+            }
+        };
+        var size = Packet.Serializer.GetMaxSize(packet);
+        var bytes = ArrayPool<byte>.Shared.Rent(size + 4);
+        Span<byte> buffer = bytes;
+        var length = Packet.Serializer.Write(buffer[4..], packet);
+        BinaryPrimitives.WriteInt32LittleEndian(buffer[..4], length);
+        lock (_lock)
             _link.SendAsync(buffer, length + 4);
-            ArrayPool<byte>.Shared.Return(bytes);
-        }
+        ArrayPool<byte>.Shared.Return(bytes);
     }
 
     private readonly Random _random = new();

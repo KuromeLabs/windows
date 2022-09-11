@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Net.Sockets;
 using System.Threading;
-using Application.Core;
 using Application.Devices;
 using Application.Interfaces;
 using Infrastructure.Devices;
@@ -37,7 +36,6 @@ var host = Host.CreateDefaultBuilder(args)
         services.AddSingleton<ILinkProvider<TcpClient>, LinkProvider>();
         services.AddNetworkServices();
         services.AddDbContext<DataContext>();
-        services.AddAutoMapper(typeof(MappingProfile).Assembly);
     })
     .Build();
 await host.RunAsync();

@@ -12,8 +12,6 @@
     </ItemGroup>
 
     <ItemGroup>
-      <PackageReference Include="AutoMapper" Version="11.0.1" />
-      <PackageReference Include="AutoMapper.Extensions.Microsoft.DependencyInjection" Version="11.0.0" />
       <PackageReference Include="DokanNet" Version="2.0.4.1" />
       <PackageReference Include="FlatSharp.Compiler" Version="6.3.1">
         <PrivateAssets>all</PrivateAssets>

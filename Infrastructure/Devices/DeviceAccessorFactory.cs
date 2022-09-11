@@ -1,6 +1,5 @@
 using System.Collections.Concurrent;
 using Application.Interfaces;
-using AutoMapper;
 using Domain;
 using Microsoft.Extensions.Logging;
 
@@ -9,15 +8,12 @@ namespace Infrastructure.Devices;
 public class DeviceAccessorFactory : IDeviceAccessorFactory
 {
     private readonly ILogger<DeviceAccessorFactory> _logger;
-    private readonly IMapper _mapper;
     private readonly IIdentityProvider _identityProvider;
     private readonly ConcurrentDictionary<string, IDeviceAccessor> _monitors = new();
 
-    public DeviceAccessorFactory(ILogger<DeviceAccessorFactory> logger, IMapper mapper,
-        IIdentityProvider identityProvider)
+    public DeviceAccessorFactory(ILogger<DeviceAccessorFactory> logger, IIdentityProvider identityProvider)
     {
         _logger = logger;
-        _mapper = mapper;
         _identityProvider = identityProvider;
     }
 
@@ -41,7 +37,7 @@ public class DeviceAccessorFactory : IDeviceAccessorFactory
 
     public IDeviceAccessor Create(ILink link, Device device)
     {
-        IDeviceAccessor monitor = new DeviceAccessor(link, this, device, _identityProvider, _mapper);
+        IDeviceAccessor monitor = new DeviceAccessor(link, this, device, _identityProvider);
         Register(device.Id.ToString(), monitor);
         return monitor;
     }

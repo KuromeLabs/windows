@@ -1,7 +1,6 @@
 ﻿using System.Security.AccessControl;
 using Application.Interfaces;
 using Application.Models.Dokany;
-using AutoMapper;
 using DokanNet;
 using FileAccess = DokanNet.FileAccess;
 
@@ -10,11 +9,9 @@ namespace Infrastructure.Dokany
     public class KuromeOperations : IKuromeOperations
     {
         private readonly IDeviceAccessor _deviceAccessor;
-        private readonly IMapper _mapper;
 
-        public KuromeOperations(IMapper mapper, IDeviceAccessor deviceAccessor)
+        public KuromeOperations(IDeviceAccessor deviceAccessor)
         {
-            _mapper = mapper;
             _deviceAccessor = deviceAccessor;
         }
 
@@ -208,7 +205,15 @@ namespace Infrastructure.Dokany
             files = new List<FileInformation>(nodes.Count);
             foreach (var node in nodes.Where(node =>
                          DokanHelper.DokanIsNameInExpression(searchPattern, node.Name, true)))
-                files.Add(_mapper.Map<FileInformation>(node.KuromeInformation));
+                files.Add(new FileInformation
+                {
+                    Attributes = node.KuromeInformation.IsDirectory ? FileAttributes.Directory : FileAttributes.Normal,
+                    CreationTime = node.KuromeInformation.CreationTime,
+                    LastAccessTime = node.KuromeInformation.LastAccessTime,
+                    LastWriteTime = node.KuromeInformation.LastWriteTime,
+                    Length = node.KuromeInformation.Length,
+                    FileName = node.KuromeInformation.FileName
+                });
             return DokanResult.Success;
         }
 
