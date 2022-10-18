@@ -1,4 +1,5 @@
 ﻿using System;
+using System.IO;
 using System.Net.Sockets;
 using System.Threading;
 using Application.Devices;
@@ -38,5 +39,7 @@ var host = Host.CreateDefaultBuilder(args)
         services.AddDbContext<DataContext>();
     })
     .Build();
-host.Services.GetRequiredService<DataContext>().Database.EnsureCreated();
+
+Directory.CreateDirectory(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Kurome"));
+await host.Services.GetRequiredService<DataContext>().Database.EnsureCreatedAsync();
 await host.RunAsync();
