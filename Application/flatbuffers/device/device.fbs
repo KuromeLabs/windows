@@ -1,0 +1,20 @@
+include "info.fbs";
+include "pair.fbs";
+
+namespace Kurome.Fbs;
+attribute "fs_serializer";
+enum DeviceQueryType: byte {
+    GetSpace,
+    GetInfo,
+    GetAll
+}
+
+table DeviceQuery (fs_serializer:"lazy") {
+    type: DeviceQueryType;
+}
+
+union DeviceResponseType  { DeviceInfo } // TODO: add pairing here
+
+table DeviceResponse (fs_serializer:"lazy") {
+    response:DeviceResponseType;
+}

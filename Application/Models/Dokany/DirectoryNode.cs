@@ -24,7 +24,7 @@ public class DirectoryNode : BaseNode
 
     private void UpdateChildrenNodes(IDeviceAccessor deviceAccessor)
     {
-        Children = deviceAccessor.GetFileNodes(Fullname).Select(Create).ToDictionary(x => x.Name);
+        Children = deviceAccessor.GetFileNodes(FullName).Select(Create).ToDictionary(x => x.Name);
         foreach (var node in Children.Values)
             node.SetParent(this);
     }
@@ -53,6 +53,7 @@ public class DirectoryNode : BaseNode
 
     public void CreateDirectoryChild(IDeviceAccessor deviceAccessor, string directoryName)
     {
+        Console.WriteLine("Creating directory child with name {0}", directoryName);
         var node = Create(new KuromeInformation
         {
             FileName = Path.GetFileName(directoryName),

@@ -12,20 +12,20 @@ public class FileNode : BaseNode
     public void SetLength(long length, IDeviceAccessor deviceAccessor)
     {
         KuromeInformation.Length = length;
-        deviceAccessor.SetLength(Fullname, length);
+        deviceAccessor.SetLength(FullName, length);
     }
 
-    public void Write(byte[] data, long offset, IDeviceAccessor deviceAccessor)
+    public void Write(Memory<byte> data, long offset, IDeviceAccessor deviceAccessor)
     {
         if (KuromeInformation.Length < offset + data.Length)
             KuromeInformation.Length = offset + data.Length;
-        deviceAccessor.WriteFileBuffer(data, Fullname, offset);
+        deviceAccessor.WriteFileBuffer(data, FullName, offset);
     }
 
     //we can cache this
     public int ReadFile(byte[] buffer, long offset, int bytesToRead, long fileSize, IDeviceAccessor deviceAccessor)
     {
-        var data = deviceAccessor.ReceiveFileBuffer(buffer, Fullname, offset, bytesToRead, fileSize);
+        var data = deviceAccessor.ReceiveFileBuffer(buffer, FullName, offset, bytesToRead, fileSize);
         return data;
     }
 }

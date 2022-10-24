@@ -14,7 +14,7 @@ public abstract class BaseNode
     
     private DirectoryNode? Parent { get; set; }
     public string Name => KuromeInformation.FileName;
-    protected string Fullname => (Parent?.Fullname ?? string.Empty) + Name + "\\";
+    protected string FullName => (Parent?.FullName ?? string.Empty) + Name + "\\";
 
     protected static BaseNode Create(KuromeInformation information)
     {
@@ -38,12 +38,12 @@ public abstract class BaseNode
         var cTime = creationTime == null ? 0 : ((DateTimeOffset) creationTime).ToUnixTimeMilliseconds();
         var laTime = lastAccessTime == null ? 0 : ((DateTimeOffset) lastAccessTime).ToUnixTimeMilliseconds();
         var lwTime = lastWriteTime == null ? 0 : ((DateTimeOffset) lastWriteTime).ToUnixTimeMilliseconds();
-        deviceAccessor.SetFileTime(Fullname, cTime, laTime, lwTime);
+        deviceAccessor.SetFileTime(FullName, cTime, laTime, lwTime);
     }
 
     public void Move(IDeviceAccessor deviceAccessor, string newName, DirectoryNode destination)
     {
-        deviceAccessor.Rename(Fullname, newName);
+        deviceAccessor.Rename(FullName, newName);
         Parent!.Children!.Remove(Name);
         KuromeInformation.FileName = Path.GetFileName(newName);
         var newNode = Create(KuromeInformation);
@@ -61,7 +61,7 @@ public abstract class BaseNode
     public void Delete(IDeviceAccessor deviceAccessor)
     {
         Parent!.Children!.Remove(Name);
-        deviceAccessor.Delete(Fullname);
+        deviceAccessor.Delete(FullName);
         SetParent(null);
     }
 }

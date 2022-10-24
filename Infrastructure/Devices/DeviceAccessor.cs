@@ -1,15 +1,15 @@
 using System.Buffers;
 using System.Buffers.Binary;
 using System.Collections.Concurrent;
+using System.Security.Cryptography;
 using Application.Interfaces;
 using DokanNet;
 using DokanNet.Logging;
 using Domain;
 using FlatSharp;
 using Infrastructure.Dokany;
-using kurome;
+using Kurome.Fbs;
 using Serilog;
-using Action = kurome.Action;
 
 namespace Infrastructure.Devices;
 
@@ -40,7 +40,7 @@ public class DeviceAccessor : IDeviceAccessor
     private readonly IDeviceAccessorFactory _deviceAccessorFactory;
     private readonly Device _device;
     private readonly IIdentityProvider _identityProvider;
-    private readonly ConcurrentDictionary<int, NetworkQuery> _contexts = new();
+    private readonly ConcurrentDictionary<long, NetworkQuery> _contexts = new();
     private SemaphoreSlim? _mountSemaphore;
     private Dokan? _mountInstance;
     private string? _mountLetter;
@@ -95,7 +95,7 @@ public class DeviceAccessor : IDeviceAccessor
 
     public void SetLength(string fileName, long length)
     {
-        SendCommand(fileName, Action.ActionSetFileTime, fileLength: length);
+        SendPacket(new Component(new FileCommand {Command = new FileCommandType (new SetAttributes { Path = SanitizeName(fileName), Attributes = new Attributes { Length = length}})}));
     }
 
     public Device Get()
@@ -105,65 +105,59 @@ public class DeviceAccessor : IDeviceAccessor
 
     public void SetFileTime(string fileName, long cTime, long laTime, long lwTime)
     {
-        SendCommand(fileName, Action.ActionSetFileTime, cTime: cTime, laTime: laTime, lwTime: lwTime);
+        SendPacket(new Component(new FileCommand {Command = new FileCommandType (new SetAttributes { Path = SanitizeName(fileName), Attributes = new Attributes { CreationTime = cTime, LastAccessTime = laTime, LastWriteTime = lwTime}})}));
     }
 
     public void Rename(string fileName, string newFileName)
     {
-        SendCommand(fileName, Action.ActionRename, newFileName);
+        SendPacket(new Component(new FileCommand {Command = new FileCommandType (new Rename { OldPath = SanitizeName(fileName), NewPath = SanitizeName(newFileName)})}));
     }
 
     public IEnumerable<KuromeInformation> GetFileNodes(string fileName)
     {
-        var query = SendQuery(fileName, Action.ActionGetDirectory);
+        var response = SendQuery(new Component(new FileQuery { Type = FileQueryType.GetDirectory, Path = SanitizeName(fileName) }));
         var files = new List<KuromeInformation>();
-        for (var i = 0; i < query.Packet!.Nodes!.Count; i++)
+        var result = response.Packet.Component.Value.FileResponse.Response.Value.Node.Children;
+        foreach (var node in result!)
         {
-            var node = query.Packet.Nodes![i];
+            var attr = node.Attributes!;
             var file = new KuromeInformation
             {
-                FileName = node.Filename!,
-                IsDirectory = node.FileType == FileType.Directory,
-                LastAccessTime = DateTimeOffset.FromUnixTimeMilliseconds(node.LastAccessTime).LocalDateTime,
-                LastWriteTime = DateTimeOffset.FromUnixTimeMilliseconds(node.LastWriteTime).LocalDateTime,
-                CreationTime = DateTimeOffset.FromUnixTimeMilliseconds(node.CreationTime).LocalDateTime,
-                Length = node.Length
+                FileName = attr.Name!,
+                IsDirectory = attr.Type == FileType.Directory,
+                LastAccessTime = DateTimeOffset.FromUnixTimeMilliseconds(attr.LastAccessTime).LocalDateTime,
+                LastWriteTime = DateTimeOffset.FromUnixTimeMilliseconds(attr.LastWriteTime).LocalDateTime,
+                CreationTime = DateTimeOffset.FromUnixTimeMilliseconds(attr.CreationTime).LocalDateTime,
+                Length = attr.Length
             };
             files.Add(file);
         }
-
-        query.Dispose();
+        
+        response.Dispose();
         return files;
     }
 
     public KuromeInformation GetRootNode()
     {
-        var result = GetFileNode("\\");
-        result.FileName = "";
-        return result;
-    }
-
-    public KuromeInformation GetFileNode(string fileName)
-    {
-        var response = SendQuery(fileName, Action.ActionGetFileInfo);
-        var file = response.Packet!.Nodes![0];
+        var response = SendQuery(new Component(new FileQuery { Type = FileQueryType.GetDirectory, Path = "/" }));
+        var file = response.Packet.Component.Value.FileResponse.Response.Value.Node.Attributes;
         var fileInfo = new KuromeInformation
         {
-            FileName = file.Filename!,
-            IsDirectory = file.FileType == FileType.Directory,
+            FileName = "",
+            IsDirectory = file.Type == FileType.Directory,
             LastAccessTime = DateTimeOffset.FromUnixTimeMilliseconds(file.LastAccessTime).LocalDateTime,
             LastWriteTime = DateTimeOffset.FromUnixTimeMilliseconds(file.LastWriteTime).LocalDateTime,
             CreationTime = DateTimeOffset.FromUnixTimeMilliseconds(file.CreationTime).LocalDateTime,
             Length = file.Length
         };
-        response.Dispose();
         return fileInfo;
     }
 
     public void GetSpace(out long total, out long free)
     {
-        var response = SendQuery(action: Action.ActionGetSpaceInfo);
-        var deviceInfo = response.Packet!.DeviceInfo!;
+        var response = SendQuery(new Component(new DeviceQuery { Type = DeviceQueryType.GetSpace }));
+        var deviceInfo = response.Packet!.Component!.Value.DeviceResponse!.Response!.Value.DeviceInfo.Space!;
+        
         total = deviceInfo.TotalBytes;
         free = deviceInfo.FreeBytes;
         response.Dispose();
@@ -171,36 +165,41 @@ public class DeviceAccessor : IDeviceAccessor
 
     public void CreateEmptyFile(string fileName)
     {
-        SendCommand(fileName, Action.ActionCreateFile);
+        SendPacket(new Component(new FileCommand {Command = new FileCommandType (new Create { Path = SanitizeName(fileName), Type = FileType.File})}));
     }
 
     public void CreateDirectory(string directoryName)
     {
-        SendCommand(directoryName, Action.ActionCreateDirectory);
+        SendPacket(new Component(new FileCommand {Command = new FileCommandType (new Create { Path = SanitizeName(directoryName), Type = FileType.Directory})}));
     }
 
     public int ReceiveFileBuffer(byte[] buffer, string fileName, long offset, int bytesToRead, long fileSize)
     {
-        var response = SendQuery(fileName, Action.ActionReadFileBuffer, rawOffset: offset,
-            rawLength: bytesToRead);
-        response.Packet!.FileBuffer?.Data!.Value.CopyTo(buffer);
+        var response = SendQuery(new Component(new FileQuery { Type = FileQueryType.ReadFile, Path = SanitizeName(fileName), Length = bytesToRead, Offset = offset}));
+        response.Packet!.Component!.Value.FileResponse!.Response!.Value.Raw.Data!.Value.CopyTo(buffer);
         response.Dispose();
         return bytesToRead;
     }
 
-    public void WriteFileBuffer(byte[] buffer, string fileName, long offset)
+    public void WriteFileBuffer(Memory<byte> buffer, string fileName, long offset)
     {
-        SendCommand(fileName, Action.ActionWriteFileBuffer, rawOffset: offset, rawBuffer: buffer, id: 0);
+        SendPacket(new Component(new FileCommand
+        {
+            Command = new FileCommandType(new Write
+                {
+                    Path = SanitizeName(fileName), Buffer = new Raw { Data = buffer, Length = buffer.Length, Offset = offset }
+                })
+        }));
     }
 
     public void Delete(string fileName)
     {
-        SendCommand(fileName, Action.ActionDelete);
+        SendPacket(new Component(new FileCommand { Command = new FileCommandType(new Delete { Path = SanitizeName(fileName) }) }));
     }
 
     public void Mount()
     {
-        var driveLetters = Enumerable.Range('C', 'Z' - 'C' + 1).Select(i => (char) i + ":")
+        var driveLetters = Enumerable.Range('C', 'Z' - 'C' + 1).Select(i => (char)i + ":")
             .Except(DriveInfo.GetDrives().Select(s => s.Name.Replace("\\", ""))).ToList();
         _mountLetter = driveLetters[0];
         var dokanLogger = new ConsoleLogger("[Kurome] ");
@@ -226,84 +225,42 @@ public class DeviceAccessor : IDeviceAccessor
 
     public void Unmount()
     {
-        _mountInstance?.Unmount(_mountLetter[0]);
+        _mountInstance?.Unmount(_mountLetter![0]);
         _mountSemaphore?.Release();
         _mountSemaphore?.Dispose();
         Log.Information("Unmounted {DeviceName} - {DeviceId} on {DriveLetter}", _device.Name, _device.Id.ToString(),
-            _mountLetter[0]);
+            _mountLetter?[0]);
     }
 
     private readonly object _lock = new();
 
-    private void SendCommand(string filename = "", Action action = Action.NoAction,
-        string nodeName = "", long cTime = 0, long laTime = 0, long lwTime = 0, FileType fileType = 0,
-        long fileLength = 0, long rawOffset = 0, byte[]? rawBuffer = null, int rawLength = 0, int id = 0,
-        PairEvent pair = 0)
+    private void SendPacket(Component component, long id = 0)
     {
-        filename = filename.Replace('\\', '/');
-        nodeName = nodeName.Replace('\\', '/');
-        var packet = new Packet
-        {
-            Action = action,
-            Path = filename,
-            FileBuffer = new Raw
-            {
-                Data = rawBuffer,
-                Length = rawLength,
-                Offset = rawOffset
-            },
-            Nodes = new FileBuffer[]
-            {
-                new()
-                {
-                    CreationTime = cTime,
-                    Filename = nodeName,
-                    FileType = fileType,
-                    LastAccessTime = laTime,
-                    LastWriteTime = lwTime,
-                    Length = fileLength
-                }
-            },
-            Id = id,
-            Pair = pair,
-            DeviceInfo = new DeviceInfo
-            {
-                FreeBytes = 0,
-                Id = _identityProvider.GetEnvironmentId(),
-                Name = _identityProvider.GetEnvironmentName(),
-                TotalBytes = 0
-            }
-        };
+        var packet = new Packet { Component = component, Id = id};
         var size = Packet.Serializer.GetMaxSize(packet);
         var bytes = ArrayPool<byte>.Shared.Rent(size + 4);
-        Span<byte> buffer = bytes;
+        Span<byte> buffer = ArrayPool<byte>.Shared.Rent(size + 4);
         var length = Packet.Serializer.Write(buffer[4..], packet);
         BinaryPrimitives.WriteInt32LittleEndian(buffer[..4], length);
-        lock (_lock)
-            _link.SendAsync(buffer, length + 4);
+        lock (_lock) _link.SendAsync(buffer, length + 4);
         ArrayPool<byte>.Shared.Return(bytes);
     }
 
     private readonly Random _random = new();
 
-    private NetworkQuery SendQuery(string filename = "", Action action = Action.NoAction,
-        string nodeName = "", long cTime = 0, long laTime = 0, long lwTime = 0, FileType fileType = 0,
-        long fileLength = 0, long rawOffset = 0, byte[]? rawBuffer = null, int rawLength = 0, int id = 0,
-        PairEvent pair = 0)
+    private NetworkQuery SendQuery(Component component)
     {
-        var packetId = _random.Next(int.MaxValue - 1) + 1;
+        var packetId = _random.NextInt64(long.MaxValue - 1) + 1;
         var responseEvent = new ManualResetEventSlim(false);
         var context = new NetworkQuery(responseEvent);
         _contexts.TryAdd(packetId, context);
-        SendCommand(filename, action, nodeName, cTime, laTime, lwTime, fileType, fileLength, rawOffset,
-            rawBuffer,
-            rawLength, packetId);
+        SendPacket(component, packetId);
         responseEvent.Wait();
         return context;
     }
 
-    public void AcceptPairing()
+    private string SanitizeName(string fileName)
     {
-        SendCommand(action: Action.ActionPair, pair: PairEvent.Pair);
+        return fileName.Replace("\\", "/");
     }
 }

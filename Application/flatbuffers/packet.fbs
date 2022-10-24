@@ -1,0 +1,13 @@
+include "file/file_info.fbs";
+include "device/info.fbs";
+include "device/device.fbs";
+include "file/file.fbs";
+
+namespace Kurome.Fbs;
+attribute "fs_serializer";
+union Component { DeviceQuery, DeviceResponse, FileQuery, FileCommand, FileResponse }
+
+table Packet (fs_serializer:"lazy") {
+    component:Component;
+    id:long;
+}

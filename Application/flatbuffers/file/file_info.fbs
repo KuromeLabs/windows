@@ -1,0 +1,27 @@
+namespace Kurome.Fbs;
+attribute "fs_serializer";
+enum FileType: byte {
+    File = 0,
+    Directory = 1,
+}
+
+enum FileStatus: byte {
+    Exists = 0,
+    FileNotFound = 1,
+    PathNotFound = 2
+}
+
+table Attributes (fs_serializer:"lazy") {
+    name:string;
+    type:FileType;
+    status:FileStatus;
+    length:long;
+    creation_time:long;
+    last_access_time:long;
+    last_write_time:long;
+}
+
+table Node (fs_serializer:"lazy") {
+    attributes:Attributes;
+    children:[Node];
+}
