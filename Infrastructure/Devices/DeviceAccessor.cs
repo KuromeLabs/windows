@@ -37,7 +37,7 @@ public class DeviceAccessor : IDeviceAccessor
     }
 
     private readonly ILink _link;
-    private readonly IDeviceAccessorFactory _deviceAccessorFactory;
+    private readonly IDeviceAccessorRepository _deviceAccessorRepository;
     private readonly Device _device;
     private readonly IIdentityProvider _identityProvider;
     private readonly ConcurrentDictionary<long, NetworkQuery> _contexts = new();
@@ -45,11 +45,11 @@ public class DeviceAccessor : IDeviceAccessor
     private Dokan? _mountInstance;
     private string? _mountLetter;
 
-    public DeviceAccessor(ILink link, IDeviceAccessorFactory deviceAccessorFactory,
-        Device device, IIdentityProvider identityProvider)
+    public DeviceAccessor(ILink link, IDeviceAccessorRepository deviceAccessorRepository,
+        Device device, IIdentityProvider identityProvider, ILogger<DeviceAccessor> logger)
     {
         _link = link;
-        _deviceAccessorFactory = deviceAccessorFactory;
+        _deviceAccessorRepository = deviceAccessorRepository;
         _device = device;
         _identityProvider = identityProvider;
     }
@@ -61,8 +61,7 @@ public class DeviceAccessor : IDeviceAccessor
             query.Value.Dispose();
 
         Unmount();
-        Log.Information("Disposed DeviceAccessor for {DeviceName} - {DeviceId}", _device.Name, _device.Id.ToString());
-        _deviceAccessorFactory.Unregister(_device.Id.ToString());
+        _deviceAccessorRepository.Remove(_device.Id.ToString());
         GC.SuppressFinalize(this);
     }
 

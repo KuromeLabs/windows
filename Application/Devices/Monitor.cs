@@ -19,11 +19,14 @@ public class Monitor
     public class Handler : IRequestHandler<Query, Result<IDeviceAccessor>>
     {
         private readonly IDeviceAccessorFactory _deviceAccessorFactory;
+        private readonly IDeviceAccessorRepository _deviceAccessorRepository;
         private readonly DataContext _dataContext;
 
-        public Handler(IDeviceAccessorFactory deviceAccessorFactory, DataContext dataContext)
+        public Handler(IDeviceAccessorFactory deviceAccessorFactory, IDeviceAccessorRepository deviceAccessorRepository,
+            DataContext dataContext)
         {
             _deviceAccessorFactory = deviceAccessorFactory;
+            _deviceAccessorRepository = deviceAccessorRepository;
             _dataContext = dataContext;
         }
 
@@ -40,6 +43,7 @@ public class Monitor
             }
 
             var deviceAccessor = _deviceAccessorFactory.Create(request.Link, device);
+            _deviceAccessorRepository.Add(device.Id.ToString(), deviceAccessor);
             deviceAccessor.Start(cancellationToken);
             return Result<IDeviceAccessor>.Success(deviceAccessor);
         }

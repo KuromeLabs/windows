@@ -36,6 +36,8 @@ var host = Host.CreateDefaultBuilder(args)
         services.AddMediatR(typeof(Connect.Handler).Assembly);
         services.AddSingleton<ILinkProvider<TcpClient>, LinkProvider>();
         services.AddNetworkServices();
+        services.AddScoped<IDeviceAccessorFactory, DeviceAccessorFactory>();
+        services.AddSingleton<IDeviceAccessorRepository, DeviceAccessorRepository>();
         services.AddDbContext<DataContext>();
     })
     .Build();

@@ -16,7 +16,6 @@ public static class NetworkServiceExtensions
         services.AddHostedService<TcpListenerService>();
         services.AddHostedService<UdpCastService>();
         services.AddHostedService<UdpListenerService>();
-        services.AddSingleton<IDeviceAccessorFactory, DeviceAccessorFactory>();
         return services;
     }
 }
