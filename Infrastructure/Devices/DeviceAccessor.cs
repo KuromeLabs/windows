@@ -1,7 +1,6 @@
 using System.Buffers;
 using System.Buffers.Binary;
 using System.Collections.Concurrent;
-using System.Security.Cryptography;
 using Application.Interfaces;
 using DokanNet;
 using DokanNet.Logging;
@@ -9,7 +8,9 @@ using Domain;
 using FlatSharp;
 using Infrastructure.Dokany;
 using Kurome.Fbs;
-using Serilog;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using ILogger = Microsoft.Extensions.Logging.ILogger;
 
 namespace Infrastructure.Devices;
 
@@ -40,18 +41,22 @@ public class DeviceAccessor : IDeviceAccessor
     private readonly IDeviceAccessorRepository _deviceAccessorRepository;
     private readonly Device _device;
     private readonly IIdentityProvider _identityProvider;
+    private readonly ILogger _logger;
+    private readonly IServiceProvider _serviceProvider;
     private readonly ConcurrentDictionary<long, NetworkQuery> _contexts = new();
     private SemaphoreSlim? _mountSemaphore;
     private Dokan? _mountInstance;
     private string? _mountLetter;
 
     public DeviceAccessor(ILink link, IDeviceAccessorRepository deviceAccessorRepository,
-        Device device, IIdentityProvider identityProvider, ILogger<DeviceAccessor> logger)
+        Device device, IIdentityProvider identityProvider, ILogger<DeviceAccessor> logger, IServiceProvider serviceProvider)
     {
         _link = link;
         _deviceAccessorRepository = deviceAccessorRepository;
         _device = device;
         _identityProvider = identityProvider;
+        _logger = logger;
+        _serviceProvider = serviceProvider;
     }
 
     public void Dispose()
@@ -59,7 +64,7 @@ public class DeviceAccessor : IDeviceAccessor
         _link.Dispose();
         foreach (var query in _contexts)
             query.Value.Dispose();
-
+        _logger.LogInformation("Disposed DeviceAccessor for {DeviceName} - {DeviceId}", _device.Name, _device.Id.ToString());
         Unmount();
         _deviceAccessorRepository.Remove(_device.Id.ToString());
         GC.SuppressFinalize(this);
@@ -82,13 +87,12 @@ public class DeviceAccessor : IDeviceAccessor
                 _contexts[packet.Id].Packet = packet;
                 _contexts[packet.Id].Buffer = buffer;
                 _contexts[packet.Id].ResponseEvent.Set();
-                Log.Debug("Received {BytesLength} bytes from: {DeviceName} - {DeviceId}",
+                _logger.LogTrace("Received {BytesLength} bytes from: {DeviceName} - {DeviceId}",
                     bytesRead, _device.Name, _device.Id.ToString());
                 _contexts.TryRemove(packet.Id, out _);
             }
             else ArrayPool<byte>.Shared.Return(buffer);
         }
-
         Dispose();
     }
 
@@ -201,9 +205,9 @@ public class DeviceAccessor : IDeviceAccessor
         var driveLetters = Enumerable.Range('C', 'Z' - 'C' + 1).Select(i => (char)i + ":")
             .Except(DriveInfo.GetDrives().Select(s => s.Name.Replace("\\", ""))).ToList();
         _mountLetter = driveLetters[0];
-        var dokanLogger = new ConsoleLogger("[Kurome] ");
+        var dokanLogger = new NullLogger();
         _mountInstance = new Dokan(dokanLogger);
-        var rfs = new KuromeOperations(this);
+        var rfs = ActivatorUtilities.CreateInstance<KuromeOperations>(_serviceProvider, this, _mountLetter);
         var builder = new DokanInstanceBuilder(_mountInstance)
             .ConfigureLogger(() => dokanLogger)
             .ConfigureOptions(options =>
@@ -216,7 +220,7 @@ public class DeviceAccessor : IDeviceAccessor
         {
             _mountSemaphore = new SemaphoreSlim(0, 1);
             using var instance = builder.Build(rfs);
-            Log.Information("Mounted {DeviceName} - {DeviceId} on {DriveLetter}", _device.Name, _device.Id.ToString(),
+            _logger.LogInformation("Mounted {DeviceName} - {DeviceId} on {DriveLetter}", _device.Name, _device.Id.ToString(),
                 driveLetters[0]);
             await _mountSemaphore.WaitAsync();
         });
@@ -227,7 +231,7 @@ public class DeviceAccessor : IDeviceAccessor
         _mountInstance?.Unmount(_mountLetter![0]);
         _mountSemaphore?.Release();
         _mountSemaphore?.Dispose();
-        Log.Information("Unmounted {DeviceName} - {DeviceId} on {DriveLetter}", _device.Name, _device.Id.ToString(),
+        _logger.LogInformation("Unmounted {DeviceName} - {DeviceId} on {DriveLetter}", _device.Name, _device.Id.ToString(),
             _mountLetter?[0]);
     }
 

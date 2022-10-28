@@ -13,11 +13,6 @@ using Microsoft.Extensions.Hosting;
 using Persistence;
 using Serilog;
 
-Log.Logger = new LoggerConfiguration()
-    .MinimumLevel.Debug()
-    .WriteTo.Console()
-    .CreateLogger();
-
 var mutex = new Mutex(false, "Global\\kurome-mutex");
 if (!mutex.WaitOne(0, false))
 {
@@ -36,7 +31,7 @@ var host = Host.CreateDefaultBuilder(args)
         services.AddMediatR(typeof(Connect.Handler).Assembly);
         services.AddSingleton<ILinkProvider<TcpClient>, LinkProvider>();
         services.AddNetworkServices();
-        services.AddScoped<IDeviceAccessorFactory, DeviceAccessorFactory>();
+        services.AddTransient<IDeviceAccessorFactory, DeviceAccessorFactory>();
         services.AddSingleton<IDeviceAccessorRepository, DeviceAccessorRepository>();
         services.AddDbContext<DataContext>();
     })
