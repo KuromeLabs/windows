@@ -43,15 +43,15 @@ public abstract class BaseNode
 
     public void Move(IDeviceAccessor deviceAccessor, string newName, DirectoryNode destination)
     {
+        Parent!.Children!.TryRemove(Name, out _);
         deviceAccessor.Rename(FullName, newName);
-        Parent!.Children!.Remove(Name);
         KuromeInformation.FileName = Path.GetFileName(newName);
         var newNode = Create(KuromeInformation);
         if (destination.Children == null)
             destination.GetChildrenNodes(deviceAccessor);
         else
         {
-            destination.Children.Add(newNode.Name, newNode);
+            destination.Children.TryAdd(newNode.Name, newNode);
             newNode.SetParent(destination);
         }
 
@@ -60,8 +60,9 @@ public abstract class BaseNode
 
     public void Delete(IDeviceAccessor deviceAccessor)
     {
-        Parent!.Children!.Remove(Name);
-        deviceAccessor.Delete(FullName);
+        var name = FullName;
+        Parent!.Children!.TryRemove(Name, out _);
         SetParent(null);
+        deviceAccessor.Delete(name);
     }
 }

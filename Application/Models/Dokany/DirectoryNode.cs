@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using Application.Interfaces;
 using Domain;
 
@@ -5,7 +6,7 @@ namespace Application.Models.Dokany;
 
 public class DirectoryNode : BaseNode
 {
-    public Dictionary<string, BaseNode>? Children = new();
+    public ConcurrentDictionary<string, BaseNode>? Children = new();
 
     public DirectoryNode(KuromeInformation fileInformation) : base(fileInformation)
     {
@@ -24,9 +25,14 @@ public class DirectoryNode : BaseNode
 
     private void UpdateChildrenNodes(IDeviceAccessor deviceAccessor)
     {
-        Children = deviceAccessor.GetFileNodes(FullName).Select(Create).ToDictionary(x => x.Name);
+        Children?.Clear();
+        foreach (var node in deviceAccessor.GetFileNodes(FullName).Select(Create))
+            Children?.TryAdd(node.Name, node);
+
+        if (Children == null) return;
         foreach (var node in Children.Values)
-            node.SetParent(this);
+                node.SetParent(this);
+        
     }
 
     public BaseNode? GetChild(IDeviceAccessor deviceAccessor, string name)
@@ -46,7 +52,7 @@ public class DirectoryNode : BaseNode
             LastAccessTime = DateTime.Now,
             Length = 0
         }) as FileNode;
-        Children!.Add(Path.GetFileName(fileName), node!);
+        Children!.TryAdd(Path.GetFileName(fileName), node!);
         node!.SetParent(this);
         deviceAccessor.CreateEmptyFile(fileName);
     }
@@ -63,7 +69,7 @@ public class DirectoryNode : BaseNode
             LastAccessTime = DateTime.Now,
             Length = 0
         }) as DirectoryNode;
-        Children!.Add(node!.Name, node);
+        Children!.TryAdd(node!.Name, node);
         node.SetParent(this);
         deviceAccessor.CreateDirectory(directoryName);
     }
