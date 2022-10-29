@@ -2,12 +2,13 @@ using System;
 using System.Buffers;
 using System.Buffers.Binary;
 using System.Net.Sockets;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Application.Core;
 using Application.Devices;
 using Application.Interfaces;
+using FlatSharp;
+using Kurome.Fbs;
 using MediatR;
 using Microsoft.Extensions.Logging;
 using Monitor = Application.Devices.Monitor;
@@ -28,13 +29,13 @@ public class DeviceConnectionHandler
     public async void HandleClientConnection(string name, Guid id, string ip, int port,
         CancellationToken cancellationToken)
     {
-        var result = await _mediator.Send(new Connect.Query {Ip = ip, Port = port}, cancellationToken);
+        var result = await _mediator.Send(new Connect.Query { Ip = ip, Port = port }, cancellationToken);
 
         if (result.ResultStatus == Result<ILink>.Status.Success)
-            await _mediator.Send(new Monitor.Query {Id = id, Link = result.Value!, Name = name},
+            await _mediator.Send(new Monitor.Query { Id = id, Link = result.Value!, Name = name },
                 cancellationToken);
 
-        var mountResult = await _mediator.Send(new Mount.Command {Id = id}, cancellationToken);
+        var mountResult = await _mediator.Send(new Mount.Command { Id = id }, cancellationToken);
 
         if (mountResult.ResultStatus == Result<Unit>.Status.Failure)
             _logger.LogError("{Error}", mountResult.Error);
@@ -42,58 +43,41 @@ public class DeviceConnectionHandler
 
     public async void HandleServerConnection(TcpClient client, CancellationToken cancellationToken)
     {
-        var info = (await ReadIdentityAsync(client, cancellationToken))?.Split(':');
+        var info = (await ReadIdentityAsync(client, cancellationToken));
         if (info == null)
         {
             _logger.LogError("Failed to read device identity from incoming connection");
             return;
         }
 
-        var id = Guid.Parse(info[0]);
+        var id = info.Item1;
 
-        var result = await _mediator.Send(new AcceptConnection.Query {TcpClient = client}, cancellationToken);
+        var result = await _mediator.Send(new AcceptConnection.Query { TcpClient = client }, cancellationToken);
         if (result.ResultStatus == Result<ILink>.Status.Success)
-            await _mediator.Send(new Monitor.Query {Id = id, Link = result.Value!, Name = info[1]},
+            await _mediator.Send(new Monitor.Query { Id = id, Link = result.Value!, Name = info.Item2 },
                 cancellationToken);
+        else
+            _logger.LogError("{Error}",result.Error);
 
-        var mountResult = await _mediator.Send(new Mount.Command {Id = id}, cancellationToken);
+        var mountResult = await _mediator.Send(new Mount.Command { Id = id }, cancellationToken);
 
         if (mountResult.ResultStatus == Result<Unit>.Status.Failure)
             _logger.LogError("{Error}", mountResult.Error);
     }
 
 
-    private async Task<string?> ReadIdentityAsync(TcpClient client, CancellationToken cancellationToken)
+    private async Task<Tuple<Guid, string>?> ReadIdentityAsync(TcpClient client, CancellationToken cancellationToken)
     {
         var sizeBuffer = new byte[4];
-        var bytesRead = 0;
         try
         {
-            int current;
-            while (bytesRead != 4)
-            {
-                current = await client.GetStream()
-                    .ReadAsync(sizeBuffer.AsMemory(0 + bytesRead, 4 - bytesRead), cancellationToken);
-                bytesRead += current;
-                if (current != 0) continue;
-                return null;
-            }
-
+            await client.GetStream().ReadExactlyAsync(sizeBuffer, 0, 4, cancellationToken);
             var size = BinaryPrimitives.ReadInt32LittleEndian(sizeBuffer);
-            bytesRead = 0;
             var readBuffer = ArrayPool<byte>.Shared.Rent(size);
-            while (bytesRead != size)
-            {
-                current = await client.GetStream()
-                    .ReadAsync(readBuffer.AsMemory(0 + bytesRead, size - bytesRead), cancellationToken);
-                bytesRead += current;
-                if (current != 0) continue;
-                return null;
-            }
-
-            var info = Encoding.UTF8.GetString(readBuffer);
+            await client.GetStream().ReadExactlyAsync(readBuffer, 0, size, cancellationToken);
+            var info = Packet.Serializer.Parse(readBuffer).Component.Value.DeviceResponse.Response.Value.DeviceInfo.Details;
             ArrayPool<byte>.Shared.Return(readBuffer);
-            return info;
+            return new Tuple<Guid, string>(Guid.Parse(info.Id), info.Name);
         }
         catch (Exception e)
         {
