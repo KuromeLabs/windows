@@ -32,8 +32,8 @@ public class LinkProvider : ILinkProvider<TcpClient>
 
     public async Task<ILink> CreateServerLinkAsync(TcpClient client, CancellationToken cancellationToken)
     {
-        var stream = new SslStream(client.GetStream(), false);
-        await stream.AuthenticateAsServerAsync(_sslService.GetSecurityContext(), false, SslProtocols.None, true);
+        var stream = new SslStream(client.GetStream(), false, (_, _, _, _) => true);
+        await stream.AuthenticateAsServerAsync(_sslService.GetSecurityContext(), true, SslProtocols.None, true);
         return new Link(stream);
     }
 
