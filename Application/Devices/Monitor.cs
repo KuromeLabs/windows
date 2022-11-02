@@ -2,8 +2,7 @@ using Application.Core;
 using Application.Interfaces;
 using Domain;
 using MediatR;
-using Microsoft.EntityFrameworkCore;
-using Persistence;
+using Tenray.ZoneTree;
 
 namespace Application.Devices;
 
@@ -20,20 +19,18 @@ public class Monitor
     {
         private readonly IDeviceAccessorFactory _deviceAccessorFactory;
         private readonly IDeviceAccessorRepository _deviceAccessorRepository;
-        private readonly DataContext _dataContext;
+        private readonly IZoneTree<string, Device> _zoneTree;
 
-        public Handler(IDeviceAccessorFactory deviceAccessorFactory, IDeviceAccessorRepository deviceAccessorRepository,
-            DataContext dataContext)
+        public Handler(IDeviceAccessorFactory deviceAccessorFactory, IDeviceAccessorRepository deviceAccessorRepository, IZoneTree<string, Device> zoneTree)
         {
             _deviceAccessorFactory = deviceAccessorFactory;
             _deviceAccessorRepository = deviceAccessorRepository;
-            _dataContext = dataContext;
+            _zoneTree = zoneTree;
         }
 
         public async Task<Result<IDeviceAccessor>> Handle(Query request, CancellationToken cancellationToken)
         {
-            var device = await _dataContext.Devices.FirstOrDefaultAsync(x => x.Id == request.Id, cancellationToken);
-            if (device == null)
+            if (!_zoneTree.TryGet(request.Id.ToString(), out var device))
             {
                 device = new Device
                 {

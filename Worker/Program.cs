@@ -4,6 +4,7 @@ using System.Net.Sockets;
 using System.Threading;
 using Application.Devices;
 using Application.Interfaces;
+using Domain;
 using Infrastructure.Devices;
 using Infrastructure.Network;
 using Kurome.Extensions;
@@ -21,6 +22,12 @@ if (!mutex.WaitOne(0, false))
     Environment.Exit(0);
 }
 
+var dbPath = Path.Combine(
+    Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+    "Kurome",
+    "devices.zt"
+);
+
 var host = Host.CreateDefaultBuilder(args)
     .UseSerilog((hostingContext, services, loggerConfiguration) => loggerConfiguration
         .ReadFrom.Configuration(hostingContext.Configuration)
@@ -33,10 +40,9 @@ var host = Host.CreateDefaultBuilder(args)
         services.AddNetworkServices();
         services.AddTransient<IDeviceAccessorFactory, DeviceAccessorFactory>();
         services.AddSingleton<IDeviceAccessorRepository, DeviceAccessorRepository>();
-        services.AddDbContext<DataContext>();
+        services.AddZoneTree<string, Device>(dbPath, new DeviceSerializer());
     })
     .Build();
 
 Directory.CreateDirectory(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Kurome"));
-await host.Services.GetRequiredService<DataContext>().Database.EnsureCreatedAsync();
 await host.RunAsync();

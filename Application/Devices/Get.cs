@@ -1,8 +1,7 @@
 using Application.Core;
 using Domain;
 using MediatR;
-using Microsoft.EntityFrameworkCore;
-using Persistence;
+using Tenray.ZoneTree;
 
 namespace Application.Devices;
 
@@ -15,17 +14,17 @@ public class Get
 
     public class Handler : IRequestHandler<Query, Result<Device>>
     {
-        private readonly DataContext _context;
+        private readonly IZoneTree<string, Device> _zoneTree;
 
-        public Handler(DataContext context)
+        public Handler(IZoneTree<string, Device> zoneTree)
         {
-            _context = context;
+            _zoneTree = zoneTree;
         }
 
         public async Task<Result<Device>> Handle(Query request, CancellationToken cancellationToken)
         {
-            var device = await _context.Devices.FirstOrDefaultAsync(x => x.Id == request.Id, cancellationToken);
-            return device == null ? Result<Device>.Failure("Not found") : Result<Device>.Success(device);
+            var b = _zoneTree.TryGet(request.Id.ToString(), out var device);
+            return !b ? Result<Device>.Failure("Not found") : Result<Device>.Success(device);
         }
     }
 }
