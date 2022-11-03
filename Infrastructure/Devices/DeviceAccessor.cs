@@ -242,7 +242,7 @@ public class DeviceAccessor : IDeviceAccessor
         var packet = new Packet { Component = component, Id = id};
         var size = Packet.Serializer.GetMaxSize(packet);
         var bytes = ArrayPool<byte>.Shared.Rent(size + 4);
-        Span<byte> buffer = ArrayPool<byte>.Shared.Rent(size + 4);
+        Span<byte> buffer = bytes;
         var length = Packet.Serializer.Write(buffer[4..], packet);
         BinaryPrimitives.WriteInt32LittleEndian(buffer[..4], length);
         lock (_lock) _link.SendAsync(buffer, length + 4);
