@@ -44,8 +44,8 @@ public class DeviceAccessor : IDeviceAccessor
     private readonly ILogger _logger;
     private readonly IServiceProvider _serviceProvider;
     private readonly ConcurrentDictionary<long, NetworkQuery> _contexts = new();
-    private SemaphoreSlim? _mountSemaphore;
-    private Dokan? _mountInstance;
+    private Dokan? _dokan;
+    private DokanInstance? _dokanInstance;
     private string? _mountLetter;
 
     public DeviceAccessor(ILink link, IDeviceAccessorRepository deviceAccessorRepository,
@@ -206,9 +206,9 @@ public class DeviceAccessor : IDeviceAccessor
             .Except(DriveInfo.GetDrives().Select(s => s.Name.Replace("\\", ""))).ToList();
         _mountLetter = driveLetters[0];
         var dokanLogger = new NullLogger();
-        _mountInstance = new Dokan(dokanLogger);
+        _dokan = new Dokan(dokanLogger);
         var rfs = ActivatorUtilities.CreateInstance<KuromeOperations>(_serviceProvider, this, _mountLetter);
-        var builder = new DokanInstanceBuilder(_mountInstance)
+        var builder = new DokanInstanceBuilder(_dokan)
             .ConfigureLogger(() => dokanLogger)
             .ConfigureOptions(options =>
             {
@@ -216,21 +216,15 @@ public class DeviceAccessor : IDeviceAccessor
                 options.MountPoint = driveLetters[0] + "\\";
                 options.SingleThread = false;
             });
-        Task.Run(async () =>
-        {
-            _mountSemaphore = new SemaphoreSlim(0, 1);
-            using var instance = builder.Build(rfs);
-            _logger.LogInformation("Mounted {DeviceName} - {DeviceId} on {DriveLetter}", _device.Name, _device.Id.ToString(),
-                driveLetters[0]);
-            await _mountSemaphore.WaitAsync();
-        });
+        _dokanInstance = builder.Build(rfs);
+        _logger.LogInformation("Mounted {DeviceName} - {DeviceId} on {DriveLetter}", _device.Name, _device.Id.ToString(),
+            driveLetters[0]);
     }
 
     public void Unmount()
     {
-        _mountInstance?.Unmount(_mountLetter![0]);
-        _mountSemaphore?.Release();
-        _mountSemaphore?.Dispose();
+        _dokan?.Unmount(_mountLetter![0]);
+        _dokanInstance?.Dispose();
         _logger.LogInformation("Unmounted {DeviceName} - {DeviceId} on {DriveLetter}", _device.Name, _device.Id.ToString(),
             _mountLetter?[0]);
     }
