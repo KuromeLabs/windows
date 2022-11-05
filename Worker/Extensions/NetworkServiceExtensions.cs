@@ -1,6 +1,5 @@
 using System.Security.Cryptography.X509Certificates;
 using Application.Interfaces;
-using Infrastructure.Devices;
 using Infrastructure.Network;
 using Kurome.Network;
 using Microsoft.Extensions.DependencyInjection;

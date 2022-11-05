@@ -59,7 +59,6 @@ public class DirectoryNode : BaseNode
 
     public void CreateDirectoryChild(IDeviceAccessor deviceAccessor, string directoryName)
     {
-        Console.WriteLine("Creating directory child with name {0}", directoryName);
         var node = Create(new KuromeInformation
         {
             FileName = Path.GetFileName(directoryName),

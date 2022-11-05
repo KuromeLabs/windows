@@ -18,7 +18,7 @@ public class DeviceAccessorRepository : IDeviceAccessorRepository
         _accessors.TryRemove(id, out _);
     }
 
-    public IDeviceAccessor Get(string id)
+    public IDeviceAccessor? Get(string id)
     {
         _accessors.TryGetValue(id, out var deviceMonitor);
         return deviceMonitor;

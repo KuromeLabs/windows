@@ -1,5 +1,4 @@
-﻿using System.Globalization;
-using System.Security.AccessControl;
+﻿using System.Security.AccessControl;
 using Application.Interfaces;
 using Application.Models.Dokany;
 using DokanNet;

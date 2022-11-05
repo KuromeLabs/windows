@@ -3,6 +3,7 @@ using System.IO;
 using System.Net.Sockets;
 using System.Threading;
 using Application.Devices;
+using Application.flatbuffers;
 using Application.Interfaces;
 using Domain;
 using Infrastructure.Devices;
@@ -41,6 +42,7 @@ var host = Host.CreateDefaultBuilder(args)
         services.AddTransient<IDeviceAccessorFactory, DeviceAccessorFactory>();
         services.AddSingleton<IDeviceAccessorRepository, DeviceAccessorRepository>();
         services.AddZoneTree<string, Device>(dbPath, new DeviceSerializer());
+        services.AddSingleton<FlatBufferHelper>();
     })
     .Build();
 

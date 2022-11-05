@@ -1,8 +1,6 @@
-using System.Collections.Concurrent;
 using Application.Interfaces;
 using Domain;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
 
 namespace Infrastructure.Devices;
 
