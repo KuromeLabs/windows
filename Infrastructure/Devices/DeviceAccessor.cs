@@ -1,6 +1,7 @@
 using System.Buffers;
 using System.Buffers.Binary;
 using System.Collections.Concurrent;
+using Application.flatbuffers;
 using Application.Interfaces;
 using DokanNet;
 using DokanNet.Logging;
@@ -43,13 +44,15 @@ public class DeviceAccessor : IDeviceAccessor
     private readonly IIdentityProvider _identityProvider;
     private readonly ILogger _logger;
     private readonly IServiceProvider _serviceProvider;
+    private readonly FlatBufferHelper _flatBufferHelper;
     private readonly ConcurrentDictionary<long, NetworkQuery> _contexts = new();
     private Dokan? _dokan;
     private DokanInstance? _dokanInstance;
     private string? _mountLetter;
 
     public DeviceAccessor(ILink link, IDeviceAccessorRepository deviceAccessorRepository,
-        Device device, IIdentityProvider identityProvider, ILogger<DeviceAccessor> logger, IServiceProvider serviceProvider)
+        Device device, IIdentityProvider identityProvider, ILogger<DeviceAccessor> logger,
+        IServiceProvider serviceProvider, FlatBufferHelper flatBufferHelper)
     {
         _link = link;
         _deviceAccessorRepository = deviceAccessorRepository;
@@ -57,6 +60,7 @@ public class DeviceAccessor : IDeviceAccessor
         _identityProvider = identityProvider;
         _logger = logger;
         _serviceProvider = serviceProvider;
+        _flatBufferHelper = flatBufferHelper;
     }
 
     public void Dispose()
@@ -64,7 +68,8 @@ public class DeviceAccessor : IDeviceAccessor
         _link.Dispose();
         foreach (var query in _contexts)
             query.Value.Dispose();
-        _logger.LogInformation("Disposed DeviceAccessor for {DeviceName} - {DeviceId}", _device.Name, _device.Id.ToString());
+        _logger.LogInformation("Disposed DeviceAccessor for {DeviceName} - {DeviceId}", _device.Name,
+            _device.Id.ToString());
         Unmount();
         _deviceAccessorRepository.Remove(_device.Id.ToString());
         GC.SuppressFinalize(this);
@@ -93,12 +98,13 @@ public class DeviceAccessor : IDeviceAccessor
             }
             else ArrayPool<byte>.Shared.Return(buffer);
         }
+
         Dispose();
     }
 
     public void SetLength(string fileName, long length)
     {
-        SendPacket(new Component(new FileCommand {Command = new FileCommandType (new SetAttributes { Path = SanitizeName(fileName), Attributes = new Attributes { Length = length}})}));
+        SendPacket(_flatBufferHelper.SetLengthCommand(SanitizeName(fileName), length));
     }
 
     public Device Get()
@@ -108,20 +114,20 @@ public class DeviceAccessor : IDeviceAccessor
 
     public void SetFileTime(string fileName, long cTime, long laTime, long lwTime)
     {
-        SendPacket(new Component(new FileCommand {Command = new FileCommandType (new SetAttributes { Path = SanitizeName(fileName), Attributes = new Attributes { CreationTime = cTime, LastAccessTime = laTime, LastWriteTime = lwTime}})}));
+        SendPacket(_flatBufferHelper.SetFileTimeCommand(SanitizeName(fileName), cTime, laTime, lwTime));
     }
 
     public void Rename(string fileName, string newFileName)
     {
-        SendPacket(new Component(new FileCommand {Command = new FileCommandType (new Rename { OldPath = SanitizeName(fileName), NewPath = SanitizeName(newFileName)})}));
+        SendPacket(_flatBufferHelper.RenameCommand(SanitizeName(fileName), SanitizeName(newFileName)));
     }
 
     public IEnumerable<KuromeInformation> GetFileNodes(string fileName)
     {
-        var response = SendQuery(new Component(new FileQuery { Type = FileQueryType.GetDirectory, Path = SanitizeName(fileName) }));
+        var response = SendQuery(_flatBufferHelper.GetDirectoryQuery(SanitizeName(fileName)));
         var files = new List<KuromeInformation>();
-        var result = response.Packet.Component.Value.FileResponse.Response.Value.Node.Children;
-        foreach (var node in result!)
+        _flatBufferHelper.TryGetFileResponseNode(response.Packet!, out var result);
+        foreach (var node in result!.Children!)
         {
             var attr = node.Attributes!;
             var file = new KuromeInformation
@@ -135,69 +141,64 @@ public class DeviceAccessor : IDeviceAccessor
             };
             files.Add(file);
         }
-        
+
         response.Dispose();
         return files;
     }
 
     public KuromeInformation GetRootNode()
     {
-        var response = SendQuery(new Component(new FileQuery { Type = FileQueryType.GetDirectory, Path = "/" }));
-        var file = response.Packet.Component.Value.FileResponse.Response.Value.Node.Attributes;
+        var response = SendQuery(_flatBufferHelper.GetDirectoryQuery("/"));
+        _flatBufferHelper.TryGetFileResponseNode(response.Packet!, out var file);
+        var attrs = file!.Attributes!;
         var fileInfo = new KuromeInformation
         {
             FileName = "",
-            IsDirectory = file.Type == FileType.Directory,
-            LastAccessTime = DateTimeOffset.FromUnixTimeMilliseconds(file.LastAccessTime).LocalDateTime,
-            LastWriteTime = DateTimeOffset.FromUnixTimeMilliseconds(file.LastWriteTime).LocalDateTime,
-            CreationTime = DateTimeOffset.FromUnixTimeMilliseconds(file.CreationTime).LocalDateTime,
-            Length = file.Length
+            IsDirectory = attrs.Type == FileType.Directory,
+            LastAccessTime = DateTimeOffset.FromUnixTimeMilliseconds(attrs.LastAccessTime).LocalDateTime,
+            LastWriteTime = DateTimeOffset.FromUnixTimeMilliseconds(attrs.LastWriteTime).LocalDateTime,
+            CreationTime = DateTimeOffset.FromUnixTimeMilliseconds(attrs.CreationTime).LocalDateTime,
+            Length = attrs.Length
         };
         return fileInfo;
     }
 
     public void GetSpace(out long total, out long free)
     {
-        var response = SendQuery(new Component(new DeviceQuery { Type = DeviceQueryType.GetSpace }));
-        var deviceInfo = response.Packet!.Component!.Value.DeviceResponse!.Response!.Value.DeviceInfo.Space!;
-        
-        total = deviceInfo.TotalBytes;
-        free = deviceInfo.FreeBytes;
+        var response = SendQuery(_flatBufferHelper.DeviceInfoSpaceQuery());
+        _flatBufferHelper.TryGetDeviceInfo(response.Packet!, out var deviceInfo);
+        total = deviceInfo!.Space!.TotalBytes;
+        free = deviceInfo.Space.FreeBytes;
         response.Dispose();
     }
 
     public void CreateEmptyFile(string fileName)
     {
-        SendPacket(new Component(new FileCommand {Command = new FileCommandType (new Create { Path = SanitizeName(fileName), Type = FileType.File})}));
+        SendPacket(_flatBufferHelper.CreateFileCommand(SanitizeName(fileName)));
     }
 
     public void CreateDirectory(string directoryName)
     {
-        SendPacket(new Component(new FileCommand {Command = new FileCommandType (new Create { Path = SanitizeName(directoryName), Type = FileType.Directory})}));
+        SendPacket(_flatBufferHelper.CreateDirectoryCommand(SanitizeName(directoryName)));
     }
 
     public int ReceiveFileBuffer(byte[] buffer, string fileName, long offset, int bytesToRead, long fileSize)
     {
-        var response = SendQuery(new Component(new FileQuery { Type = FileQueryType.ReadFile, Path = SanitizeName(fileName), Length = bytesToRead, Offset = offset}));
-        response.Packet!.Component!.Value.FileResponse!.Response!.Value.Raw.Data!.Value.CopyTo(buffer);
+        var response = SendQuery(_flatBufferHelper.ReadFileQuery(SanitizeName(fileName), offset, bytesToRead));
+        _flatBufferHelper.TryGetFileResponseRaw(response.Packet, out var raw);
+        raw.Data?.CopyTo(buffer);
         response.Dispose();
-        return bytesToRead;
+        return raw.Data == null ? 0 : bytesToRead;
     }
 
     public void WriteFileBuffer(Memory<byte> buffer, string fileName, long offset)
     {
-        SendPacket(new Component(new FileCommand
-        {
-            Command = new FileCommandType(new Write
-                {
-                    Path = SanitizeName(fileName), Buffer = new Raw { Data = buffer, Length = buffer.Length, Offset = offset }
-                })
-        }));
+        SendPacket(_flatBufferHelper.WriteFileCommand(buffer, SanitizeName(fileName), offset));
     }
 
     public void Delete(string fileName)
     {
-        SendPacket(new Component(new FileCommand { Command = new FileCommandType(new Delete { Path = SanitizeName(fileName) }) }));
+        SendPacket(_flatBufferHelper.DeleteCommand(SanitizeName(fileName)));
     }
 
     public void Mount()
@@ -205,7 +206,7 @@ public class DeviceAccessor : IDeviceAccessor
         var driveLetters = Enumerable.Range('C', 'Z' - 'C' + 1).Select(i => (char)i + ":")
             .Except(DriveInfo.GetDrives().Select(s => s.Name.Replace("\\", ""))).ToList();
         _mountLetter = driveLetters[0];
-        var dokanLogger = new NullLogger();
+        var dokanLogger = new ConsoleLogger();
         _dokan = new Dokan(dokanLogger);
         var rfs = ActivatorUtilities.CreateInstance<KuromeOperations>(_serviceProvider, this, _mountLetter);
         var builder = new DokanInstanceBuilder(_dokan)
@@ -217,15 +218,16 @@ public class DeviceAccessor : IDeviceAccessor
                 options.SingleThread = false;
             });
         _dokanInstance = builder.Build(rfs);
-        _logger.LogInformation("Mounted {DeviceName} - {DeviceId} on {DriveLetter}", _device.Name, _device.Id.ToString(),
-            driveLetters[0]);
+        _logger.LogInformation("Mounted {DeviceName} - {DeviceId} on {DriveLetter}", _device.Name,
+            _device.Id.ToString(), driveLetters[0]);
     }
 
     public void Unmount()
     {
         _dokan?.Unmount(_mountLetter![0]);
         _dokanInstance?.Dispose();
-        _logger.LogInformation("Unmounted {DeviceName} - {DeviceId} on {DriveLetter}", _device.Name, _device.Id.ToString(),
+        _logger.LogInformation("Unmounted {DeviceName} - {DeviceId} on {DriveLetter}", _device.Name,
+            _device.Id.ToString(),
             _mountLetter?[0]);
     }
 
@@ -233,7 +235,7 @@ public class DeviceAccessor : IDeviceAccessor
 
     private void SendPacket(Component component, long id = 0)
     {
-        var packet = new Packet { Component = component, Id = id};
+        var packet = new Packet { Component = component, Id = id };
         var size = Packet.Serializer.GetMaxSize(packet);
         var bytes = ArrayPool<byte>.Shared.Rent(size + 4);
         Span<byte> buffer = bytes;

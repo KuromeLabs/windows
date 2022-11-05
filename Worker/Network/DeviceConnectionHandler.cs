@@ -6,6 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Application.Core;
 using Application.Devices;
+using Application.flatbuffers;
 using Application.Interfaces;
 using FlatSharp;
 using Kurome.Fbs;
@@ -19,11 +20,13 @@ public class DeviceConnectionHandler
 {
     private readonly ILogger<DeviceConnectionHandler> _logger;
     private readonly IMediator _mediator;
+    private readonly FlatBufferHelper _flatBufferHelper;
 
-    public DeviceConnectionHandler(ILogger<DeviceConnectionHandler> logger, IMediator mediator)
+    public DeviceConnectionHandler(ILogger<DeviceConnectionHandler> logger, IMediator mediator, FlatBufferHelper flatBufferHelper)
     {
         _logger = logger;
         _mediator = mediator;
+        _flatBufferHelper = flatBufferHelper;
     }
 
     public async void HandleClientConnection(string name, Guid id, string ip, int port,
@@ -75,9 +78,10 @@ public class DeviceConnectionHandler
             var size = BinaryPrimitives.ReadInt32LittleEndian(sizeBuffer);
             var readBuffer = ArrayPool<byte>.Shared.Rent(size);
             await client.GetStream().ReadExactlyAsync(readBuffer, 0, size, cancellationToken);
-            var info = Packet.Serializer.Parse(readBuffer).Component.Value.DeviceResponse.Response.Value.DeviceInfo.Details;
+            _flatBufferHelper.TryGetDeviceInfo(Packet.Serializer.Parse(readBuffer), out var info);
+            var details = info!.Details!;
             ArrayPool<byte>.Shared.Return(readBuffer);
-            return new Tuple<Guid, string>(Guid.Parse(info.Id), info.Name);
+            return new Tuple<Guid, string>(Guid.Parse(details.Id!), details.Name!);
         }
         catch (Exception e)
         {
