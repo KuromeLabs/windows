@@ -2,14 +2,13 @@
 using System.IO;
 using System.Net.Sockets;
 using System.Threading;
-using Application.Devices;
 using Application.flatbuffers;
 using Application.Interfaces;
 using Domain;
 using Infrastructure.Devices;
 using Infrastructure.Network;
 using Kurome.Extensions;
-using MediatR;
+using MessagePipe;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Persistence;
@@ -36,7 +35,7 @@ var host = Host.CreateDefaultBuilder(args)
     .ConfigureServices(services =>
     {
         services.AddSingleton<IIdentityProvider, IdentityProvider>();
-        services.AddMediatR(typeof(Connect.Handler).Assembly);
+        services.AddMessagePipe();
         services.AddSingleton<ILinkProvider<TcpClient>, LinkProvider>();
         services.AddNetworkServices();
         services.AddTransient<IDeviceAccessorFactory, DeviceAccessorFactory>();

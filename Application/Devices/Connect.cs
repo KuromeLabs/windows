@@ -1,19 +1,25 @@
 using System.Net.Sockets;
 using Application.Core;
 using Application.Interfaces;
-using MediatR;
+using MessagePipe;
 
 namespace Application.Devices;
 
 public class Connect
 {
-    public class Query : IRequest<Result<ILink>>
+    public struct Query
     {
-        public string Ip { get; set; } = null!;
-        public int Port { get; set; }
+        public Query(string ip, int port)
+        {
+            Port = port;
+            Ip = ip;
+        }
+
+        public string Ip;
+        public int Port;
     }
 
-    public class Handler : IRequestHandler<Query, Result<ILink>>
+    public class Handler : IAsyncRequestHandler<Query, Result<ILink>>
     {
         private readonly ILinkProvider<TcpClient> _provider;
 
@@ -22,7 +28,7 @@ public class Connect
             _provider = provider;
         }
 
-        public async Task<Result<ILink>> Handle(Query request, CancellationToken cancellationToken)
+        public async ValueTask<Result<ILink>> InvokeAsync(Query request, CancellationToken cancellationToken = new CancellationToken())
         {
             try
             {

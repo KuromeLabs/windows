@@ -1,21 +1,28 @@
 using Application.Core;
 using Application.Interfaces;
 using Domain;
-using MediatR;
+using MessagePipe;
 using Tenray.ZoneTree;
 
 namespace Application.Devices;
 
 public class Monitor
 {
-    public class Query : IRequest<Result<IDeviceAccessor>>
+    public struct Query
     {
-        public string Name { get; set; } = null!;
-        public Guid Id;
-        public ILink Link = null!;
+        public readonly string Name;
+        public readonly Guid Id;
+        public readonly ILink Link;
+
+        public Query(string name, Guid id, ILink link)
+        {
+            Name = name;
+            Id = id;
+            Link = link;
+        }
     }
 
-    public class Handler : IRequestHandler<Query, Result<IDeviceAccessor>>
+    public class Handler : IAsyncRequestHandler<Query, Result<IDeviceAccessor>>
     {
         private readonly IDeviceAccessorFactory _deviceAccessorFactory;
         private readonly IDeviceAccessorRepository _deviceAccessorRepository;
@@ -28,7 +35,7 @@ public class Monitor
             _zoneTree = zoneTree;
         }
 
-        public async Task<Result<IDeviceAccessor>> Handle(Query request, CancellationToken cancellationToken)
+        public async ValueTask<Result<IDeviceAccessor>> InvokeAsync(Query request, CancellationToken cancellationToken = new CancellationToken())
         {
             if (!_zoneTree.TryGet(request.Id.ToString(), out var device))
             {
