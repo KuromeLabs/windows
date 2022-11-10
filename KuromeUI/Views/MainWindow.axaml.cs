@@ -20,7 +20,7 @@ public partial class MainWindow : AppWindow
 #endif
         MinWidth = 450;
         MinHeight = 400;
-        TitleBar.ExtendsContentIntoTitleBar = true;
+        // TitleBar.ExtendsContentIntoTitleBar = true;
     }
 
     protected override void OnOpened(EventArgs e)

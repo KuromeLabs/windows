@@ -9,7 +9,5 @@
         Icon="/Assets/avalonia-logo.ico"
         Title="KuromeUI">
 
-        <Panel>
-                <views:MainView />
-        </Panel>
+    <views:MainView />
 </Window>

@@ -2,7 +2,13 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:local="using:KuromeUI"
              xmlns:sty="using:FluentAvalonia.Styling"
+             xmlns:controls="clr-namespace:FluentAvalonia.UI.Controls;assembly=FluentAvalonia"
              x:Class="KuromeUI.App">
+    
+    <Application.Resources>
+        <controls:SymbolIconSource Symbol="Home" x:Key="HomeIcon" />
+    </Application.Resources>
+    
     <Application.DataTemplates>
         <local:ViewLocator/>
     </Application.DataTemplates>
