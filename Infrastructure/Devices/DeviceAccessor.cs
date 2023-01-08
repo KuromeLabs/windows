@@ -9,6 +9,7 @@ using Domain;
 using FlatSharp;
 using Infrastructure.Dokany;
 using Kurome.Fbs;
+using MapsterMapper;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using ILogger = Microsoft.Extensions.Logging.ILogger;
@@ -20,10 +21,10 @@ public class DeviceAccessor : IDeviceAccessor
     private readonly ILink _link;
     private readonly IDeviceAccessorRepository _deviceAccessorRepository;
     private readonly Device _device;
-    private readonly IIdentityProvider _identityProvider;
     private readonly ILogger _logger;
     private readonly IServiceProvider _serviceProvider;
     private readonly FlatBufferHelper _flatBufferHelper;
+    private readonly IMapper _mapper;
     private Dokan? _dokan;
     private DokanInstance? _dokanInstance;
     private string? _mountLetter;
@@ -34,23 +35,21 @@ public class DeviceAccessor : IDeviceAccessor
     // private readonly IAsyncSubscriber<long, Packet> _networkQuerySubscriber;
 
     public DeviceAccessor(ILink link, IDeviceAccessorRepository deviceAccessorRepository,
-        Device device, IIdentityProvider identityProvider, ILogger<DeviceAccessor> logger,
-        IServiceProvider serviceProvider, FlatBufferHelper flatBufferHelper)
+        Device device, ILogger<DeviceAccessor> logger,
+        IServiceProvider serviceProvider, FlatBufferHelper flatBufferHelper, IMapper mapper)
     {
         _link = link;
         _deviceAccessorRepository = deviceAccessorRepository;
         _device = device;
-        _identityProvider = identityProvider;
         _logger = logger;
         _serviceProvider = serviceProvider;
         _flatBufferHelper = flatBufferHelper;
+        _mapper = mapper;
     }
 
     public void Dispose()
     {
         _link.Dispose();
-        foreach (var query in _contexts)
-            query.Value.Dispose();
         _logger.LogInformation("Disposed DeviceAccessor for {DeviceName} - {DeviceId}", _device.Name,
             _device.Id.ToString());
         Unmount();
@@ -86,41 +85,15 @@ public class DeviceAccessor : IDeviceAccessor
     public IEnumerable<KuromeInformation> GetFileNodes(string fileName)
     {
         var response = SendQuery(_flatBufferHelper.GetDirectoryQuery(SanitizeName(fileName)));
-        var files = new List<KuromeInformation>();
         _flatBufferHelper.TryGetFileResponseNode(response, out var result);
-        foreach (var node in result!.Children!)
-        {
-            var attr = node.Attributes!;
-            var file = new KuromeInformation
-            {
-                FileName = attr.Name!,
-                IsDirectory = attr.Type == FileType.Directory,
-                LastAccessTime = DateTimeOffset.FromUnixTimeMilliseconds(attr.LastAccessTime).LocalDateTime,
-                LastWriteTime = DateTimeOffset.FromUnixTimeMilliseconds(attr.LastWriteTime).LocalDateTime,
-                CreationTime = DateTimeOffset.FromUnixTimeMilliseconds(attr.CreationTime).LocalDateTime,
-                Length = attr.Length
-            };
-            files.Add(file);
-        }
-        
-        return files;
+        return _mapper.Map<IEnumerable<KuromeInformation>>(result!.Children!);
     }
 
     public KuromeInformation GetRootNode()
     {
         var response = SendQuery(_flatBufferHelper.GetDirectoryQuery("/"));
         _flatBufferHelper.TryGetFileResponseNode(response, out var file);
-        var attrs = file!.Attributes!;
-        var fileInfo = new KuromeInformation
-        {
-            FileName = "",
-            IsDirectory = attrs.Type == FileType.Directory,
-            LastAccessTime = DateTimeOffset.FromUnixTimeMilliseconds(attrs.LastAccessTime).LocalDateTime,
-            LastWriteTime = DateTimeOffset.FromUnixTimeMilliseconds(attrs.LastWriteTime).LocalDateTime,
-            CreationTime = DateTimeOffset.FromUnixTimeMilliseconds(attrs.CreationTime).LocalDateTime,
-            Length = attrs.Length
-        };
-        return fileInfo;
+        return _mapper.Map<KuromeInformation>(file!);
     }
 
     public void GetSpace(out long total, out long free)

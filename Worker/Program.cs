@@ -42,6 +42,7 @@ var host = Host.CreateDefaultBuilder(args)
         services.AddSingleton<IDeviceAccessorRepository, DeviceAccessorRepository>();
         services.AddZoneTree<string, Device>(dbPath, new DeviceSerializer());
         services.AddSingleton<FlatBufferHelper>();
+        services.AddMapster();
     })
     .Build();
 
