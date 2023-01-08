@@ -34,7 +34,21 @@ public class Link : ILink
         }
     }
 
-    public void SendAsync(ReadOnlySpan<byte> data, int length)
+    public int Receive(byte[] buffer, int size)
+    {
+        try
+        {
+            _stream.ReadExactly(buffer, 0, size);
+            return size;
+        }
+        catch (Exception e)
+        {
+            Log.Debug("Exception at Link: {@Exception}", e.ToString());
+            return 0;
+        }
+    }
+
+    public void Send(ReadOnlySpan<byte> data, int length)
     {
         _stream.Write(data[..length]);
     }

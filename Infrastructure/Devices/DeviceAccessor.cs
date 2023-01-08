@@ -17,27 +17,6 @@ namespace Infrastructure.Devices;
 
 public class DeviceAccessor : IDeviceAccessor
 {
-    private class NetworkQuery
-    {
-        public Packet? Packet;
-        public byte[]? Buffer;
-        public readonly ManualResetEventSlim ResponseEvent;
-
-        public NetworkQuery(ManualResetEventSlim responseEvent)
-        {
-            ResponseEvent = responseEvent;
-            Packet = null;
-            Buffer = null;
-        }
-
-        public void Dispose()
-        {
-            ResponseEvent.Set();
-            ResponseEvent.Dispose();
-            if (Buffer != null) ArrayPool<byte>.Shared.Return(Buffer);
-        }
-    }
-
     private readonly ILink _link;
     private readonly IDeviceAccessorRepository _deviceAccessorRepository;
     private readonly Device _device;
@@ -45,10 +24,14 @@ public class DeviceAccessor : IDeviceAccessor
     private readonly ILogger _logger;
     private readonly IServiceProvider _serviceProvider;
     private readonly FlatBufferHelper _flatBufferHelper;
-    private readonly ConcurrentDictionary<long, NetworkQuery> _contexts = new();
     private Dokan? _dokan;
     private DokanInstance? _dokanInstance;
     private string? _mountLetter;
+    private readonly object _lock = new();
+
+    // TODO: MessagePipe experiments
+    // private readonly IAsyncPublisher<long, Packet> _networkQueryPublisher;
+    // private readonly IAsyncSubscriber<long, Packet> _networkQuerySubscriber;
 
     public DeviceAccessor(ILink link, IDeviceAccessorRepository deviceAccessorRepository,
         Device device, IIdentityProvider identityProvider, ILogger<DeviceAccessor> logger,
@@ -77,29 +60,7 @@ public class DeviceAccessor : IDeviceAccessor
 
     public async void Start(CancellationToken cancellationToken)
     {
-        while (!cancellationToken.IsCancellationRequested)
-        {
-            var sizeBuffer = new byte[4];
-            var bytesRead = await _link.ReceiveAsync(sizeBuffer, 4, cancellationToken);
-            if (bytesRead == 0) break;
-            var size = BinaryPrimitives.ReadInt32LittleEndian(sizeBuffer);
-            var buffer = ArrayPool<byte>.Shared.Rent(size);
-            bytesRead = await _link.ReceiveAsync(buffer, size, cancellationToken);
-            if (bytesRead == 0) break;
-            var packet = Packet.Serializer.Parse(buffer);
-            if (_contexts.ContainsKey(packet.Id))
-            {
-                _contexts[packet.Id].Packet = packet;
-                _contexts[packet.Id].Buffer = buffer;
-                _contexts[packet.Id].ResponseEvent.Set();
-                _logger.LogTrace("Received {BytesLength} bytes from: {DeviceName} - {DeviceId}",
-                    bytesRead, _device.Name, _device.Id.ToString());
-                _contexts.TryRemove(packet.Id, out _);
-            }
-            else ArrayPool<byte>.Shared.Return(buffer);
-        }
 
-        Dispose();
     }
 
     public void SetLength(string fileName, long length)
@@ -126,7 +87,7 @@ public class DeviceAccessor : IDeviceAccessor
     {
         var response = SendQuery(_flatBufferHelper.GetDirectoryQuery(SanitizeName(fileName)));
         var files = new List<KuromeInformation>();
-        _flatBufferHelper.TryGetFileResponseNode(response.Packet!, out var result);
+        _flatBufferHelper.TryGetFileResponseNode(response, out var result);
         foreach (var node in result!.Children!)
         {
             var attr = node.Attributes!;
@@ -141,15 +102,14 @@ public class DeviceAccessor : IDeviceAccessor
             };
             files.Add(file);
         }
-
-        response.Dispose();
+        
         return files;
     }
 
     public KuromeInformation GetRootNode()
     {
         var response = SendQuery(_flatBufferHelper.GetDirectoryQuery("/"));
-        _flatBufferHelper.TryGetFileResponseNode(response.Packet!, out var file);
+        _flatBufferHelper.TryGetFileResponseNode(response, out var file);
         var attrs = file!.Attributes!;
         var fileInfo = new KuromeInformation
         {
@@ -166,10 +126,9 @@ public class DeviceAccessor : IDeviceAccessor
     public void GetSpace(out long total, out long free)
     {
         var response = SendQuery(_flatBufferHelper.DeviceInfoSpaceQuery());
-        _flatBufferHelper.TryGetDeviceInfo(response.Packet!, out var deviceInfo);
+        _flatBufferHelper.TryGetDeviceInfo(response, out var deviceInfo);
         total = deviceInfo!.Space!.TotalBytes;
         free = deviceInfo.Space.FreeBytes;
-        response.Dispose();
     }
 
     public void CreateEmptyFile(string fileName)
@@ -185,9 +144,8 @@ public class DeviceAccessor : IDeviceAccessor
     public int ReceiveFileBuffer(byte[] buffer, string fileName, long offset, int bytesToRead, long fileSize)
     {
         var response = SendQuery(_flatBufferHelper.ReadFileQuery(SanitizeName(fileName), offset, bytesToRead));
-        _flatBufferHelper.TryGetFileResponseRaw(response.Packet, out var raw);
+        _flatBufferHelper.TryGetFileResponseRaw(response, out var raw);
         raw.Data?.CopyTo(buffer);
-        response.Dispose();
         return raw.Data == null ? 0 : bytesToRead;
     }
 
@@ -231,31 +189,36 @@ public class DeviceAccessor : IDeviceAccessor
             _mountLetter?[0]);
     }
 
-    private readonly object _lock = new();
+    
 
     private void SendPacket(Component component, long id = 0)
     {
         var packet = new Packet { Component = component, Id = id };
         var size = Packet.Serializer.GetMaxSize(packet);
-        var bytes = ArrayPool<byte>.Shared.Rent(size + 4);
-        Span<byte> buffer = bytes;
+        Span<byte> buffer = new byte[4 + size];
         var length = Packet.Serializer.Write(buffer[4..], packet);
         BinaryPrimitives.WriteInt32LittleEndian(buffer[..4], length);
-        lock (_lock) _link.SendAsync(buffer, length + 4);
-        ArrayPool<byte>.Shared.Return(bytes);
+        lock (_lock) _link.Send(buffer, length + 4);
     }
 
-    private readonly Random _random = new();
-
-    private NetworkQuery SendQuery(Component component)
+    private Packet ReadPacket()
     {
-        var packetId = _random.NextInt64(long.MaxValue - 1) + 1;
-        var responseEvent = new ManualResetEventSlim(false);
-        var context = new NetworkQuery(responseEvent);
-        _contexts.TryAdd(packetId, context);
-        SendPacket(component, packetId);
-        responseEvent.Wait();
-        return context;
+        lock (_lock)
+        {
+            
+            var sizeBuffer = new byte[4];
+            _link.Receive(sizeBuffer, 4);
+            var size = BinaryPrimitives.ReadInt32LittleEndian(sizeBuffer);
+            var buffer = new byte[size];
+            _link.Receive(buffer, size);
+            return Packet.Serializer.Parse(buffer);
+        }
+    }
+
+    private Packet SendQuery(Component component)
+    {
+        SendPacket(component);
+        return ReadPacket();
     }
 
     private string SanitizeName(string fileName)
