@@ -4,7 +4,7 @@ using Tenray.ZoneTree.Serializers;
 
 namespace Kurome.Extensions;
 
-public static class KuromeExtensions
+public static class ZoneTreeExtensions
 {
     public static IServiceCollection AddZoneTree<T, TU>(this IServiceCollection services, string path, ISerializer<TU> valueSerializer)
     {
