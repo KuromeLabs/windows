@@ -25,7 +25,7 @@ public class UdpListenerService : BackgroundService
         _logger.LogInformation("Started UDP listener on port {Port}", 33588);
         while (!stoppingToken.IsCancellationRequested)
         {
-            var receivedBytes = (await udpSocket.ReceiveAsync(CancellationToken.None)).Buffer;
+            var receivedBytes = (await udpSocket.ReceiveAsync(stoppingToken)).Buffer;
             var message = Encoding.Default.GetString(receivedBytes);
             _logger.LogInformation("Received UDP: {Message}", message);
             var ip = message.Split(':')[1];
