@@ -3,7 +3,7 @@ using Application.Interfaces;
 
 namespace Infrastructure.Devices;
 
-public class DeviceAccessorRepository : IDeviceAccessorRepository
+public class DeviceAccessorHolder : IDeviceAccessorHolder
 {
     
     private readonly ConcurrentDictionary<string, IDeviceAccessor> _accessors = new();

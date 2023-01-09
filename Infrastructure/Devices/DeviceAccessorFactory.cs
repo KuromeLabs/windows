@@ -14,6 +14,6 @@ public class DeviceAccessorFactory : IDeviceAccessorFactory
 
     public IDeviceAccessor Create(ILink link, Device device)
     {
-        return ActivatorUtilities.CreateInstance<DeviceAccessor>(_serviceProvider, link, device);;
+        return ActivatorUtilities.CreateInstance<DeviceAccessor>(_serviceProvider, link, device);
     }
 }

@@ -1,16 +1,10 @@
-using System.Buffers;
 using System.Buffers.Binary;
-using System.Collections.Concurrent;
 using Application.flatbuffers;
 using Application.Interfaces;
-using DokanNet;
-using DokanNet.Logging;
 using Domain;
 using FlatSharp;
-using Infrastructure.Dokany;
 using Kurome.Fbs;
 using MapsterMapper;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using ILogger = Microsoft.Extensions.Logging.ILogger;
 
@@ -19,57 +13,36 @@ namespace Infrastructure.Devices;
 public class DeviceAccessor : IDeviceAccessor
 {
     private readonly ILink _link;
-    private readonly IDeviceAccessorRepository _deviceAccessorRepository;
-    private readonly Device _device;
     private readonly ILogger _logger;
-    private readonly IServiceProvider _serviceProvider;
     private readonly FlatBufferHelper _flatBufferHelper;
     private readonly IMapper _mapper;
-    private Dokan? _dokan;
-    private DokanInstance? _dokanInstance;
-    private string? _mountLetter;
+    private readonly Device _device;
     private readonly object _lock = new();
-
+    
     // TODO: MessagePipe experiments
     // private readonly IAsyncPublisher<long, Packet> _networkQueryPublisher;
     // private readonly IAsyncSubscriber<long, Packet> _networkQuerySubscriber;
 
-    public DeviceAccessor(ILink link, IDeviceAccessorRepository deviceAccessorRepository,
-        Device device, ILogger<DeviceAccessor> logger,
-        IServiceProvider serviceProvider, FlatBufferHelper flatBufferHelper, IMapper mapper)
+    public DeviceAccessor(ILink link,
+        ILogger<DeviceAccessor> logger,
+        FlatBufferHelper flatBufferHelper, IMapper mapper, Device device)
     {
         _link = link;
-        _deviceAccessorRepository = deviceAccessorRepository;
-        _device = device;
         _logger = logger;
-        _serviceProvider = serviceProvider;
         _flatBufferHelper = flatBufferHelper;
         _mapper = mapper;
+        _device = device;
     }
 
     public void Dispose()
     {
         _link.Dispose();
-        _logger.LogInformation("Disposed DeviceAccessor for {DeviceName} - {DeviceId}", _device.Name,
-            _device.Id.ToString());
-        Unmount();
-        _deviceAccessorRepository.Remove(_device.Id.ToString());
         GC.SuppressFinalize(this);
-    }
-
-    public async void Start(CancellationToken cancellationToken)
-    {
-
     }
 
     public void SetLength(string fileName, long length)
     {
         SendPacket(_flatBufferHelper.SetLengthCommand(SanitizeName(fileName), length));
-    }
-
-    public Device Get()
-    {
-        return _device;
     }
 
     public void SetFileTime(string fileName, long cTime, long laTime, long lwTime)
@@ -93,7 +66,9 @@ public class DeviceAccessor : IDeviceAccessor
     {
         var response = SendQuery(_flatBufferHelper.GetDirectoryQuery("/"));
         _flatBufferHelper.TryGetFileResponseNode(response, out var file);
-        return _mapper.Map<KuromeInformation>(file!);
+        var result = _mapper.Map<KuromeInformation>(file!);
+        result.FileName = "";
+        return result;
     }
 
     public void GetSpace(out long total, out long free)
@@ -132,53 +107,28 @@ public class DeviceAccessor : IDeviceAccessor
         SendPacket(_flatBufferHelper.DeleteCommand(SanitizeName(fileName)));
     }
 
-    public void Mount()
+    public Device GetDevice()
     {
-        var driveLetters = Enumerable.Range('C', 'Z' - 'C' + 1).Select(i => (char)i + ":")
-            .Except(DriveInfo.GetDrives().Select(s => s.Name.Replace("\\", ""))).ToList();
-        _mountLetter = driveLetters[0];
-        var dokanLogger = new ConsoleLogger();
-        _dokan = new Dokan(dokanLogger);
-        var rfs = ActivatorUtilities.CreateInstance<KuromeOperations>(_serviceProvider, this, _mountLetter);
-        var builder = new DokanInstanceBuilder(_dokan)
-            .ConfigureLogger(() => dokanLogger)
-            .ConfigureOptions(options =>
-            {
-                options.Options = DokanOptions.FixedDrive;
-                options.MountPoint = driveLetters[0] + "\\";
-                options.SingleThread = false;
-            });
-        _dokanInstance = builder.Build(rfs);
-        _logger.LogInformation("Mounted {DeviceName} - {DeviceId} on {DriveLetter}", _device.Name,
-            _device.Id.ToString(), driveLetters[0]);
+        return _device;
     }
-
-    public void Unmount()
-    {
-        _dokan?.Unmount(_mountLetter![0]);
-        _dokanInstance?.Dispose();
-        _logger.LogInformation("Unmounted {DeviceName} - {DeviceId} on {DriveLetter}", _device.Name,
-            _device.Id.ToString(),
-            _mountLetter?[0]);
-    }
-
-    
 
     private void SendPacket(Component component, long id = 0)
     {
-        var packet = new Packet { Component = component, Id = id };
-        var size = Packet.Serializer.GetMaxSize(packet);
-        Span<byte> buffer = new byte[4 + size];
-        var length = Packet.Serializer.Write(buffer[4..], packet);
-        BinaryPrimitives.WriteInt32LittleEndian(buffer[..4], length);
-        lock (_lock) _link.Send(buffer, length + 4);
+        lock (_lock)
+        {
+            var packet = new Packet { Component = component, Id = id };
+            var size = Packet.Serializer.GetMaxSize(packet);
+            Span<byte> buffer = new byte[4 + size];
+            var length = Packet.Serializer.Write(buffer[4..], packet);
+            BinaryPrimitives.WriteInt32LittleEndian(buffer[..4], length);
+            _link.Send(buffer, length + 4);
+        }
     }
 
     private Packet ReadPacket()
     {
         lock (_lock)
         {
-            
             var sizeBuffer = new byte[4];
             _link.Receive(sizeBuffer, 4);
             var size = BinaryPrimitives.ReadInt32LittleEndian(sizeBuffer);

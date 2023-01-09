@@ -1,6 +1,6 @@
 namespace Application.Interfaces;
 
-public interface IDeviceAccessorRepository
+public interface IDeviceAccessorHolder
 {
     public void Add(string id, IDeviceAccessor deviceAccessor);
     public void Remove(string id);

@@ -2,10 +2,12 @@
 using System.IO;
 using System.Net.Sockets;
 using System.Threading;
+using Application.Dokany;
 using Application.flatbuffers;
 using Application.Interfaces;
 using Domain;
 using Infrastructure.Devices;
+using Infrastructure.Dokany;
 using Infrastructure.Network;
 using Kurome.Extensions;
 using MessagePipe;
@@ -39,7 +41,9 @@ var host = Host.CreateDefaultBuilder(args)
         services.AddSingleton<ILinkProvider<TcpClient>, LinkProvider>();
         services.AddNetworkServices();
         services.AddTransient<IDeviceAccessorFactory, DeviceAccessorFactory>();
-        services.AddSingleton<IDeviceAccessorRepository, DeviceAccessorRepository>();
+        services.AddSingleton<IDeviceAccessorHolder, DeviceAccessorHolder>();
+        services.AddSingleton<IKuromeOperationsHolder, KuromeOperationsHolder>();
+        services.AddSingleton<IKuromeOperationsFactory, KuromeOperatitonsFactory>();
         services.AddZoneTree<string, Device>(dbPath, new DeviceSerializer());
         services.AddSingleton<FlatBufferHelper>();
         services.AddMapster();

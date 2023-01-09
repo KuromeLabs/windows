@@ -4,9 +4,7 @@ namespace Application.Interfaces;
 
 public interface IDeviceAccessor : IDisposable
 {
-    public void Start(CancellationToken cancellationToken);
     public void SetLength(string fileName, long length);
-    public Device Get();
     public void SetFileTime(string fileName, long cTime, long laTime, long lwTime);
     public void Rename(string fileName, string newFileName);
     public IEnumerable<KuromeInformation> GetFileNodes(string fileName);
@@ -17,6 +15,5 @@ public interface IDeviceAccessor : IDisposable
     public int ReceiveFileBuffer(byte[] buffer, string fileName, long offset, int bytesToRead, long fileSize);
     public void WriteFileBuffer(Memory<byte> buffer, string fileName, long offset);
     public void Delete(string fileName);
-    public void Mount();
-    public void Unmount();
+    public Device GetDevice();
 }

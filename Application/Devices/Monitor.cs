@@ -25,17 +25,17 @@ public class Monitor
     public class Handler : IAsyncRequestHandler<Query, Result<IDeviceAccessor>>
     {
         private readonly IDeviceAccessorFactory _deviceAccessorFactory;
-        private readonly IDeviceAccessorRepository _deviceAccessorRepository;
+        private readonly IDeviceAccessorHolder _deviceAccessorHolder;
         private readonly IZoneTree<string, Device> _zoneTree;
 
-        public Handler(IDeviceAccessorFactory deviceAccessorFactory, IDeviceAccessorRepository deviceAccessorRepository, IZoneTree<string, Device> zoneTree)
+        public Handler(IDeviceAccessorFactory deviceAccessorFactory, IDeviceAccessorHolder deviceAccessorHolder, IZoneTree<string, Device> zoneTree)
         {
             _deviceAccessorFactory = deviceAccessorFactory;
-            _deviceAccessorRepository = deviceAccessorRepository;
+            _deviceAccessorHolder = deviceAccessorHolder;
             _zoneTree = zoneTree;
         }
 
-        public async ValueTask<Result<IDeviceAccessor>> InvokeAsync(Query request, CancellationToken cancellationToken = new CancellationToken())
+        public async ValueTask<Result<IDeviceAccessor>> InvokeAsync(Query request, CancellationToken cancellationToken = new())
         {
             if (!_zoneTree.TryGet(request.Id.ToString(), out var device))
             {
@@ -47,8 +47,7 @@ public class Monitor
             }
 
             var deviceAccessor = _deviceAccessorFactory.Create(request.Link, device);
-            _deviceAccessorRepository.Add(device.Id.ToString(), deviceAccessor);
-            deviceAccessor.Start(cancellationToken);
+            _deviceAccessorHolder.Add(device.Id.ToString(), deviceAccessor);
             return Result<IDeviceAccessor>.Success(deviceAccessor);
         }
     }
