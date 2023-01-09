@@ -7,7 +7,7 @@
     </PropertyGroup>
 
     <ItemGroup>
-      <PackageReference Include="ZoneTree" Version="1.5.5" />
+      <PackageReference Include="ZoneTree" Version="1.5.8" />
     </ItemGroup>
 
     <ItemGroup>
