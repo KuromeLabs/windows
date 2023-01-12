@@ -1,6 +1,7 @@
 using System.Buffers.Binary;
 using Application.flatbuffers;
 using Application.Interfaces;
+using Domain.FileSystem;
 using Domain;
 using FlatSharp;
 using Kurome.Fbs;
@@ -42,33 +43,44 @@ public class DeviceAccessor : IDeviceAccessor
 
     public void SetLength(string fileName, long length)
     {
-        SendPacket(_flatBufferHelper.SetLengthCommand(SanitizeName(fileName), length));
+        SendQuery(_flatBufferHelper.SetLengthCommand(SanitizeName(fileName), length));
     }
 
     public void SetFileTime(string fileName, long cTime, long laTime, long lwTime)
     {
-        SendPacket(_flatBufferHelper.SetFileTimeCommand(SanitizeName(fileName), cTime, laTime, lwTime));
+        SendQuery(_flatBufferHelper.SetFileTimeCommand(SanitizeName(fileName), cTime, laTime, lwTime));
     }
 
     public void Rename(string fileName, string newFileName)
     {
-        SendPacket(_flatBufferHelper.RenameCommand(SanitizeName(fileName), SanitizeName(newFileName)));
+        SendQuery(_flatBufferHelper.RenameCommand(SanitizeName(fileName), SanitizeName(newFileName)));
     }
 
-    public IEnumerable<KuromeInformation> GetFileNodes(string fileName)
+    public IEnumerable<BaseNode> GetFileNodes(string fileName)
     {
         var response = SendQuery(_flatBufferHelper.GetDirectoryQuery(SanitizeName(fileName)));
         _flatBufferHelper.TryGetFileResponseNode(response, out var result);
-        return _mapper.Map<IEnumerable<KuromeInformation>>(result!.Children!);
+        return result!.Children!.Select(x => x.Attributes!.Type switch
+        {
+            FileType.File => (BaseNode)_mapper.Map<FileNode>(x),
+            _ => (BaseNode)_mapper.Map<DirectoryNode>(x)
+        });
     }
 
-    public KuromeInformation GetRootNode()
+    public BaseNode GetRootNode()
     {
-        var response = SendQuery(_flatBufferHelper.GetDirectoryQuery("/"));
-        _flatBufferHelper.TryGetFileResponseNode(response, out var file);
-        var result = _mapper.Map<KuromeInformation>(file!);
-        result.FileName = "";
-        return result;
+        try
+        {
+            var response = SendQuery(_flatBufferHelper.GetDirectoryQuery("/"));
+            _flatBufferHelper.TryGetFileResponseNode(response, out var file);
+            return _mapper.Map<DirectoryNode>(file!);
+        }
+        catch (Exception e)
+        {
+            _logger.LogCritical(e.ToString());
+        }
+
+        throw new Exception("Failed to get root node");
     }
 
     public void GetSpace(out long total, out long free)
@@ -81,12 +93,12 @@ public class DeviceAccessor : IDeviceAccessor
 
     public void CreateEmptyFile(string fileName)
     {
-        SendPacket(_flatBufferHelper.CreateFileCommand(SanitizeName(fileName)));
+        SendQuery(_flatBufferHelper.CreateFileCommand(SanitizeName(fileName)));
     }
 
     public void CreateDirectory(string directoryName)
     {
-        SendPacket(_flatBufferHelper.CreateDirectoryCommand(SanitizeName(directoryName)));
+        SendQuery(_flatBufferHelper.CreateDirectoryCommand(SanitizeName(directoryName)));
     }
 
     public int ReceiveFileBuffer(byte[] buffer, string fileName, long offset, int bytesToRead, long fileSize)
@@ -99,12 +111,12 @@ public class DeviceAccessor : IDeviceAccessor
 
     public void WriteFileBuffer(Memory<byte> buffer, string fileName, long offset)
     {
-        SendPacket(_flatBufferHelper.WriteFileCommand(buffer, SanitizeName(fileName), offset));
+        SendQuery(_flatBufferHelper.WriteFileCommand(buffer, SanitizeName(fileName), offset));
     }
 
     public void Delete(string fileName)
     {
-        SendPacket(_flatBufferHelper.DeleteCommand(SanitizeName(fileName)));
+        SendQuery(_flatBufferHelper.DeleteCommand(SanitizeName(fileName)));
     }
 
     public Device GetDevice()
@@ -114,34 +126,31 @@ public class DeviceAccessor : IDeviceAccessor
 
     private void SendPacket(Component component, long id = 0)
     {
-        lock (_lock)
-        {
-            var packet = new Packet { Component = component, Id = id };
-            var size = Packet.Serializer.GetMaxSize(packet);
-            Span<byte> buffer = new byte[4 + size];
-            var length = Packet.Serializer.Write(buffer[4..], packet);
-            BinaryPrimitives.WriteInt32LittleEndian(buffer[..4], length);
-            _link.Send(buffer, length + 4);
-        }
+        var packet = new Packet { Component = component, Id = id };
+        var size = Packet.Serializer.GetMaxSize(packet);
+        Span<byte> buffer = new byte[4 + size];
+        var length = Packet.Serializer.Write(buffer[4..], packet);
+        BinaryPrimitives.WriteInt32LittleEndian(buffer[..4], length);
+        _link.Send(buffer, length + 4);
     }
 
     private Packet ReadPacket()
     {
-        lock (_lock)
-        {
-            var sizeBuffer = new byte[4];
-            _link.Receive(sizeBuffer, 4);
-            var size = BinaryPrimitives.ReadInt32LittleEndian(sizeBuffer);
-            var buffer = new byte[size];
-            _link.Receive(buffer, size);
-            return Packet.Serializer.Parse(buffer);
-        }
+        var sizeBuffer = new byte[4];
+        _link.Receive(sizeBuffer, 4);
+        var size = BinaryPrimitives.ReadInt32LittleEndian(sizeBuffer);
+        var buffer = new byte[size];
+        _link.Receive(buffer, size);
+        return Packet.Serializer.Parse(buffer);
     }
 
     private Packet SendQuery(Component component)
     {
-        SendPacket(component);
-        return ReadPacket();
+        lock (_lock)
+        {
+            SendPacket(component);
+            return ReadPacket();
+        }
     }
 
     private string SanitizeName(string fileName)

@@ -28,10 +28,6 @@
         <PackageReference Include="Serilog.Sinks.Console" Version="4.1.0" />
     </ItemGroup>
 
-    <ItemGroup>
-        <Folder Include="Models" />
-    </ItemGroup>
-
     <PropertyGroup>
         <DefineConstants>$(DefineConstants);UNSAFE_BYTEBUFFER;BYTEBUFFER_NO_BOUNDS_CHECK;ENABLE_SPAN_T</DefineConstants>
         <FlatSharpNameNormalization>true</FlatSharpNameNormalization>
