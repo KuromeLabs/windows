@@ -16,7 +16,7 @@ public static class MapsterExtensions
     {
         var config = TypeAdapterConfig.GlobalSettings;
         config.Compiler = exp => exp.CompileFast();
-        
+
         TypeAdapterConfig<Node, BaseNode>
             .ForType()
             .Map(dest => dest.Name, src => src.Attributes!.Name)
@@ -26,7 +26,7 @@ public static class MapsterExtensions
                 src => DateTimeOffset.FromUnixTimeMilliseconds(src.Attributes!.LastWriteTime).LocalDateTime)
             .Map(dest => dest.CreationTime,
                 src => DateTimeOffset.FromUnixTimeMilliseconds(src.Attributes!.CreationTime).LocalDateTime);
-        
+
         TypeAdapterConfig<Node, DirectoryNode>
             .ForType()
             .Inherits<Node, BaseNode>()
@@ -38,12 +38,12 @@ public static class MapsterExtensions
             .ForType()
             .Map(dest => dest.Length, src => src.Attributes!.Length)
             .ConstructUsing(x => new FileNode { Name = x.Attributes!.Name! });
-        
+
         TypeAdapterConfig<BaseNode, FileInformation>
             .ForType()
             .Map(dest => dest.FileName, src => src.Name)
             .Map(dest => dest.Attributes, src => src.IsDirectory ? FileAttributes.Directory : FileAttributes.Normal);
-        
+
         collection.AddSingleton(config);
         collection.AddSingleton<IMapper, ServiceMapper>();
         return collection;

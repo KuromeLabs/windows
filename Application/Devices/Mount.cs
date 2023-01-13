@@ -18,17 +18,19 @@ public class Mount
         {
             Id = id;
         }
+
         public Guid Id;
     }
 
     public class Handler : IAsyncRequestHandler<Command, Result<Unit>>
     {
         private readonly IDeviceAccessorHolder _deviceAccessorHolder;
-        private readonly IZoneTree<string, Device> _zoneTree;
-        private readonly IKuromeOperationsHolder _holder;
         private readonly IKuromeOperationsFactory _factory;
+        private readonly IKuromeOperationsHolder _holder;
+        private readonly IZoneTree<string, Device> _zoneTree;
 
-        public Handler(IDeviceAccessorHolder deviceAccessorHolder, IZoneTree<string, Device> zoneTree, IKuromeOperationsHolder holder, IKuromeOperationsFactory factory)
+        public Handler(IDeviceAccessorHolder deviceAccessorHolder, IZoneTree<string, Device> zoneTree,
+            IKuromeOperationsHolder holder, IKuromeOperationsFactory factory)
         {
             _deviceAccessorHolder = deviceAccessorHolder;
             _zoneTree = zoneTree;
@@ -42,12 +44,12 @@ public class Mount
             // if (device == null) return Result<Unit>.Failure("Device not found in database. Is it paired?");
             var accessor = _deviceAccessorHolder.Get(request.Id.ToString());
             if (accessor == null) return Result<Unit>.Failure("Device accessor not found");
-            
+
             var driveLetters = Enumerable.Range('C', 'Z' - 'C' + 1).Select(i => (char)i + ":")
                 .Except(DriveInfo.GetDrives().Select(s => s.Name.Replace("\\", ""))).ToList();
             var mountLetter = driveLetters[0];
             var rfs = _factory.Create(accessor, mountLetter);
-            
+
             var builder = new DokanInstanceBuilder(_holder.GetDokan())
                 .ConfigureLogger(() => new ConsoleLogger())
                 .ConfigureOptions(options =>
@@ -58,7 +60,7 @@ public class Mount
                 });
 
             var dokanInstance = builder.Build(rfs);
-            
+
             _holder.Add(request.Id.ToString(), rfs, dokanInstance);
             return Result<Unit>.Success(Unit.Value);
         }

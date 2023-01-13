@@ -10,8 +10,8 @@ namespace Kurome.Network;
 
 public class UdpListenerService : BackgroundService
 {
-    private readonly ILogger<UdpListenerService> _logger;
     private readonly DeviceConnectionHandler _handler;
+    private readonly ILogger<UdpListenerService> _logger;
 
     public UdpListenerService(ILogger<UdpListenerService> logger, DeviceConnectionHandler handler)
     {

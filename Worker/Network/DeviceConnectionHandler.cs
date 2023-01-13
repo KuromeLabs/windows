@@ -19,11 +19,11 @@ namespace Kurome.Network;
 
 public class DeviceConnectionHandler
 {
-    private readonly ILogger<DeviceConnectionHandler> _logger;
-    private readonly FlatBufferHelper _flatBufferHelper;
     private readonly IAsyncRequestHandler<AcceptConnection.Query, Result<ILink>> _acceptConnection;
-    private readonly IAsyncRequestHandler<Monitor.Query, Result<IDeviceAccessor>> _monitor;
     private readonly IAsyncRequestHandler<Connect.Query, Result<ILink>> _connect;
+    private readonly FlatBufferHelper _flatBufferHelper;
+    private readonly ILogger<DeviceConnectionHandler> _logger;
+    private readonly IAsyncRequestHandler<Monitor.Query, Result<IDeviceAccessor>> _monitor;
     private readonly IAsyncRequestHandler<Mount.Command, Result<Unit>> _mount;
 
 
@@ -49,7 +49,7 @@ public class DeviceConnectionHandler
         if (result.ResultStatus == Result<ILink>.Status.Success)
             await _monitor.InvokeAsync(new Monitor.Query(name, id, result.Value!), cancellationToken);
 
-        var mountResult = await _mount.InvokeAsync(new Mount.Command(id: id), cancellationToken);
+        var mountResult = await _mount.InvokeAsync(new Mount.Command(id), cancellationToken);
 
         if (mountResult.ResultStatus == Result<Unit>.Status.Failure)
             _logger.LogError("{Error}", mountResult.Error);
@@ -57,7 +57,7 @@ public class DeviceConnectionHandler
 
     public async void HandleServerConnection(TcpClient client, CancellationToken cancellationToken)
     {
-        var info = (await ReadIdentityAsync(client, cancellationToken));
+        var info = await ReadIdentityAsync(client, cancellationToken);
         if (info == null)
         {
             _logger.LogError("Failed to read device identity from incoming connection");
@@ -72,9 +72,9 @@ public class DeviceConnectionHandler
             await _monitor.InvokeAsync(new Monitor.Query(info.Item2, id, result.Value!),
                 cancellationToken);
         else
-            _logger.LogError("{Error}",result.Error);
+            _logger.LogError("{Error}", result.Error);
 
-        var mountResult = await _mount.InvokeAsync(new Mount.Command(id: id), cancellationToken);
+        var mountResult = await _mount.InvokeAsync(new Mount.Command(id), cancellationToken);
 
         if (mountResult.ResultStatus == Result<Unit>.Status.Failure)
             _logger.LogError("{Error}", mountResult.Error);

@@ -5,9 +5,8 @@ namespace Infrastructure.Devices;
 
 public class DeviceAccessorHolder : IDeviceAccessorHolder
 {
-    
     private readonly ConcurrentDictionary<string, IDeviceAccessor> _accessors = new();
-    
+
     public void Add(string id, IDeviceAccessor deviceAccessor)
     {
         _accessors.TryAdd(id, deviceAccessor);

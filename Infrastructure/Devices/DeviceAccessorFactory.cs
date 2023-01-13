@@ -7,6 +7,7 @@ namespace Infrastructure.Devices;
 public class DeviceAccessorFactory : IDeviceAccessorFactory
 {
     private readonly IServiceProvider _serviceProvider;
+
     public DeviceAccessorFactory(IServiceProvider serviceProvider)
     {
         _serviceProvider = serviceProvider;

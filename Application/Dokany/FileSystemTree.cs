@@ -6,8 +6,8 @@ namespace Application.Dokany;
 public class FileSystemTree
 {
     private readonly IDeviceAccessor _accessor;
-    public DirectoryNode? Root;
     private readonly ReaderWriterLockSlim _lock = new();
+    public DirectoryNode? Root;
 
     public FileSystemTree(IDeviceAccessor accessor)
     {
@@ -34,9 +34,9 @@ public class FileSystemTree
             }
 
             var parts = new Queue<string>(path.Split('\\', StringSplitOptions.RemoveEmptyEntries));
-            var result = (BaseNode) Root;
+            var result = (BaseNode)Root;
             while (result != null && parts.Count > 0 && result.IsDirectory)
-                result = GetChild(parts.Dequeue(), (DirectoryNode) result);
+                result = GetChild(parts.Dequeue(), (DirectoryNode)result);
             if (parts.Count > 0) result = null;
             return result;
         }
@@ -195,6 +195,7 @@ public class FileSystemTree
         {
             _lock.ExitWriteLock();
         }
+
         _accessor.WriteFileBuffer(data, node.FullName, offset);
     }
 

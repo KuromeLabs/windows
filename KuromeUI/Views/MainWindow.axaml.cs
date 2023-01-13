@@ -64,17 +64,22 @@ public partial class MainWindow : AppWindow
             SetValue(BackgroundProperty, AvaloniaProperty.UnsetValue);
             return;
         }
+
         TransparencyBackgroundFallback = Brushes.Transparent;
         TransparencyLevelHint = WindowTransparencyLevel.Mica;
         if (theme.RequestedTheme == FluentAvaloniaTheme.DarkModeString)
         {
-            var color = this.TryFindResource("SolidBackgroundFillColorBase", out var value) ? (Color2)(Color)value : new Color2(32, 32, 32);
+            var color = this.TryFindResource("SolidBackgroundFillColorBase", out var value)
+                ? (Color2)(Color)value
+                : new Color2(32, 32, 32);
             color = color.LightenPercent(-0.8f);
             Background = new ImmutableSolidColorBrush(color, 0.78);
         }
         else if (theme.RequestedTheme == FluentAvaloniaTheme.LightModeString)
         {
-            var color = this.TryFindResource("SolidBackgroundFillColorBase", out var value) ? (Color2)(Color)value! : new Color2(243, 243, 243);
+            var color = this.TryFindResource("SolidBackgroundFillColorBase", out var value)
+                ? (Color2)(Color)value!
+                : new Color2(243, 243, 243);
             color = color.LightenPercent(0.5f);
             Background = new ImmutableSolidColorBrush(color, 0.9);
         }

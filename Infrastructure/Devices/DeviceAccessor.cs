@@ -1,25 +1,24 @@
 using System.Buffers.Binary;
 using Application.flatbuffers;
 using Application.Interfaces;
-using Domain.FileSystem;
 using Domain;
+using Domain.FileSystem;
 using FlatSharp;
 using Kurome.Fbs;
 using MapsterMapper;
 using Microsoft.Extensions.Logging;
-using ILogger = Microsoft.Extensions.Logging.ILogger;
 
 namespace Infrastructure.Devices;
 
 public class DeviceAccessor : IDeviceAccessor
 {
-    private readonly ILink _link;
-    private readonly ILogger _logger;
-    private readonly FlatBufferHelper _flatBufferHelper;
-    private readonly IMapper _mapper;
     private readonly Device _device;
+    private readonly FlatBufferHelper _flatBufferHelper;
+    private readonly ILink _link;
     private readonly object _lock = new();
-    
+    private readonly ILogger _logger;
+    private readonly IMapper _mapper;
+
     // TODO: MessagePipe experiments
     // private readonly IAsyncPublisher<long, Packet> _networkQueryPublisher;
     // private readonly IAsyncSubscriber<long, Packet> _networkQuerySubscriber;
@@ -62,7 +61,7 @@ public class DeviceAccessor : IDeviceAccessor
         _flatBufferHelper.TryGetFileResponseNode(response, out var result);
         return result!.Children!.Select(x => x.Attributes!.Type switch
         {
-            FileType.File => (BaseNode)_mapper.Map<FileNode>(x),
+            FileType.File => _mapper.Map<FileNode>(x),
             _ => (BaseNode)_mapper.Map<DirectoryNode>(x)
         });
     }

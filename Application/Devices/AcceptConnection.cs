@@ -26,7 +26,7 @@ public class AcceptConnection
             _linkProvider = linkProvider;
         }
 
-        public async ValueTask<Result<ILink>> InvokeAsync(Query request, CancellationToken cancellationToken = new CancellationToken())
+        public async ValueTask<Result<ILink>> InvokeAsync(Query request, CancellationToken cancellationToken = new())
         {
             try
             {

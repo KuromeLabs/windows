@@ -26,13 +26,13 @@ public partial class MainView : UserControl
         _navigationView = this.FindControl<NavigationView>("NavView")!;
         var testItems = new List<NavigationViewItem>
         {
-            new NavigationViewItem
+            new()
             {
                 Content = "Devices",
                 Classes = { "Nav" },
                 Icon = new IconSourceElement { IconSource = (IconSource)this.FindResource("HomeIcon") }
             },
-            new NavigationViewItem
+            new()
             {
                 Content = "Settings",
                 Classes = { "Nav" },

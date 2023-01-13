@@ -28,23 +28,23 @@ public class Monitor
         private readonly IDeviceAccessorHolder _deviceAccessorHolder;
         private readonly IZoneTree<string, Device> _zoneTree;
 
-        public Handler(IDeviceAccessorFactory deviceAccessorFactory, IDeviceAccessorHolder deviceAccessorHolder, IZoneTree<string, Device> zoneTree)
+        public Handler(IDeviceAccessorFactory deviceAccessorFactory, IDeviceAccessorHolder deviceAccessorHolder,
+            IZoneTree<string, Device> zoneTree)
         {
             _deviceAccessorFactory = deviceAccessorFactory;
             _deviceAccessorHolder = deviceAccessorHolder;
             _zoneTree = zoneTree;
         }
 
-        public async ValueTask<Result<IDeviceAccessor>> InvokeAsync(Query request, CancellationToken cancellationToken = new())
+        public async ValueTask<Result<IDeviceAccessor>> InvokeAsync(Query request,
+            CancellationToken cancellationToken = new())
         {
             if (!_zoneTree.TryGet(request.Id.ToString(), out var device))
-            {
                 device = new Device
                 {
                     Id = request.Id,
-                    Name = request.Name,
+                    Name = request.Name
                 };
-            }
 
             var deviceAccessor = _deviceAccessorFactory.Create(request.Link, device);
             _deviceAccessorHolder.Add(device.Id.ToString(), deviceAccessor);

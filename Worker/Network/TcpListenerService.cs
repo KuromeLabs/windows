@@ -10,8 +10,8 @@ namespace Kurome.Network;
 
 public class TcpListenerService : BackgroundService
 {
-    private readonly ILogger<TcpListenerService> _logger;
     private readonly DeviceConnectionHandler _handler;
+    private readonly ILogger<TcpListenerService> _logger;
 
     public TcpListenerService(ILogger<TcpListenerService> logger, DeviceConnectionHandler handler)
     {
@@ -25,17 +25,15 @@ public class TcpListenerService : BackgroundService
         tcpListener.Start();
         _logger.LogInformation("Started TCP Listener on port {Port}", 33587);
         while (!stoppingToken.IsCancellationRequested)
-        {
             try
             {
                 var client = await tcpListener.AcceptTcpClientAsync(stoppingToken);
-                _logger.LogInformation("Accepted connection from {Ip}", (client.Client.RemoteEndPoint as IPEndPoint));
+                _logger.LogInformation("Accepted connection from {Ip}", client.Client.RemoteEndPoint as IPEndPoint);
                 _handler.HandleServerConnection(client, stoppingToken);
             }
             catch (Exception e)
             {
                 _logger.LogDebug("Exception at StartTcpListener: {@Exception}", e.ToString());
             }
-        }
     }
 }

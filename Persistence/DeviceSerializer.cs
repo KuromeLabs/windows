@@ -5,7 +5,7 @@ using Tenray.ZoneTree.Serializers;
 
 namespace Persistence;
 
-public class DeviceSerializer: ISerializer<Device>
+public class DeviceSerializer : ISerializer<Device>
 {
     public Device Deserialize(byte[] bytes)
     {
@@ -30,7 +30,7 @@ public class DeviceSerializer: ISerializer<Device>
 
     private int IndexedWrite(byte[] buffer, byte[] data, int i)
     {
-        BinaryPrimitives.WriteInt32LittleEndian(buffer.AsSpan()[i..(i+4)], data.Length);
+        BinaryPrimitives.WriteInt32LittleEndian(buffer.AsSpan()[i..(i + 4)], data.Length);
         data.AsSpan().CopyTo(buffer.AsSpan()[(4 + i)..]);
         return 4 + i + data.Length;
     }

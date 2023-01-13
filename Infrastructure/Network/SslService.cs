@@ -7,14 +7,31 @@ namespace Infrastructure.Network;
 
 public class SslService : ISecurityService<X509Certificate2>
 {
+    private readonly IIdentityProvider _identityProvider;
     private readonly ILogger<SslService> _logger;
     private X509Certificate2? _certificate;
-    private readonly IIdentityProvider _identityProvider;
 
     public SslService(IIdentityProvider identityProvider, ILogger<SslService> logger)
     {
         _identityProvider = identityProvider;
         _logger = logger;
+    }
+
+    public X509Certificate2 GetSecurityContext()
+    {
+        if (_certificate == null) InitializeSsl();
+        return _certificate!;
+    }
+
+    public Task StartAsync(CancellationToken cancellationToken)
+    {
+        InitializeSsl();
+        return Task.CompletedTask;
+    }
+
+    public Task StopAsync(CancellationToken cancellationToken)
+    {
+        return Task.CompletedTask;
     }
 
     private X509Certificate2 BuildSelfSignedServerCertificate(IIdentityProvider identityProvider)
@@ -32,12 +49,6 @@ public class SslService : ISecurityService<X509Certificate2>
 
         return new X509Certificate2(certificate.Export(X509ContentType.Pfx, ""),
             "", X509KeyStorageFlags.MachineKeySet);
-    }
-
-    public X509Certificate2 GetSecurityContext()
-    {
-        if (_certificate == null) InitializeSsl();
-        return _certificate!;
     }
 
     private void InitializeSsl()
@@ -80,16 +91,5 @@ public class SslService : ISecurityService<X509Certificate2>
             _logger.LogInformation("SSL Certificate found and loaded from store");
             _certificate = collection[0];
         }
-    }
-
-    public Task StartAsync(CancellationToken cancellationToken)
-    {
-        InitializeSsl();
-        return Task.CompletedTask;
-    }
-
-    public Task StopAsync(CancellationToken cancellationToken)
-    {
-        return Task.CompletedTask;
     }
 }
