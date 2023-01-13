@@ -35,9 +35,9 @@ public class FileSystemTree
 
             var parts = new Queue<string>(path.Split('\\', StringSplitOptions.RemoveEmptyEntries));
             var result = (BaseNode) Root;
-            while (result != null && parts.Count > 0)
+            while (result != null && parts.Count > 0 && result.IsDirectory)
                 result = GetChild(parts.Dequeue(), (DirectoryNode) result);
-
+            if (parts.Count > 0) result = null;
             return result;
         }
         finally
