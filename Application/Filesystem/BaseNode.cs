@@ -1,10 +1,11 @@
-namespace Domain.FileSystem;
+namespace Application.Filesystem;
 
 public abstract class BaseNode
 {
     public DirectoryNode? Parent { get; set; }
     public required string Name { get; set; }
-    public string FullName => (Parent?.FullName ?? string.Empty) + Name + "\\";
+
+    public string FullName =>  (Parent?.FullName ?? string.Empty) + (Parent != null && Parent.Name != "\\" ? "\\" : string.Empty) + Name;
     public DateTime? CreationTime { get; set; } = DateTime.Now;
     public DateTime? LastAccessTime { get; set; } = DateTime.Now;
     public DateTime? LastWriteTime { get; set; } = DateTime.Now;

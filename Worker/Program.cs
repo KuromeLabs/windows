@@ -1,17 +1,12 @@
 ﻿using System;
-using System.Collections.Immutable;
 using System.IO;
-using System.Net.Sockets;
 using System.Threading;
-using Application.Dokany;
+using Application.Devices;
 using Application.flatbuffers;
 using Application.Interfaces;
 using Application.Persistence;
 using Infrastructure.Devices;
-using Infrastructure.Dokany;
-using Infrastructure.Network;
 using Kurome.Extensions;
-using MessagePipe;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -45,15 +40,8 @@ builder.ConfigureServices(services =>
     {
         services.AddDbContext<DataContext>();
         services.AddSingleton<IIdentityProvider, IdentityProvider>();
-        services.AddMessagePipe();
-        services.AddSingleton<ILinkProvider<TcpClient>, LinkProvider>();
+        services.AddSingleton<IDeviceRepository, DeviceRepository>();
         services.AddNetworkServices();
-        services.AddTransient<IDeviceAccessorFactory, DeviceAccessorFactory>();
-        services.AddSingleton<IDeviceAccessorHolder, DeviceAccessorHolder>();
-        services.AddSingleton<IKuromeOperationsHolder, KuromeOperationsHolder>();
-        services.AddSingleton<IKuromeOperationsFactory, KuromeOperatitonsFactory>();
-        services.AddSingleton<FlatBufferHelper>();
-        services.AddMapster();
         
     });
 
@@ -65,9 +53,10 @@ using (var scope = host.Services.CreateScope())
 {
     var configuration = host.Services.GetRequiredService<IConfiguration>();
     var logger = host.Services.GetRequiredService<ILogger<Program>>();
-    logger.LogInformation($"SQLite DB location: {configuration["Database:Location"]}");
-    logger.LogInformation("Database not found. Creating...");
+    logger.LogInformation($"SQLite database location: {configuration["Database:Location"]}");
     var context = scope.ServiceProvider.GetRequiredService<DataContext>();
+    if (!context.Database.CanConnect()) logger.LogInformation("Database not found. Will be created.");
+    
     await context.Database.MigrateAsync();
 }
 

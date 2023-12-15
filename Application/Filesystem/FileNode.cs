@@ -1,4 +1,4 @@
-namespace Domain.FileSystem;
+namespace Application.Filesystem;
 
 public class FileNode : BaseNode
 {

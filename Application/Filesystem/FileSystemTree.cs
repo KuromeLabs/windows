@@ -1,17 +1,17 @@
-using Application.Interfaces;
-using Domain.FileSystem;
+using Serilog;
 
-namespace Application.Dokany;
+namespace Application.Filesystem;
 
 public class FileSystemTree
 {
-    private readonly IDeviceAccessor _accessor;
     private readonly ReaderWriterLockSlim _lock = new();
-    public DirectoryNode? Root;
+    public DirectoryNode Root;
+    private readonly Device _device;
 
-    public FileSystemTree(IDeviceAccessor accessor)
+    public FileSystemTree(DirectoryNode root, Device device)
     {
-        _accessor = accessor;
+        Root = root;
+        _device = device;
     }
 
     public BaseNode? GetNode(string path)
@@ -19,20 +19,6 @@ public class FileSystemTree
         _lock.EnterUpgradeableReadLock();
         try
         {
-            if (Root == null)
-            {
-                _lock.EnterWriteLock();
-                try
-                {
-                    Root = (DirectoryNode)_accessor.GetRootNode();
-                    Root.Name = "";
-                }
-                finally
-                {
-                    _lock.ExitWriteLock();
-                }
-            }
-
             var parts = new Queue<string>(path.Split('\\', StringSplitOptions.RemoveEmptyEntries));
             var result = (BaseNode)Root;
             while (result != null && parts.Count > 0 && result.IsDirectory)
@@ -69,8 +55,10 @@ public class FileSystemTree
 
     private void UpdateChildren(DirectoryNode node)
     {
-        var nodes = _accessor.GetFileNodes(node.FullName);
+        Log.Information("Attempting to get children from device with path {0}", node.FullName);
+        Log.Information("Current Node's name: {0}", node.Name);
         _lock.EnterWriteLock();
+        var nodes = _device.GetFileNodes(node.FullName);
         try
         {
             node.Children.Clear();
@@ -86,13 +74,14 @@ public class FileSystemTree
         }
     }
 
-    public void CreateFileChild(DirectoryNode directory, string fileName)
+    public FileNode CreateFileChild(DirectoryNode directory, string fileName)
     {
-        _accessor.CreateEmptyFile(fileName);
         _lock.EnterWriteLock();
+        FileNode node;
         try
         {
-            var node = new FileNode { Name = Path.GetFileName(fileName) };
+            _device.CreateEmptyFile(fileName);
+            node = new FileNode { Name = Path.GetFileName(fileName) };
             directory.Children.Add(Path.GetFileName(fileName), node);
             node.Parent = directory;
         }
@@ -100,15 +89,18 @@ public class FileSystemTree
         {
             _lock.ExitWriteLock();
         }
+
+        return node;
     }
 
-    public void CreateDirectoryChild(DirectoryNode directory, string directoryName)
+    public DirectoryNode CreateDirectoryChild(DirectoryNode directory, string directoryName)
     {
-        _accessor.CreateDirectory(directoryName);
+        DirectoryNode node;
         _lock.EnterWriteLock();
+        _device.CreateDirectory(directoryName);
         try
         {
-            var node = new DirectoryNode { Name = Path.GetFileName(directoryName) };
+            node = new DirectoryNode { Name = Path.GetFileName(directoryName) };
             directory.Children.Add(Path.GetFileName(directoryName), node);
             node.Parent = directory;
         }
@@ -116,12 +108,14 @@ public class FileSystemTree
         {
             _lock.ExitWriteLock();
         }
+
+        return node;
     }
 
     public void SetLength(FileNode node, long length)
     {
-        _accessor.SetLength(node.FullName, length);
         _lock.EnterWriteLock();
+        _device.SetLength(node.FullName, length);
         try
         {
             node.Length = length;
@@ -134,8 +128,8 @@ public class FileSystemTree
 
     public void Move(BaseNode oldNode, string newName, DirectoryNode destination)
     {
-        _accessor.Rename(oldNode.FullName, newName);
         _lock.EnterWriteLock();
+        _device.Rename(oldNode.FullName, newName);
         try
         {
             oldNode.Parent!.Children.Remove(oldNode.Name);
@@ -151,8 +145,8 @@ public class FileSystemTree
 
     public void Delete(BaseNode node)
     {
-        _accessor.Delete(node.FullName);
         _lock.EnterWriteLock();
+        _device.Delete(node.FullName);
         try
         {
             node.Parent!.Children.Remove(node.Name);
@@ -169,8 +163,8 @@ public class FileSystemTree
         var ucTime = cTime == null ? 0 : ((DateTimeOffset)cTime).ToUnixTimeMilliseconds();
         var ulaTime = laTime == null ? 0 : ((DateTimeOffset)laTime).ToUnixTimeMilliseconds();
         var ulwTime = lwTime == null ? 0 : ((DateTimeOffset)lwTime).ToUnixTimeMilliseconds();
-        _accessor.SetFileTime(node.FullName, ucTime, ulaTime, ulwTime);
         _lock.EnterWriteLock();
+        _device.SetFileTime(node.FullName, ucTime, ulaTime, ulwTime);
         try
         {
             node.CreationTime = cTime;
@@ -190,13 +184,12 @@ public class FileSystemTree
         {
             if (node.Length < offset + data.Length)
                 node.Length = offset + data.Length;
+            _device.WriteFileBuffer(data, node.FullName, offset);
         }
         finally
         {
             _lock.ExitWriteLock();
         }
-
-        _accessor.WriteFileBuffer(data, node.FullName, offset);
     }
 
     //we can cache this
@@ -205,7 +198,7 @@ public class FileSystemTree
         _lock.EnterReadLock();
         try
         {
-            var data = _accessor.ReceiveFileBuffer(buffer, node.FullName, offset, bytesToRead, fileSize);
+            var data = _device.ReceiveFileBuffer(buffer, node.FullName, offset, bytesToRead, fileSize);
             return data;
         }
         finally

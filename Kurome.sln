@@ -2,8 +2,6 @@
 Microsoft Visual Studio Solution File, Format Version 12.00
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Worker", "Worker\Worker.csproj", "{0AE44749-2785-4DD0-9619-BE21746C5939}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Domain", "Domain\Domain.csproj", "{C8F8B51F-EB51-439B-860A-4F0644F75072}"
-EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Application", "Application\Application.csproj", "{70A1C495-377B-48DE-9D77-D8C6970A705A}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Infrastructure", "Infrastructure\Infrastructure.csproj", "{D3CF8ADA-21E8-4EC7-9DC1-A195A1DB45CE}"
@@ -20,10 +18,6 @@ Global
 		{0AE44749-2785-4DD0-9619-BE21746C5939}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{0AE44749-2785-4DD0-9619-BE21746C5939}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{0AE44749-2785-4DD0-9619-BE21746C5939}.Release|Any CPU.Build.0 = Release|Any CPU
-		{C8F8B51F-EB51-439B-860A-4F0644F75072}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{C8F8B51F-EB51-439B-860A-4F0644F75072}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{C8F8B51F-EB51-439B-860A-4F0644F75072}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{C8F8B51F-EB51-439B-860A-4F0644F75072}.Release|Any CPU.Build.0 = Release|Any CPU
 		{70A1C495-377B-48DE-9D77-D8C6970A705A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{70A1C495-377B-48DE-9D77-D8C6970A705A}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{70A1C495-377B-48DE-9D77-D8C6970A705A}.Release|Any CPU.ActiveCfg = Release|Any CPU

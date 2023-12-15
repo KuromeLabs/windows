@@ -1,18 +1,14 @@
 using Kurome.Fbs;
-using Microsoft.Extensions.Logging;
+using Serilog;
+using ILogger = Serilog.ILogger;
 
 namespace Application.flatbuffers;
 
-public class FlatBufferHelper
+public static class FlatBufferHelper
 {
-    private readonly ILogger<FlatBufferHelper> _logger;
+    private static readonly ILogger Logger = Log.ForContext(typeof(FlatBufferHelper));
 
-    public FlatBufferHelper(ILogger<FlatBufferHelper> logger)
-    {
-        _logger = logger;
-    }
-
-    public bool TryGetFileResponseNode(Packet packet, out Node? response)
+    public static bool TryGetFileResponseNode(Packet packet, out Node? response)
     {
         try
         {
@@ -20,7 +16,7 @@ public class FlatBufferHelper
         }
         catch (Exception e)
         {
-            _logger.LogError(e.ToString());
+            Logger.Error(e.ToString());
             response = null;
         }
 
@@ -28,7 +24,7 @@ public class FlatBufferHelper
     }
 
 
-    public bool TryGetFileResponseRaw(Packet packet, out Raw? raw)
+    public static bool TryGetFileResponseRaw(Packet packet, out Raw? raw)
     {
         try
         {
@@ -36,14 +32,14 @@ public class FlatBufferHelper
         }
         catch (Exception e)
         {
-            _logger.LogError(e.ToString());
+            Logger.Error(e.ToString());
             raw = null;
         }
 
         return raw != null;
     }
 
-    public bool TryGetDeviceInfo(Packet packet, out DeviceInfo? deviceInfo)
+    public static bool TryGetDeviceInfo(Packet packet, out DeviceInfo? deviceInfo)
     {
         try
         {
@@ -51,19 +47,19 @@ public class FlatBufferHelper
         }
         catch (Exception e)
         {
-            _logger.LogError(e.ToString());
+            Logger.Error(e.ToString());
             deviceInfo = null;
         }
 
         return deviceInfo != null;
     }
 
-    public Component DeviceInfoSpaceQuery()
+    public static Component DeviceInfoSpaceQuery()
     {
         return new Component(new DeviceQuery { Type = DeviceQueryType.GetSpace });
     }
 
-    public Component CreateFileCommand(string fileName)
+    public static Component CreateFileCommand(string fileName)
     {
         return new Component(new FileCommand
         {
@@ -71,7 +67,7 @@ public class FlatBufferHelper
         });
     }
 
-    public Component CreateDirectoryCommand(string directoryName)
+    public static Component CreateDirectoryCommand(string directoryName)
     {
         return new Component(new FileCommand
         {
@@ -79,7 +75,7 @@ public class FlatBufferHelper
         });
     }
 
-    public Component ReadFileQuery(string fileName, long offset, int length)
+    public static Component ReadFileQuery(string fileName, long offset, int length)
     {
         return new Component(new FileQuery
         {
@@ -87,7 +83,7 @@ public class FlatBufferHelper
         });
     }
 
-    public Component WriteFileCommand(Memory<byte> buffer, string fileName, long offset)
+    public static Component WriteFileCommand(Memory<byte> buffer, string fileName, long offset)
     {
         return new Component(new FileCommand
         {
@@ -99,7 +95,7 @@ public class FlatBufferHelper
         });
     }
 
-    public Component DeleteCommand(string fileName)
+    public static Component DeleteCommand(string fileName)
     {
         return new Component(new FileCommand
         {
@@ -107,7 +103,7 @@ public class FlatBufferHelper
         });
     }
 
-    public Component SetLengthCommand(string fileName, long length)
+    public static Component SetLengthCommand(string fileName, long length)
     {
         return new Component(new FileCommand
         {
@@ -118,7 +114,7 @@ public class FlatBufferHelper
         });
     }
 
-    public Component SetFileTimeCommand(string fileName, long cTime, long laTime, long lwTime)
+    public static Component SetFileTimeCommand(string fileName, long cTime, long laTime, long lwTime)
     {
         return new Component(new FileCommand
         {
@@ -130,7 +126,7 @@ public class FlatBufferHelper
         });
     }
 
-    public Component RenameCommand(string fileName, string newFileName)
+    public static Component RenameCommand(string fileName, string newFileName)
     {
         return new Component(new FileCommand
         {
@@ -141,7 +137,7 @@ public class FlatBufferHelper
         });
     }
 
-    public Component GetDirectoryQuery(string path)
+    public static Component GetDirectoryQuery(string path)
     {
         return new Component(new FileQuery
         {

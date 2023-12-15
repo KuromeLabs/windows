@@ -1,12 +1,14 @@
+using System.Buffers.Binary;
 using System.Net.Security;
-using Application.Interfaces;
 using Serilog;
 
-namespace Infrastructure.Network;
+namespace Application.Network;
 
-public class Link : ILink
+public class Link : IDisposable
 {
     private readonly SslStream _stream;
+
+    public event EventHandler<bool>? IsConnectedChanged;
 
     public Link(SslStream stream)
     {
@@ -15,9 +17,10 @@ public class Link : ILink
 
     public void Dispose()
     {
+        Log.Information("Disposing Link");
+        if (IsConnectedChanged != null) IsConnectedChanged.Invoke(this, false);
         _stream.Close();
         _stream.Dispose();
-        GC.SuppressFinalize(this);
     }
 
     public async Task<int> ReceiveAsync(byte[] buffer, int size, CancellationToken cancellationToken)
@@ -30,6 +33,7 @@ public class Link : ILink
         catch (Exception e)
         {
             Log.Debug("Exception at Link: {@Exception}", e.ToString());
+            Dispose();
             return 0;
         }
     }
@@ -44,6 +48,7 @@ public class Link : ILink
         catch (Exception e)
         {
             Log.Debug("Exception at Link: {@Exception}", e.ToString());
+            Dispose();
             return 0;
         }
     }
@@ -51,5 +56,20 @@ public class Link : ILink
     public void Send(ReadOnlySpan<byte> data, int length)
     {
         _stream.Write(data[..length]);
+    }
+    
+
+    public async void Start(CancellationToken cancellationToken)
+    {
+        if (IsConnectedChanged != null) IsConnectedChanged.Invoke(this, true);
+        // while (!cancellationToken.IsCancellationRequested)
+        // {
+        //     var sizeBuffer = new byte[4];
+        //     await ReceiveAsync(sizeBuffer, 4, cancellationToken);
+        //     var size = BinaryPrimitives.ReadInt32LittleEndian(sizeBuffer);
+        //     var buffer = new byte[size];
+        //     await ReceiveAsync(buffer, size, cancellationToken);
+        //     
+        // }
     }
 }
