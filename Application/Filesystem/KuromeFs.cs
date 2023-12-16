@@ -356,7 +356,17 @@ public class KuromeFs : FileSystemBase
     public override void Cleanup(object fileNode, object fileDesc, string fileName, uint flags)
     {
         var delete = 0 != (flags & CleanupDelete);
-        if (delete) _cache.Delete((BaseNode)fileNode);
+        var node = (BaseNode)fileNode;
+        if (delete)
+        {
+            if (node.IsDirectory)
+            {
+                var dirNode = (DirectoryNode)node;
+                if (dirNode.Children.Count > 0) return;
+            }
+            
+            _cache.Delete(node);
+        }
 
         Log.Information($"Cleanup fileName:{fileName}, delete:{delete}");
     }
