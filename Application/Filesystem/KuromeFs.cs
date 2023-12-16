@@ -111,16 +111,7 @@ public class KuromeFs : FileSystemBase
         {
             fileNode = node;
             normalizedName = node.FullName;
-            fileInfo = new FileInfo
-            {
-                
-                CreationTime = (ulong)(node.CreationTime?.ToFileTimeUtc() ?? 0),
-                LastAccessTime = (ulong)(node.LastAccessTime?.ToFileTimeUtc() ?? 0),
-                LastWriteTime = (ulong)(node.LastWriteTime?.ToFileTimeUtc() ?? 0),
-                FileAttributes = (uint)(node.IsDirectory ? FileAttributes.Directory : FileAttributes.Normal),
-                
-                FileSize = (ulong)node.Length
-            };
+            fileInfo = node.ToFileInfo();
         }
 
         Log.Information($"Open {fileName}, Path: {node?.FullName}, Size: {node?.Length}");
@@ -134,16 +125,7 @@ public class KuromeFs : FileSystemBase
         
         var node = (BaseNode)fileNode;
         Log.Information($"GetFileInfo Path:{node.FullName}");
-        fileInfo = new FileInfo
-        {
-            
-            CreationTime = (ulong)(node.CreationTime?.ToFileTimeUtc() ?? 0),
-            LastAccessTime = (ulong)(node.LastAccessTime?.ToFileTimeUtc() ?? 0),
-            LastWriteTime = (ulong)(node.LastWriteTime?.ToFileTimeUtc() ?? 0),
-            FileAttributes = (uint)(node.IsDirectory ? FileAttributes.Directory : FileAttributes.Normal),
-            
-            FileSize = (ulong)node.Length
-        };
+        fileInfo = node.ToFileInfo();
         return STATUS_SUCCESS;
     }
 
@@ -159,17 +141,7 @@ public class KuromeFs : FileSystemBase
         // TODO: file attributes
         _cache.SetFileTime(node, newCreationTime, newLastAccessTime, newLastWriteTime);
         Log.Information("SetBasicInfo");
-        fileInfo = new FileInfo
-        {
-            
-            CreationTime = (ulong)(node.CreationTime?.ToFileTimeUtc() ?? 0),
-            LastAccessTime = (ulong)(node.LastAccessTime?.ToFileTimeUtc() ?? 0),
-            LastWriteTime = (ulong)(node.LastWriteTime?.ToFileTimeUtc() ?? 0),
-            FileAttributes = (uint)(node.IsDirectory ? FileAttributes.Directory : FileAttributes.Normal),
-            
-            FileSize = (ulong)node.Length
-        };
-        ;
+        fileInfo = node.ToFileInfo();
         return STATUS_SUCCESS;
     }
 
@@ -183,16 +155,7 @@ public class KuromeFs : FileSystemBase
             _cache.SetLength(node, (long)newSize);
         }
 
-        fileInfo = new FileInfo
-        {
-            
-            CreationTime = (ulong)(node.CreationTime?.ToFileTimeUtc() ?? 0),
-            LastAccessTime = (ulong)(node.LastAccessTime?.ToFileTimeUtc() ?? 0),
-            LastWriteTime = (ulong)(node.LastWriteTime?.ToFileTimeUtc() ?? 0),
-            FileAttributes = (uint)(node.IsDirectory ? FileAttributes.Directory : FileAttributes.Normal),
-            
-            FileSize = (ulong)node.Length
-        };
+        fileInfo = node.ToFileInfo();
         return STATUS_SUCCESS;
     }
 
@@ -264,14 +227,7 @@ public class KuromeFs : FileSystemBase
         var node = childrenEnumerator.Current;
         Log.Information($"ReadDirectoryEntry Child: {node.Name}, Path: {node.FullName}");
         fileName = node.Name;
-        fileInfo = new FileInfo
-        {
-            CreationTime = (ulong)(node.CreationTime?.ToFileTimeUtc() ?? 0),
-            LastAccessTime = (ulong)(node.LastAccessTime?.ToFileTimeUtc() ?? 0),
-            LastWriteTime = (ulong)(node.LastWriteTime?.ToFileTimeUtc() ?? 0),
-            FileAttributes = (uint)(node.IsDirectory ? FileAttributes.Directory : FileAttributes.Normal),
-            FileSize = (ulong)node.Length
-        };
+        fileInfo = node.ToFileInfo();
         return true;
     }
 
@@ -306,16 +262,7 @@ public class KuromeFs : FileSystemBase
         Marshal.Copy(buffer, buffer0, 0, (int)bufferSize);
         _cache.Write(node, buffer0, calculatedOffset);
         bytesTransferred = (uint)bufferSize;
-        fileInfo = new FileInfo
-        {
-            
-            CreationTime = (ulong)(node.CreationTime?.ToFileTimeUtc() ?? 0),
-            LastAccessTime = (ulong)(node.LastAccessTime?.ToFileTimeUtc() ?? 0),
-            LastWriteTime = (ulong)(node.LastWriteTime?.ToFileTimeUtc() ?? 0),
-            FileAttributes = (uint)(node.IsDirectory ? FileAttributes.Directory : FileAttributes.Normal),
-            
-            FileSize = (ulong)node.Length
-        };
+        fileInfo = node.ToFileInfo();
         return STATUS_SUCCESS;
     }
 
@@ -347,16 +294,7 @@ public class KuromeFs : FileSystemBase
         }
 
         fileNode = node;
-        fileInfo = new FileInfo
-        {
-            
-            CreationTime = (ulong)(node.CreationTime?.ToFileTimeUtc() ?? 0),
-            LastAccessTime = (ulong)(node.LastAccessTime?.ToFileTimeUtc() ?? 0),
-            LastWriteTime = (ulong)(node.LastWriteTime?.ToFileTimeUtc() ?? 0),
-            FileAttributes = (uint)(node.IsDirectory ? FileAttributes.Directory : FileAttributes.Normal),
-            
-            FileSize = (ulong)node.Length
-        };
+        fileInfo = node.ToFileInfo();
         normalizedName = node.FullName;
 
         return STATUS_SUCCESS;
@@ -365,14 +303,7 @@ public class KuromeFs : FileSystemBase
     public override int Flush(object fileNode, object fileDesc, [UnscopedRef] out FileInfo fileInfo)
     {
         var node = (BaseNode)fileNode;
-        fileInfo = new FileInfo
-        {
-            CreationTime = (ulong)(node.CreationTime?.ToFileTimeUtc() ?? 0),
-            LastAccessTime = (ulong)(node.LastAccessTime?.ToFileTimeUtc() ?? 0),
-            LastWriteTime = (ulong)(node.LastWriteTime?.ToFileTimeUtc() ?? 0),
-            FileAttributes = (uint)(node.IsDirectory ? FileAttributes.Directory : FileAttributes.Normal),
-            FileSize = (ulong)node.Length
-        };
+        fileInfo = node.ToFileInfo();
         return STATUS_SUCCESS;
     }
 
@@ -383,16 +314,7 @@ public class KuromeFs : FileSystemBase
         var node = (BaseNode)fileNode;
         Log.Information($"Overwrite {node.FullName}");
         _cache.SetLength((FileNode)node, 0);
-        fileInfo = new FileInfo
-        {
-            
-            CreationTime = (ulong)(node.CreationTime?.ToFileTimeUtc() ?? 0),
-            LastAccessTime = (ulong)(node.LastAccessTime?.ToFileTimeUtc() ?? 0),
-            LastWriteTime = (ulong)(node.LastWriteTime?.ToFileTimeUtc() ?? 0),
-            FileAttributes = (uint)(node.IsDirectory ? FileAttributes.Directory : FileAttributes.Normal),
-            
-            FileSize = 0
-        };
+        fileInfo = node.ToFileInfo();
         return STATUS_SUCCESS;
     }
 
