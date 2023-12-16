@@ -2,7 +2,6 @@
 using System.IO;
 using System.Threading;
 using Application.Devices;
-using Application.flatbuffers;
 using Application.Interfaces;
 using Application.Persistence;
 using Infrastructure.Devices;
@@ -31,6 +30,7 @@ builder.ConfigureAppConfiguration(c =>
 });
 
 
+
 builder.UseSerilog((hostingContext, services, loggerConfiguration) => loggerConfiguration
         .WriteTo.Console(outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj} <{SourceContext}>{NewLine}{Exception}", theme: Serilog.Sinks.SystemConsole.Themes.AnsiConsoleTheme.Literate )
         .Enrich.FromLogContext()
@@ -38,13 +38,15 @@ builder.UseSerilog((hostingContext, services, loggerConfiguration) => loggerConf
     
 builder.ConfigureServices(services =>
     {
+        services.AddWindowsService(opt =>
+        {
+            opt.ServiceName = "Kurome";
+        });
         services.AddDbContext<DataContext>();
         services.AddSingleton<IIdentityProvider, IdentityProvider>();
         services.AddSingleton<IDeviceRepository, DeviceRepository>();
         services.AddNetworkServices();
-        
     });
-
 var host = builder.Build();
 
 
