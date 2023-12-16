@@ -112,11 +112,13 @@ public class KuromeFs : FileSystemBase
             fileNode = node;
             normalizedName = node.FullName;
             fileInfo = node.ToFileInfo();
+            Log.Information($"Open {fileName}, Path: {node?.FullName}, Size: {node?.Length}");
+            return STATUS_SUCCESS;
         }
 
-        Log.Information($"Open {fileName}, Path: {node?.FullName}, Size: {node?.Length}");
-        // Log.Information(node.FullName);
-        return STATUS_SUCCESS;
+        Log.Information($"Open {fileName}, returning not found");
+        return STATUS_OBJECT_NAME_NOT_FOUND;
+
     }
 
 
@@ -250,7 +252,7 @@ public class KuromeFs : FileSystemBase
         fileInfo = default;
         bytesTransferred = 0;
         var node = (FileNode)fileNode;
-        if (node.Parent == null) return STATUS_SUCCESS;
+        if (node.Parent == null) return STATUS_UNEXPECTED_IO_ERROR;
         var fileSize = node.Length;
 
 
@@ -300,10 +302,11 @@ public class KuromeFs : FileSystemBase
         return STATUS_SUCCESS;
     }
 
-    public override int Flush(object fileNode, object fileDesc, [UnscopedRef] out FileInfo fileInfo)
+    public override int Flush(object? fileNode, object fileDesc, [UnscopedRef] out FileInfo fileInfo)
     {
-        var node = (BaseNode)fileNode;
-        fileInfo = node.ToFileInfo();
+        var node = fileNode as BaseNode;
+        if (node == null) fileInfo = default; 
+        else fileInfo = node.ToFileInfo();
         return STATUS_SUCCESS;
     }
 
