@@ -75,40 +75,29 @@ public class Device : IDisposable
         SendQuery(FlatBufferHelper.RenameCommand(SanitizeName(fileName), SanitizeName(newFileName)));
     }
 
-    public IEnumerable<BaseNode> GetFileNodes(string fileName)
+    public IEnumerable<CacheNode> GetFileNodes(string fileName)
     {
         var response = SendQuery(FlatBufferHelper.GetDirectoryQuery(SanitizeName(fileName)));
         FlatBufferHelper.TryGetFileResponseNode(response, out var result);
 
-        return result!.Children!.Select(x => ((x.Attributes.ExtraAttributes & (uint)FileAttributes.Directory) != 0) switch
+        return result!.Children!.Select(x => new CacheNode
         {
-            false => new FileNode
-            {
-                Name = x.Attributes.Name,
-                Length = x.Attributes.Length,
-                CreationTime = DateTimeOffset.FromUnixTimeMilliseconds(x.Attributes.CreationTime).LocalDateTime,
-                LastAccessTime = DateTimeOffset.FromUnixTimeMilliseconds(x.Attributes!.LastAccessTime).LocalDateTime,
-                LastWriteTime = DateTimeOffset.FromUnixTimeMilliseconds(x.Attributes!.LastWriteTime).LocalDateTime,
-                FileAttributes = x.Attributes.ExtraAttributes
-            },
-            true => (BaseNode)new DirectoryNode
-            {
-                Name = x.Attributes.Name,
-                Length = x.Attributes.Length,
-                CreationTime = DateTimeOffset.FromUnixTimeMilliseconds(x.Attributes.CreationTime).LocalDateTime,
-                LastAccessTime = DateTimeOffset.FromUnixTimeMilliseconds(x.Attributes!.LastAccessTime).LocalDateTime,
-                LastWriteTime = DateTimeOffset.FromUnixTimeMilliseconds(x.Attributes!.LastWriteTime).LocalDateTime,
-            }
+            Name = x.Attributes.Name,
+            Length = x.Attributes.Length,
+            CreationTime = DateTimeOffset.FromUnixTimeMilliseconds(x.Attributes.CreationTime).LocalDateTime,
+            LastAccessTime = DateTimeOffset.FromUnixTimeMilliseconds(x.Attributes!.LastAccessTime).LocalDateTime,
+            LastWriteTime = DateTimeOffset.FromUnixTimeMilliseconds(x.Attributes!.LastWriteTime).LocalDateTime,
+            FileAttributes = x.Attributes.ExtraAttributes
         });
     }
 
-    public BaseNode GetRootNode()
+    public CacheNode GetRootNode()
     {
         try
         {
             var response = SendQuery(FlatBufferHelper.GetDirectoryQuery("/"));
             FlatBufferHelper.TryGetFileResponseNode(response, out var file);
-            return new DirectoryNode
+            return new CacheNode
             {
                 Name = "\\",
                 Length = file.Attributes.Length,

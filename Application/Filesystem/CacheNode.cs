@@ -2,9 +2,9 @@ using FileInfo = Fsp.Interop.FileInfo;
 
 namespace Application.Filesystem;
 
-public abstract class BaseNode
+public class CacheNode
 {
-    public DirectoryNode? Parent { get; set; }
+    public CacheNode? Parent { get; set; }
     public required string Name { get; set; }
 
     public string FullName => (Parent?.FullName ?? string.Empty) +
@@ -13,8 +13,9 @@ public abstract class BaseNode
     public DateTime? CreationTime { get; set; } = DateTime.Now;
     public DateTime? LastAccessTime { get; set; } = DateTime.Now;
     public DateTime? LastWriteTime { get; set; } = DateTime.Now;
-    public abstract long Length { get; set; }
+    public long Length { get; set; } = 0;
     public uint FileAttributes { get; set; }
+    public readonly Dictionary<string, CacheNode> Children = new();
 
     public FileInfo ToFileInfo()
     {

@@ -19,11 +19,11 @@ public class KuromeFs : FileSystemBase
 
     private FileSystemTree _cache;
 
-    protected int Trace(string driveLetter, string method, string? fileName, BaseNode? info, int result,
+    protected int Trace(string driveLetter, string method, string? fileName, CacheNode? info, int result,
         string extra = "")
 
     {
-        _logger.Debug("{0} {1}[\"{2}\" | {3}{4}] -> {5}", driveLetter, method, fileName, info, extra, result);
+        _logger.Debug("{0} {1}[\"{2}\" | {3} {4}] -> {5}", driveLetter, method, fileName, info, extra, result);
         return result;
     }
 
@@ -43,8 +43,8 @@ public class KuromeFs : FileSystemBase
     public override int Init(object host)
     {
         _host = (FileSystemHost)host;
-        var root = _device.GetRootNode() as DirectoryNode;
-        _cache = new FileSystemTree(root!, _device);
+        var root = _device.GetRootNode();
+        _cache = new FileSystemTree(root, _device);
         return Trace(_mountPoint, nameof(Init), null, null, STATUS_SUCCESS);
     }
 
@@ -114,7 +114,7 @@ public class KuromeFs : FileSystemBase
 
     public override int GetFileInfo(object fileNode, object fileDesc, [UnscopedRef] out FileInfo fileInfo)
     {
-        var node = (BaseNode)fileNode;
+        var node = (CacheNode)fileNode;
         fileInfo = node.ToFileInfo();
         return Trace(_mountPoint, nameof(GetFileInfo), node.FullName, node, STATUS_SUCCESS);
     }
@@ -123,13 +123,13 @@ public class KuromeFs : FileSystemBase
         ulong lastAccessTime,
         ulong lastWriteTime, ulong changeTime, [UnscopedRef] out FileInfo fileInfo)
     {
-        var node = (BaseNode)fileNode;
+        var node = (CacheNode)fileNode;
         var newCreationTime = creationTime == 0 ? node.CreationTime : DateTime.FromFileTimeUtc((long)creationTime);
         var newLastAccessTime =
             lastAccessTime == 0 ? node.LastAccessTime : DateTime.FromFileTimeUtc((long)lastAccessTime);
         var newLastWriteTime = lastWriteTime == 0 ? node.LastWriteTime : DateTime.FromFileTimeUtc((long)lastWriteTime);
-        // TODO: file attributes
-        _cache.SetFileTime(node, newCreationTime, newLastAccessTime, newLastWriteTime);
+        var attributes = fileAttributes == unchecked((uint)(-1)) ? node.FileAttributes : fileAttributes;
+        _cache.SetFileAttributes(node, newCreationTime, newLastAccessTime, newLastWriteTime, attributes);
         fileInfo = node.ToFileInfo();
         return Trace(_mountPoint, nameof(SetBasicInfo), null, node, STATUS_SUCCESS,
             $"Attributes: {fileAttributes}, CreationTime: {newCreationTime}, LastAccessTime: {newLastAccessTime}, LastWriteTime: {newLastWriteTime}");
@@ -138,7 +138,7 @@ public class KuromeFs : FileSystemBase
     public override int SetFileSize(object fileNode, object fileDesc, ulong newSize, bool setAllocationSize,
         [UnscopedRef] out FileInfo fileInfo)
     {
-        var node = (FileNode)fileNode;
+        var node = (CacheNode)fileNode;
         if (!setAllocationSize || newSize < (ulong)node.Length)
         {
             _cache.SetLength(node, (long)newSize);
@@ -151,13 +151,13 @@ public class KuromeFs : FileSystemBase
 
     public override int GetSecurity(object fileNode, object fileDesc, ref byte[] securityDescriptor)
     {
-        return Trace(_mountPoint, nameof(GetSecurity), null, (BaseNode)fileNode, STATUS_INVALID_DEVICE_REQUEST);
+        return Trace(_mountPoint, nameof(GetSecurity), null, (CacheNode)fileNode, STATUS_INVALID_DEVICE_REQUEST);
     }
 
     public override int SetSecurity(object fileNode, object fileDesc, AccessControlSections sections,
         byte[] securityDescriptor)
     {
-        return Trace(_mountPoint, nameof(SetSecurity), null, (BaseNode)fileNode, STATUS_INVALID_DEVICE_REQUEST);
+        return Trace(_mountPoint, nameof(SetSecurity), null, (CacheNode)fileNode, STATUS_INVALID_DEVICE_REQUEST);
     }
 
     public override int ReadDirectory(object fileNode, object fileDesc, string pattern, string marker, IntPtr buffer,
@@ -168,7 +168,7 @@ public class KuromeFs : FileSystemBase
 
         var result = BufferedReadDirectory(directoryBuffer, fileNode, fileDesc, pattern, marker, buffer, length,
             out bytesTransferred);
-        return Trace(_mountPoint, nameof(ReadDirectory), null, (BaseNode)fileNode, result,
+        return Trace(_mountPoint, nameof(ReadDirectory), null, (CacheNode)fileNode, result,
             $"Pattern: {pattern}, Marker: {marker}, Length: {length}, BytesTransferred: {bytesTransferred}");
     }
 
@@ -178,16 +178,16 @@ public class KuromeFs : FileSystemBase
     {
         fileName = default;
         fileInfo = default;
-        var fileNode0 = (DirectoryNode)fileNode;
+        var fileNode0 = (CacheNode)fileNode;
         var children = _cache.GetChildren(fileNode0);
-        var childrenEnumerator = (IEnumerator<BaseNode>?)context;
+        var childrenEnumerator = (IEnumerator<CacheNode>?)context;
         if (childrenEnumerator == null)
         {
             context = childrenEnumerator = children.GetEnumerator();
         }
 
         Trace(_mountPoint, nameof(ReadDirectoryEntry), null, fileNode0, -1,
-            $"Pattern: {pattern}, Marker: {marker}, Context: {context}");
+            $"Pattern: {pattern}, Marker: {marker}");
         if (!childrenEnumerator.MoveNext())
         {
             childrenEnumerator.Dispose();
@@ -221,7 +221,7 @@ public class KuromeFs : FileSystemBase
     public override int Read(object fileNode, object fileDesc, IntPtr buffer, ulong offset, uint length,
         [UnscopedRef] out uint bytesTransferred)
     {
-        var node = (FileNode)fileNode;
+        var node = (CacheNode)fileNode;
         var size = node.Length;
         var bytesToRead = (long)offset + length > size ? size - (long)offset : length;
         var buffer0 = new byte[length];
@@ -237,7 +237,7 @@ public class KuromeFs : FileSystemBase
     {
         fileInfo = default;
         bytesTransferred = 0;
-        var node = (FileNode)fileNode;
+        var node = (CacheNode)fileNode;
         if (node.Parent == null) return STATUS_UNEXPECTED_IO_ERROR;
         var fileSize = node.Length;
 
@@ -267,7 +267,7 @@ public class KuromeFs : FileSystemBase
         if (node != null) return Trace(_mountPoint, nameof(Create), fileName, node, STATUS_OBJECT_NAME_COLLISION);
 
         var parentPath = Path.GetDirectoryName(fileName);
-        var parent = parentPath == null ? null : _cache.GetNode(parentPath) as DirectoryNode;
+        var parent = parentPath == null ? null : _cache.GetNode(parentPath);
         if (parent == null) return Trace(_mountPoint, nameof(Create), fileName, node, STATUS_OBJECT_PATH_NOT_FOUND);
         if (0 != (createOptions & FILE_DIRECTORY_FILE))
             node = _cache.CreateDirectoryChild(parent, fileName);
@@ -285,7 +285,7 @@ public class KuromeFs : FileSystemBase
 
     public override int Flush(object? fileNode, object fileDesc, [UnscopedRef] out FileInfo fileInfo)
     {
-        var node = fileNode as BaseNode;
+        var node = fileNode as CacheNode;
         if (node == null) fileInfo = default;
         else fileInfo = node.ToFileInfo();
         return Trace(_mountPoint, nameof(Flush), null, node, STATUS_SUCCESS);
@@ -295,8 +295,8 @@ public class KuromeFs : FileSystemBase
         ulong allocationSize,
         [UnscopedRef] out FileInfo fileInfo)
     {
-        var node = (BaseNode)fileNode;
-        _cache.SetLength((FileNode)node, 0);
+        var node = (CacheNode)fileNode;
+        _cache.SetLength(node, 0);
         fileInfo = node.ToFileInfo();
         return Trace(_mountPoint, nameof(Overwrite), null, node, STATUS_SUCCESS,
             $"FileAttributes: {fileAttributes}, ReplaceFileAttributes: {replaceFileAttributes}, AllocationSize: {allocationSize}");
@@ -307,8 +307,8 @@ public class KuromeFs : FileSystemBase
     {
         _logger.Information($"Rename - oldName:{fileName}, newName:{newFileName}, replaceIfExists:{replaceIfExists}");
         var newNode = _cache.GetNode(newFileName);
-        var oldNode = (BaseNode) fileNode;
-        var destination = _cache.GetNode(Path.GetDirectoryName(newFileName)!) as DirectoryNode;
+        var oldNode = (CacheNode) fileNode;
+        var destination = _cache.GetNode(Path.GetDirectoryName(newFileName)!);
         if (newNode == null)
         {
             if (destination == null) return Trace(_mountPoint, nameof(Rename), fileName, oldNode, STATUS_OBJECT_PATH_NOT_FOUND);
@@ -330,9 +330,9 @@ public class KuromeFs : FileSystemBase
 
     public override int CanDelete(object fileNode, object fileDesc, string fileName)
     {
-        var node = (BaseNode)fileNode;
+        var node = (CacheNode)fileNode;
         var isDirectory = (node.FileAttributes & (int)FileAttributes.Directory) != 0;
-        var cantDelete = isDirectory && ((DirectoryNode)node).Children.Count > 0;
+        var cantDelete = isDirectory && (node).Children.Count > 0;
         if (cantDelete)
             return Trace(_mountPoint, nameof(CanDelete), fileName, node, STATUS_DIRECTORY_NOT_EMPTY);
 
@@ -342,14 +342,13 @@ public class KuromeFs : FileSystemBase
     public override void Cleanup(object fileNode, object fileDesc, string fileName, uint flags)
     {
         var delete = 0 != (flags & CleanupDelete);
-        var node = (BaseNode)fileNode;
+        var node = (CacheNode)fileNode;
         var isDirectory = (node.FileAttributes & (int)FileAttributes.Directory) != 0;
         if (delete)
         {
             if (isDirectory)
             {
-                var dirNode = (DirectoryNode)node;
-                if (dirNode.Children.Count > 0)
+                if (node.Children.Count > 0)
                 {
                     Trace(_mountPoint, nameof(Cleanup), fileName, node, -1, $"Delete: {delete}, Directory not empty (not deleting)");
                     return;
@@ -364,7 +363,7 @@ public class KuromeFs : FileSystemBase
 
     public override void Close(object? fileNode, object fileDesc)
     {
-        var node = fileNode as BaseNode;
+        var node = fileNode as CacheNode;
 
         Trace(_mountPoint, nameof(Close), null, node, -1);
     }
