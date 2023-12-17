@@ -27,4 +27,9 @@ public abstract class BaseNode
             FileSize = (ulong)Length
         };
     }
+
+    public override string ToString()
+    {
+        return $"Name: {Name}, Path: {FullName}, Length: {Length}, IsDirectory: {IsDirectory}";
+    }
 }
