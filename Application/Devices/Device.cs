@@ -79,17 +79,19 @@ public class Device : IDisposable
     {
         var response = SendQuery(FlatBufferHelper.GetDirectoryQuery(SanitizeName(fileName)));
         FlatBufferHelper.TryGetFileResponseNode(response, out var result);
-        return result!.Children!.Select(x => x.Attributes!.Type switch
+
+        return result!.Children!.Select(x => ((x.Attributes.ExtraAttributes & (uint)FileAttributes.Directory) != 0) switch
         {
-            FileType.File => new FileNode
+            false => new FileNode
             {
                 Name = x.Attributes.Name,
                 Length = x.Attributes.Length,
                 CreationTime = DateTimeOffset.FromUnixTimeMilliseconds(x.Attributes.CreationTime).LocalDateTime,
                 LastAccessTime = DateTimeOffset.FromUnixTimeMilliseconds(x.Attributes!.LastAccessTime).LocalDateTime,
                 LastWriteTime = DateTimeOffset.FromUnixTimeMilliseconds(x.Attributes!.LastWriteTime).LocalDateTime,
+                FileAttributes = x.Attributes.ExtraAttributes
             },
-            _ => (BaseNode)new DirectoryNode
+            true => (BaseNode)new DirectoryNode
             {
                 Name = x.Attributes.Name,
                 Length = x.Attributes.Length,
@@ -108,11 +110,12 @@ public class Device : IDisposable
             FlatBufferHelper.TryGetFileResponseNode(response, out var file);
             return new DirectoryNode
             {
-                Name = file!.Attributes!.Name!,
+                Name = "\\",
                 Length = file.Attributes.Length,
                 CreationTime = DateTimeOffset.FromUnixTimeMilliseconds(file.Attributes.CreationTime).LocalDateTime,
                 LastAccessTime = DateTimeOffset.FromUnixTimeMilliseconds(file.Attributes!.LastAccessTime).LocalDateTime,
                 LastWriteTime = DateTimeOffset.FromUnixTimeMilliseconds(file.Attributes!.LastWriteTime).LocalDateTime,
+                FileAttributes = file.Attributes.ExtraAttributes
             };
         }
         catch (Exception e)

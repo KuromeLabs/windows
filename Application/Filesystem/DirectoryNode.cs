@@ -10,5 +10,5 @@ public class DirectoryNode : BaseNode
         set { }
     }
 
-    public override bool IsDirectory => true;
+    // public override bool IsDirectory => true;
 }

@@ -31,10 +31,6 @@ public class KuromeFs : FileSystemBase
     {
         _caseInsensitive = caseInsensitive;
         _device = device;
-        _cache = new(new DirectoryNode
-        {
-            Name = "\\"
-        }, _device);
         VolumeLabel = _device.Name;
     }
 
@@ -47,6 +43,8 @@ public class KuromeFs : FileSystemBase
     public override int Init(object host)
     {
         _host = (FileSystemHost)host;
+        var root = _device.GetRootNode() as DirectoryNode;
+        _cache = new FileSystemTree(root!, _device);
         return Trace(_mountPoint, nameof(Init), null, null, STATUS_SUCCESS);
     }
 
@@ -88,8 +86,7 @@ public class KuromeFs : FileSystemBase
             fileAttributes = (uint)FileAttributes.Normal;
             return STATUS_OBJECT_NAME_NOT_FOUND;
         }
-
-        fileAttributes = (uint)(node is { IsDirectory: true } ? FileAttributes.Directory : FileAttributes.Normal);
+        fileAttributes = node.FileAttributes;
         return Trace(_mountPoint, nameof(GetSecurityByName), fileName, node, STATUS_SUCCESS);
     }
 
@@ -321,7 +318,8 @@ public class KuromeFs : FileSystemBase
 
         if (replaceIfExists)
         {
-            if (newNode.IsDirectory) return Trace(_mountPoint, nameof(Rename), fileName, oldNode, STATUS_ACCESS_DENIED, "NewNode is directory");
+            var isDirectory = (newNode.FileAttributes & (int)FileAttributes.Directory) != 0;
+            if (isDirectory) return Trace(_mountPoint, nameof(Rename), fileName, oldNode, STATUS_ACCESS_DENIED, "NewNode is directory");
             _cache.Delete(newNode);
             _cache.Move(oldNode!, newFileName, destination!);
             return Trace(_mountPoint, nameof(Rename), fileName, oldNode, STATUS_SUCCESS, $"NewNode: {newNode}, Replaced");
@@ -333,7 +331,8 @@ public class KuromeFs : FileSystemBase
     public override int CanDelete(object fileNode, object fileDesc, string fileName)
     {
         var node = (BaseNode)fileNode;
-        var cantDelete = node.IsDirectory && ((DirectoryNode)node).Children.Count > 0;
+        var isDirectory = (node.FileAttributes & (int)FileAttributes.Directory) != 0;
+        var cantDelete = isDirectory && ((DirectoryNode)node).Children.Count > 0;
         if (cantDelete)
             return Trace(_mountPoint, nameof(CanDelete), fileName, node, STATUS_DIRECTORY_NOT_EMPTY);
 
@@ -344,9 +343,10 @@ public class KuromeFs : FileSystemBase
     {
         var delete = 0 != (flags & CleanupDelete);
         var node = (BaseNode)fileNode;
+        var isDirectory = (node.FileAttributes & (int)FileAttributes.Directory) != 0;
         if (delete)
         {
-            if (node.IsDirectory)
+            if (isDirectory)
             {
                 var dirNode = (DirectoryNode)node;
                 if (dirNode.Children.Count > 0)

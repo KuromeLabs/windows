@@ -14,7 +14,7 @@ public abstract class BaseNode
     public DateTime? LastAccessTime { get; set; } = DateTime.Now;
     public DateTime? LastWriteTime { get; set; } = DateTime.Now;
     public abstract long Length { get; set; }
-    public abstract bool IsDirectory { get; }
+    public uint FileAttributes { get; set; }
 
     public FileInfo ToFileInfo()
     {
@@ -23,13 +23,13 @@ public abstract class BaseNode
             CreationTime = (ulong)(CreationTime?.ToFileTimeUtc() ?? 0),
             LastAccessTime = (ulong)(LastAccessTime?.ToFileTimeUtc() ?? 0),
             LastWriteTime = (ulong)(LastWriteTime?.ToFileTimeUtc() ?? 0),
-            FileAttributes = (uint)(IsDirectory ? FileAttributes.Directory : FileAttributes.Normal),
+            FileAttributes = FileAttributes,
             FileSize = (ulong)Length
         };
     }
 
     public override string ToString()
     {
-        return $"Name: {Name}, Path: {FullName}, Length: {Length}, IsDirectory: {IsDirectory}";
+        return $"Name: {Name}, Path: {FullName}, Length: {Length}, Attributes: {FileAttributes}";
     }
 }
