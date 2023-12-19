@@ -32,6 +32,7 @@ public class Device : IDisposable
     private readonly object _lock = new();
     private long _totalSpace = -1;
     private long _freeSpace = -1;
+    private long _lastSpaceUpdate = 0;
 
     public void Connect(Link link)
     {
@@ -120,10 +121,22 @@ public class Device : IDisposable
 
     public void GetSpace(out long total, out long free)
     {
-        var response = SendQuery(FlatBufferHelper.DeviceInfoSpaceQuery());
-        FlatBufferHelper.TryGetDeviceInfo(response, out var deviceInfo);
-        total = deviceInfo!.Space!.TotalBytes;
-        free = deviceInfo.Space.FreeBytes;
+        if (DateTimeOffset.Now.ToUnixTimeMilliseconds() - _lastSpaceUpdate > 15000)
+        {
+            _totalSpace = -1;
+            _freeSpace = -1;
+        }
+        if (_totalSpace == -1 || _freeSpace == -1)
+        {
+            var response = SendQuery(FlatBufferHelper.DeviceInfoSpaceQuery());
+            _lastSpaceUpdate = DateTimeOffset.Now.ToUnixTimeMilliseconds();
+            FlatBufferHelper.TryGetDeviceInfo(response, out var deviceInfo);
+            _totalSpace = deviceInfo!.Space!.TotalBytes;
+            _freeSpace = deviceInfo.Space.FreeBytes;
+        }
+
+        total = _totalSpace;
+        free = _freeSpace;
     }
 
     public void CreateEmptyFile(string fileName)
