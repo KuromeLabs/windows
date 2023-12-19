@@ -37,6 +37,17 @@ public class Device : IDisposable
     public void Connect(Link link)
     {
         _link = link;
+        EventHandler<bool>? linkEvent = null;
+        linkEvent = (s, isConnected) =>
+        {
+            if (!isConnected)
+            {
+                _logger.Information($"Device {Id} disconnected");
+                _link.IsConnectedChanged -= linkEvent;
+                Dispose();
+            }
+        };
+        _link.IsConnectedChanged += linkEvent;
     }
 
     public void Mount()
@@ -58,10 +69,12 @@ public class Device : IDisposable
 
     public void Dispose()
     {
+        _logger.Information($"Unmounting device {Id}");
+        _dokan.Unmount('E');
         _logger.Information($"Disposing device {Id}");
         _link?.Dispose();
-        fsHost?.Unmount();
         _link = null;
+        GC.SuppressFinalize(this);
     }
 
     public void SetLength(string fileName, long length)
@@ -184,20 +197,20 @@ public class Device : IDisposable
         Span<byte> buffer = new byte[4 + size];
         var length = Packet.Serializer.Write(buffer[4..], packet);
         BinaryPrimitives.WriteInt32LittleEndian(buffer[..4], length);
-        _link.Send(buffer, length + 4);
+        _link?.Send(buffer, length + 4);
     }
 
-    private Packet ReadPacket()
+    private Packet? ReadPacket()
     {
         var sizeBuffer = new byte[4];
-        _link.Receive(sizeBuffer, 4);
+        if (_link?.Receive(sizeBuffer, 4) <= 0) return null;
         var size = BinaryPrimitives.ReadInt32LittleEndian(sizeBuffer);
         var buffer = new byte[size];
-        _link.Receive(buffer, size);
+        if (_link?.Receive(buffer, size) <= 0) return null;
         return Packet.Serializer.Parse(buffer);
     }
 
-    private Packet SendQuery(Component component)
+    private Packet? SendQuery(Component component)
     {
         lock (_lock)
         {

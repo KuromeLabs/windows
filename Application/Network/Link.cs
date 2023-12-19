@@ -20,7 +20,7 @@ public class Link : IDisposable
         Log.Information("Disposing Link");
         if (IsConnectedChanged != null) IsConnectedChanged.Invoke(this, false);
         _stream.Close();
-        _stream.Dispose();
+        GC.SuppressFinalize(this);
     }
 
     public async Task<int> ReceiveAsync(byte[] buffer, int size, CancellationToken cancellationToken)
