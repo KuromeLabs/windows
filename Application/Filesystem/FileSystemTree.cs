@@ -82,7 +82,7 @@ public class FileSystemTree
         {
             _device.CreateEmptyFile(fileName);
             node = new CacheNode { Name = Path.GetFileName(fileName) };
-            node.FileAttributes |= (uint)FileAttributes.Normal;
+            node.FileAttributes |= (uint)FileAttributes.Archive;
             directory.Children.Add(Path.GetFileName(fileName), node);
             node.Parent = directory;
         }
@@ -203,6 +203,21 @@ public class FileSystemTree
         try
         {
             var data = _device.ReceiveFileBuffer(buffer, node.FullName, offset, bytesToRead, fileSize);
+            return data;
+        }
+        finally
+        {
+            _lock.ExitReadLock();
+        }
+    }
+
+    public int ReadFileUnsafe(CacheNode node, IntPtr buffer, long offset, int bytesToRead, long fileSize)
+    {
+        _lock.EnterReadLock();
+        try
+        {
+            
+            var data = _device.ReceiveFileBufferUnsafe(buffer, node.FullName, offset, bytesToRead, fileSize);
             return data;
         }
         finally

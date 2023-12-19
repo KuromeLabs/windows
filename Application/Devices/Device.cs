@@ -2,10 +2,12 @@ using System.Buffers.Binary;
 using Application.Filesystem;
 using Application.flatbuffers;
 using Application.Network;
+using DokanNet;
+using DokanNet.Logging;
 using FlatSharp;
-using Fsp;
 using Kurome.Fbs;
 using Serilog;
+using ILogger = Serilog.ILogger;
 
 namespace Application;
 
@@ -24,9 +26,12 @@ public class Device : IDisposable
     public Guid Id { get; set; }
     public string Name { get; set; } = null!;
     private Link? _link { get; set; }
-    private FileSystemHost? fsHost;
+    private DokanInstance? fsHost;
+    private readonly Dokan _dokan = new(null);
     private ILogger _logger = Log.ForContext(typeof(Device));
     private readonly object _lock = new();
+    private long _totalSpace = -1;
+    private long _freeSpace = -1;
 
     public void Connect(Link link)
     {
@@ -35,21 +40,19 @@ public class Device : IDisposable
 
     public void Mount()
     {
-        fsHost = new FileSystemHost(new KuromeFs(false, this));
-        fsHost.FileSystemName = "Kurome";
-        fsHost.FileInfoTimeout = unchecked((uint)(-1));
-        fsHost.Prefix = null;
-        fsHost.PersistentAcls = false;
-        fsHost.ReparsePoints = false;
-        fsHost.ReparsePointsAccessCheck = false;
-        fsHost.NamedStreams = false;
-        fsHost.ExtendedAttributes = false;
-        fsHost.PostCleanupWhenModifiedOnly = true;
-        _logger.Information("Attempting to mount filesystem");
-        if (fsHost.Mount("E:", null, true, unchecked((uint)(-1))) != 0)
-        {
-            _logger.Error("Failed to mount filesystem");
-        }
+        
+        var fs = new KuromeFs(false, this);
+        var builder = new DokanInstanceBuilder(_dokan)
+            .ConfigureLogger(() => new NullLogger())
+            .ConfigureOptions(options =>
+            {
+                options.Options = DokanOptions.FixedDrive;
+                options.MountPoint = "E:" + "\\";
+                options.SingleThread = false;
+            });
+
+        
+        fsHost = builder.Build(fs);
     }
 
     public void Dispose()
@@ -138,6 +141,16 @@ public class Device : IDisposable
         var response = SendQuery(FlatBufferHelper.ReadFileQuery(SanitizeName(fileName), offset, bytesToRead));
         FlatBufferHelper.TryGetFileResponseRaw(response, out var raw);
         raw.Data?.CopyTo(buffer);
+        return raw.Data == null ? 0 : bytesToRead;
+    }
+    
+    public unsafe int ReceiveFileBufferUnsafe(IntPtr buffer, string fileName, long offset, int bytesToRead, long fileSize)
+    {
+        var response = SendQuery(FlatBufferHelper.ReadFileQuery(SanitizeName(fileName), offset, bytesToRead));
+        FlatBufferHelper.TryGetFileResponseRaw(response, out var raw);
+        var memory = raw.Data.Value;
+        var bufferSpan = new Span<byte>(buffer.ToPointer(), bytesToRead);
+        memory.Span.CopyTo(bufferSpan);
         return raw.Data == null ? 0 : bytesToRead;
     }
 

@@ -4,9 +4,11 @@
         <TargetFramework>net8.0</TargetFramework>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
+        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     </PropertyGroup>
 
     <ItemGroup>
+        <PackageReference Include="DokanNet" Version="2.0.5.2" />
         <PackageReference Include="FastExpressionCompiler" Version="4.0.1" />
         <PackageReference Include="FlatSharp.Compiler" Version="7.4.0">
             <PrivateAssets>all</PrivateAssets>
@@ -19,7 +21,6 @@
         <PackageReference Include="Serilog.Extensions.Hosting" Version="8.0.0" />
         <PackageReference Include="Serilog.Settings.Configuration" Version="8.0.0" />
         <PackageReference Include="Serilog.Sinks.Console" Version="5.0.1" />
-        <PackageReference Include="winfsp.net" Version="2.0.23075" />
     </ItemGroup>
 
     <PropertyGroup>

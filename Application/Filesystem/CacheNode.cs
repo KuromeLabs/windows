@@ -1,4 +1,4 @@
-using FileInfo = Fsp.Interop.FileInfo;
+using DokanNet;
 
 namespace Application.Filesystem;
 
@@ -17,15 +17,16 @@ public class CacheNode
     public uint FileAttributes { get; set; }
     public readonly Dictionary<string, CacheNode> Children = new();
 
-    public FileInfo ToFileInfo()
+    public FileInformation ToFileInfo()
     {
-        return new FileInfo
+        return new FileInformation
         {
-            CreationTime = (ulong)(CreationTime?.ToFileTimeUtc() ?? 0),
-            LastAccessTime = (ulong)(LastAccessTime?.ToFileTimeUtc() ?? 0),
-            LastWriteTime = (ulong)(LastWriteTime?.ToFileTimeUtc() ?? 0),
-            FileAttributes = FileAttributes,
-            FileSize = (ulong)Length
+            Attributes = (FileAttributes) FileAttributes,
+            CreationTime = CreationTime,
+            LastAccessTime = LastAccessTime,
+            LastWriteTime = LastWriteTime,
+            Length = Length,
+            FileName = Name
         };
     }
 
