@@ -1,6 +1,6 @@
 
 
-namespace Application.Devices;
+namespace Kurome.Core.Devices;
 
 public class DeviceRepository : IDeviceRepository
 {

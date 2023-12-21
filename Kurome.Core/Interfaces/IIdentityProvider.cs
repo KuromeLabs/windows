@@ -1,4 +1,4 @@
-namespace Application.Interfaces;
+namespace Kurome.Core.Interfaces;
 
 public interface IIdentityProvider
 {

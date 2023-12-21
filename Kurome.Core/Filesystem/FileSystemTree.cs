@@ -1,6 +1,6 @@
 using Serilog;
 
-namespace Application.Filesystem;
+namespace Kurome.Core.Filesystem;
 
 public class FileSystemTree
 {

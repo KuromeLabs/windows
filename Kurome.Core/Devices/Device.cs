@@ -1,15 +1,15 @@
 using System.Buffers.Binary;
-using Application.Filesystem;
-using Application.flatbuffers;
-using Application.Network;
 using DokanNet;
 using DokanNet.Logging;
 using FlatSharp;
+using Kurome.Core.Filesystem;
+using Kurome.Core.flatbuffers;
+using Kurome.Core.Network;
 using Kurome.Fbs;
 using Serilog;
 using ILogger = Serilog.ILogger;
 
-namespace Application;
+namespace Kurome.Core;
 
 public class Device : IDisposable
 {

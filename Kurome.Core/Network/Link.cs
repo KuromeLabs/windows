@@ -2,7 +2,7 @@ using System.Buffers.Binary;
 using System.Net.Security;
 using Serilog;
 
-namespace Application.Network;
+namespace Kurome.Core.Network;
 
 public class Link : IDisposable
 {

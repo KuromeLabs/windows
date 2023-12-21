@@ -1,6 +1,6 @@
 using DokanNet;
 
-namespace Application.Filesystem;
+namespace Kurome.Core.Filesystem;
 
 public class CacheNode
 {

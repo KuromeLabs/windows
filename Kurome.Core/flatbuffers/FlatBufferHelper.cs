@@ -2,7 +2,7 @@ using Kurome.Fbs;
 using Serilog;
 using ILogger = Serilog.ILogger;
 
-namespace Application.flatbuffers;
+namespace Kurome.Core.flatbuffers;
 
 public static class FlatBufferHelper
 {

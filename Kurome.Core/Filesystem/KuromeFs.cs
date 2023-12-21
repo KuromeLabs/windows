@@ -6,7 +6,7 @@ using DokanNet;
 using Serilog;
 using FileAccess = DokanNet.FileAccess;
 
-namespace Application.Filesystem;
+namespace Kurome.Core.Filesystem;
 
 public class KuromeFs : IDokanOperations, IDokanOperationsUnsafe
 {

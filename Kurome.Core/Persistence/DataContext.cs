@@ -1,7 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 
-namespace Application.Persistence;
+namespace Kurome.Core.Persistence;
 
 public class DataContext : DbContext
 {

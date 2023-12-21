@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Hosting;
 
-namespace Application.Interfaces;
+namespace Kurome.Core.Interfaces;
 
 public interface ISecurityService<T> : IHostedService
 {

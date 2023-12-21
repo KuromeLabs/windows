@@ -1,10 +1,10 @@
 ﻿using System;
 using System.IO;
 using System.Threading;
-using Application.Devices;
-using Application.Interfaces;
-using Application.Persistence;
 using Infrastructure.Devices;
+using Kurome.Core.Devices;
+using Kurome.Core.Interfaces;
+using Kurome.Core.Persistence;
 using Kurome.Extensions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
