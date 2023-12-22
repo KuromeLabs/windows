@@ -56,17 +56,17 @@ public class FileSystemTree
     private void UpdateChildren(CacheNode node)
     {
         Log.Information("Attempting to get children from device with path {0}", node.FullName);
-        Log.Information("Current Node's name: {0}", node.Name);
         _lock.EnterWriteLock();
         var nodes = _device.GetFileNodes(node.FullName);
         try
         {
             node.Children.Clear();
-            foreach (var n in nodes)
-            {
-                n.Parent = node;
-                node.Children.Add(n.Name, n);
-            }
+            if (nodes != null)
+                foreach (var n in nodes)
+                {
+                    n.Parent = node;
+                    node.Children.Add(n.Name, n);
+                }
         }
         finally
         {
@@ -193,36 +193,6 @@ public class FileSystemTree
         finally
         {
             _lock.ExitWriteLock();
-        }
-    }
-
-    //we can cache this
-    public int ReadFile(CacheNode node, byte[] buffer, long offset, int bytesToRead, long fileSize)
-    {
-        _lock.EnterReadLock();
-        try
-        {
-            var data = _device.ReceiveFileBuffer(buffer, node.FullName, offset, bytesToRead, fileSize);
-            return data;
-        }
-        finally
-        {
-            _lock.ExitReadLock();
-        }
-    }
-
-    public int ReadFileUnsafe(CacheNode node, IntPtr buffer, long offset, int bytesToRead, long fileSize)
-    {
-        _lock.EnterReadLock();
-        try
-        {
-            
-            var data = _device.ReceiveFileBufferUnsafe(buffer, node.FullName, offset, bytesToRead, fileSize);
-            return data;
-        }
-        finally
-        {
-            _lock.ExitReadLock();
         }
     }
 }

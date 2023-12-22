@@ -92,14 +92,13 @@ public class Device : IDisposable
         SendQuery(FlatBufferHelper.RenameCommand(SanitizeName(fileName), SanitizeName(newFileName)));
     }
 
-    public IEnumerable<CacheNode> GetFileNodes(string fileName)
+    public IEnumerable<CacheNode>? GetFileNodes(string fileName)
     {
         var response = SendQuery(FlatBufferHelper.GetDirectoryQuery(SanitizeName(fileName)));
-        FlatBufferHelper.TryGetFileResponseNode(response, out var result);
-
+        if (response == null || !FlatBufferHelper.TryGetFileResponseNode(response, out var result)) return null;
         return result!.Children!.Select(x => new CacheNode
         {
-            Name = x.Attributes.Name,
+            Name = x.Attributes!.Name!,
             Length = x.Attributes.Length,
             CreationTime = DateTimeOffset.FromUnixTimeMilliseconds(x.Attributes.CreationTime).LocalDateTime,
             LastAccessTime = DateTimeOffset.FromUnixTimeMilliseconds(x.Attributes!.LastAccessTime).LocalDateTime,
@@ -108,16 +107,16 @@ public class Device : IDisposable
         });
     }
 
-    public CacheNode GetRootNode()
+    public CacheNode? GetRootNode()
     {
         try
         {
             var response = SendQuery(FlatBufferHelper.GetDirectoryQuery("/"));
-            FlatBufferHelper.TryGetFileResponseNode(response, out var file);
+            if (response == null || !FlatBufferHelper.TryGetFileResponseNode(response, out var file)) return null;
             return new CacheNode
             {
                 Name = "\\",
-                Length = file.Attributes.Length,
+                Length = file!.Attributes!.Length,
                 CreationTime = DateTimeOffset.FromUnixTimeMilliseconds(file.Attributes.CreationTime).LocalDateTime,
                 LastAccessTime = DateTimeOffset.FromUnixTimeMilliseconds(file.Attributes!.LastAccessTime).LocalDateTime,
                 LastWriteTime = DateTimeOffset.FromUnixTimeMilliseconds(file.Attributes!.LastWriteTime).LocalDateTime,
@@ -126,13 +125,13 @@ public class Device : IDisposable
         }
         catch (Exception e)
         {
-            _logger.Fatal(e.ToString());
+            _logger.Error(e.ToString());
         }
 
-        throw new Exception("Failed to get root node");
+        return null;
     }
 
-    public void GetSpace(out long total, out long free)
+    public bool GetSpace(out long total, out long free)
     {
         if (DateTimeOffset.Now.ToUnixTimeMilliseconds() - _lastSpaceUpdate > 15000)
         {
@@ -143,13 +142,19 @@ public class Device : IDisposable
         {
             var response = SendQuery(FlatBufferHelper.DeviceInfoSpaceQuery());
             _lastSpaceUpdate = DateTimeOffset.Now.ToUnixTimeMilliseconds();
-            FlatBufferHelper.TryGetDeviceInfo(response, out var deviceInfo);
+            if (response == null || !FlatBufferHelper.TryGetDeviceInfo(response, out var deviceInfo))
+            {
+                total = 0;
+                free = 0;
+                return false;
+            }
             _totalSpace = deviceInfo!.Space!.TotalBytes;
             _freeSpace = deviceInfo.Space.FreeBytes;
         }
 
         total = _totalSpace;
         free = _freeSpace;
+        return true;
     }
 
     public void CreateEmptyFile(string fileName)
@@ -162,19 +167,19 @@ public class Device : IDisposable
         SendQuery(FlatBufferHelper.CreateDirectoryCommand(SanitizeName(directoryName)));
     }
 
-    public int ReceiveFileBuffer(byte[] buffer, string fileName, long offset, int bytesToRead, long fileSize)
+    public int ReceiveFileBuffer(byte[] buffer, string fileName, long offset, int bytesToRead)
     {
         var response = SendQuery(FlatBufferHelper.ReadFileQuery(SanitizeName(fileName), offset, bytesToRead));
-        FlatBufferHelper.TryGetFileResponseRaw(response, out var raw);
-        raw.Data?.CopyTo(buffer);
+        if (response == null || !FlatBufferHelper.TryGetFileResponseRaw(response, out var raw)) return 0;
+        raw!.Data?.CopyTo(buffer);
         return raw.Data == null ? 0 : bytesToRead;
     }
     
-    public unsafe int ReceiveFileBufferUnsafe(IntPtr buffer, string fileName, long offset, int bytesToRead, long fileSize)
+    public unsafe int ReceiveFileBufferUnsafe(IntPtr buffer, string fileName, long offset, int bytesToRead)
     {
         var response = SendQuery(FlatBufferHelper.ReadFileQuery(SanitizeName(fileName), offset, bytesToRead));
-        FlatBufferHelper.TryGetFileResponseRaw(response, out var raw);
-        var memory = raw.Data.Value;
+        if (response == null || !FlatBufferHelper.TryGetFileResponseRaw(response, out var raw)) return 0;
+        var memory = raw!.Data!.Value;
         var bufferSpan = new Span<byte>(buffer.ToPointer(), bytesToRead);
         memory.Span.CopyTo(bufferSpan);
         return raw.Data == null ? 0 : bytesToRead;
