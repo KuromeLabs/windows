@@ -21,10 +21,15 @@ public class DeviceRepository : IDeviceRepository
     public void AddActiveDevice(Device device)
     {
         _activeDevices.Add(device.Id, device);
+        DeviceAdded?.Invoke(this, device);
     }
 
     public void RemoveActiveDevice(Device device)
     {
         _activeDevices.Remove(device.Id);
+        DeviceRemoved?.Invoke(this, device);
     }
+
+    public event EventHandler<Device>? DeviceAdded;
+    public event EventHandler<Device>? DeviceRemoved;
 }

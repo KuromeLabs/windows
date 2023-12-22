@@ -1,15 +1,15 @@
-using Application.Interfaces;
+using Kurome.Core.Interfaces;
 
 namespace Infrastructure.Devices;
 
 public class IdentityProvider : IIdentityProvider
 {
     private string? _id;
-    private string? Name;
+    private string? _name;
 
     public string GetEnvironmentName()
     {
-        return Name ??= Environment.MachineName;
+        return _name ??= Environment.MachineName;
     }
 
     public string GetEnvironmentId()

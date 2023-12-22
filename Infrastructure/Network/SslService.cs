@@ -1,6 +1,6 @@
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
-using Application.Interfaces;
+using Kurome.Core.Interfaces;
 using Microsoft.Extensions.Logging;
 
 namespace Infrastructure.Network;
