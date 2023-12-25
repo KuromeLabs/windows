@@ -7,6 +7,7 @@ namespace Kurome.Core.Network;
 public class Link : IDisposable
 {
     private readonly SslStream _stream;
+    private bool IsDisposed { get; set; } = false;
 
     public event EventHandler<bool>? IsConnectedChanged;
 
@@ -17,8 +18,10 @@ public class Link : IDisposable
 
     public void Dispose()
     {
+        if (IsDisposed) return;
+        IsDisposed = true;
         Log.Information("Disposing Link");
-        if (IsConnectedChanged != null) IsConnectedChanged.Invoke(this, false);
+        IsConnectedChanged?.Invoke(this, false);
         _stream.Close();
         GC.SuppressFinalize(this);
     }
@@ -61,7 +64,7 @@ public class Link : IDisposable
 
     public async void Start(CancellationToken cancellationToken)
     {
-        if (IsConnectedChanged != null) IsConnectedChanged.Invoke(this, true);
+        IsConnectedChanged?.Invoke(this, true);
         // while (!cancellationToken.IsCancellationRequested)
         // {
         //     var sizeBuffer = new byte[4];

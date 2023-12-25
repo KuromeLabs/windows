@@ -20,7 +20,7 @@ public class DeviceRepository : IDeviceRepository
 
     public void AddActiveDevice(Device device)
     {
-        _activeDevices.Add(device.Id, device);
+        _activeDevices.TryAdd(device.Id, device);
         DeviceAdded?.Invoke(this, device);
     }
 

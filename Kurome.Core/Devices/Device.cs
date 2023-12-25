@@ -26,8 +26,8 @@ public class Device : IDisposable
     public Guid Id { get; set; }
     public string Name { get; set; } = null!;
     private Link? _link { get; set; }
-    private DokanInstance? fsHost;
-    private readonly Dokan _dokan = new(null);
+    private DokanInstance? _fsHost;
+    private Dokan? _dokan;
     private ILogger _logger = Log.ForContext(typeof(Device));
     private readonly object _lock = new();
     private long _totalSpace = -1;
@@ -37,22 +37,12 @@ public class Device : IDisposable
     public void Connect(Link link)
     {
         _link = link;
-        EventHandler<bool>? linkEvent = null;
-        linkEvent = (s, isConnected) =>
-        {
-            if (!isConnected)
-            {
-                _logger.Information($"Device {Id} disconnected");
-                _link.IsConnectedChanged -= linkEvent;
-                Dispose();
-            }
-        };
-        _link.IsConnectedChanged += linkEvent;
     }
 
     public void Mount()
     {
-        
+        _logger.Information($"Mounting device {Id}");
+        _dokan = new Dokan(null);
         var fs = new KuromeFs(false, this);
         var builder = new DokanInstanceBuilder(_dokan)
             .ConfigureLogger(() => new NullLogger())
@@ -64,16 +54,19 @@ public class Device : IDisposable
             });
 
         
-        fsHost = builder.Build(fs);
+        _fsHost = builder.Build(fs);
     }
 
     public void Dispose()
     {
         _logger.Information($"Unmounting device {Id}");
-        _dokan.Unmount('E');
+        _dokan?.Unmount('E');
+        _fsHost?.WaitForFileSystemClosed(5000);
         _logger.Information($"Disposing device {Id}");
         _link?.Dispose();
         _link = null;
+        _fsHost = null;
+        _dokan = null;
         GC.SuppressFinalize(this);
     }
 

@@ -17,7 +17,7 @@ public class KuromeFs : IDokanOperations, IDokanOperationsUnsafe
     private string _mountPoint = "";
     private readonly ILogger _logger = Log.ForContext(typeof(KuromeFs));
 
-    private FileSystemTree _cache;
+    private FileSystemTree? _cache;
 
     protected NtStatus Trace(string driveLetter, string method, string? fileName, CacheNode? info, NtStatus result,
         string extra = "")
@@ -33,8 +33,6 @@ public class KuromeFs : IDokanOperations, IDokanOperationsUnsafe
         _device = device;
         _maximumComponentLength = maximumComponentLength;
         VolumeLabel = _device.Name;
-        var root = _device.GetRootNode();
-        _cache = new FileSystemTree(root, _device);
     }
     
     string illegalCharacters = "*";
@@ -60,7 +58,7 @@ public class KuromeFs : IDokanOperations, IDokanOperationsUnsafe
         //TODO: Find workaround/ask for root/ask permission (for obb)/etc.
         if (fileName.StartsWith("\\Android\\data") || fileName.StartsWith("\\Android\\obb"))
             return Trace(_mountPoint, nameof(CreateFile), fileName, null, DokanResult.AccessDenied, $"Mode: {mode}, Attributes: {attributes}, Options: {options}, Share: {share}, Access: {access}");
-        var node = _cache.GetNode(fileName);
+        var node = _cache?.GetNode(fileName);
         
         info.Context = node;
         var nodeExists = node != null;
@@ -361,6 +359,8 @@ public class KuromeFs : IDokanOperations, IDokanOperationsUnsafe
     public NtStatus Mounted(string mountPoint, IDokanFileInfo info)
     {
         _mountPoint = mountPoint;
+        var root = _device.GetRootNode();
+        _cache = new FileSystemTree(root, _device);
         return Trace(_mountPoint, nameof(Mounted), null, null, DokanResult.Success);
     }
 

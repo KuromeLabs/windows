@@ -148,11 +148,19 @@ public class LinkProvider
 
         var id = info.Item1;
         var name = info.Item2;
+        var existingDevice = _deviceRepository.GetActiveDevices().FirstOrDefault(x => x.Id == id);
+        if (existingDevice != null)
+        {
+            _logger.LogInformation("Device {Name} ({Id}) is already active, reconnecting", name, id);
+            existingDevice.Dispose();
+            _deviceRepository.RemoveActiveDevice(existingDevice);
+        }
         Link? result = null;
         try
         {
             var stream = new SslStream(client.GetStream(), false, (_, _, _, _) => true);
-            await stream.AuthenticateAsServerAsync(_sslService.GetSecurityContext(), true, SslProtocols.None, true); 
+            await stream.AuthenticateAsServerAsync(_sslService.GetSecurityContext(), true, SslProtocols.None, true);
+            stream.ReadTimeout = 5000;
             result = new Link(stream);
             
         }
@@ -167,7 +175,7 @@ public class LinkProvider
         var device = new Device(id, name);
         device.Connect(result);
         _deviceRepository.AddActiveDevice(device);
-        result.Start(cancellationToken);
+        
         EventHandler<bool>? handler = null;
         handler = (sender, isConnected) =>
         {
@@ -180,9 +188,11 @@ public class LinkProvider
             {
                 _deviceRepository.RemoveActiveDevice(device);
                 result.IsConnectedChanged -= handler;
+                device.Dispose();
             }
         };
         result.IsConnectedChanged += handler;
+        result.Start(cancellationToken);
         device.Mount();
     }
 
