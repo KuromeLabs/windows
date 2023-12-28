@@ -13,9 +13,7 @@ namespace Kurome.Core;
 
 public class Device : IDisposable
 {
-    public Device()
-    {
-    }
+    private IFileSystemHost? _fileSystemHost;
 
     public Device(Guid id, string name)
     {
@@ -23,50 +21,53 @@ public class Device : IDisposable
         Name = name;
     }
 
+    public Device()
+    {
+    }
+
+    ~Device()
+    {
+        Dispose(false);
+    }
+
     public Guid Id { get; set; }
     public string Name { get; set; } = null!;
     private Link? _link { get; set; }
-    private DokanInstance? _fsHost;
-    private Dokan? _dokan;
     private ILogger _logger = Log.ForContext(typeof(Device));
     private readonly object _lock = new();
     private long _totalSpace = -1;
     private long _freeSpace = -1;
     private long _lastSpaceUpdate = 0;
+    private bool Disposed { get; set; } = false;
 
     public void Connect(Link link)
     {
         _link = link;
     }
 
-    public void Mount()
+    public void Mount(IFileSystemHost fileSystemHost)
     {
+        _fileSystemHost = fileSystemHost;
         _logger.Information($"Mounting device {Id}");
-        _dokan = new Dokan(null);
-        var fs = new KuromeFs(false, this);
-        var builder = new DokanInstanceBuilder(_dokan)
-            .ConfigureLogger(() => new NullLogger())
-            .ConfigureOptions(options =>
-            {
-                options.Options = DokanOptions.FixedDrive;
-                options.MountPoint = "E:" + "\\";
-                options.SingleThread = false;
-            });
+        _fileSystemHost.Mount("E", this);
+    }
 
-        
-        _fsHost = builder.Build(fs);
+    protected virtual void Dispose(bool disposing)
+    {
+        if (Disposed) return;
+        _logger.Information($"Disposing device {Id}");
+        if (disposing) {
+            _logger.Information($"Unmounting device {Id}");
+            _fileSystemHost?.Unmount("E");
+            _link?.Dispose();
+            _link = null;
+        }
+        Disposed = true;
     }
 
     public void Dispose()
     {
-        _logger.Information($"Unmounting device {Id}");
-        _dokan?.Unmount('E');
-        _fsHost?.WaitForFileSystemClosed(5000);
-        _logger.Information($"Disposing device {Id}");
-        _link?.Dispose();
-        _link = null;
-        _fsHost = null;
-        _dokan = null;
+        Dispose(true);
         GC.SuppressFinalize(this);
     }
 

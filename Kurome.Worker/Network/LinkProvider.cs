@@ -18,6 +18,7 @@ using Kurome.Core.flatbuffers;
 using Kurome.Core.Interfaces;
 using Kurome.Core.Network;
 using FlatSharp;
+using Kurome.Core.Filesystem;
 using Kurome.Fbs;
 using Microsoft.Extensions.Logging;
 
@@ -29,14 +30,16 @@ public class LinkProvider
     private readonly ISecurityService<X509Certificate2> _sslService;
     private readonly ILogger<LinkProvider> _logger;
     private readonly IDeviceRepository _deviceRepository;
+    private readonly IFileSystemHost _fileSystemHost;
 
     public LinkProvider(IIdentityProvider identityProvider, ISecurityService<X509Certificate2> sslService,
-        ILogger<LinkProvider> logger, IDeviceRepository deviceRepository)
+        ILogger<LinkProvider> logger, IDeviceRepository deviceRepository, IFileSystemHost fileSystemHost)
     {
         _identityProvider = identityProvider;
         _sslService = sslService;
         _logger = logger;
         _deviceRepository = deviceRepository;
+        _fileSystemHost = fileSystemHost;
     }
 
     private async void StartUdpListener()
@@ -186,14 +189,14 @@ public class LinkProvider
             }
             else
             {
-                _deviceRepository.RemoveActiveDevice(device);
                 result.IsConnectedChanged -= handler;
+                _deviceRepository.RemoveActiveDevice(device);
                 device.Dispose();
             }
         };
         result.IsConnectedChanged += handler;
         result.Start(cancellationToken);
-        device.Mount();
+        device.Mount(_fileSystemHost);
     }
 
 

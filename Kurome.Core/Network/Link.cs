@@ -1,4 +1,3 @@
-using System.Buffers.Binary;
 using System.Net.Security;
 using Serilog;
 
@@ -7,7 +6,7 @@ namespace Kurome.Core.Network;
 public class Link : IDisposable
 {
     private readonly SslStream _stream;
-    private bool IsDisposed { get; set; } = false;
+    private bool Disposed { get; set; } = false;
 
     public event EventHandler<bool>? IsConnectedChanged;
 
@@ -16,13 +15,20 @@ public class Link : IDisposable
         _stream = stream;
     }
 
+    protected virtual void Dispose(bool disposing)
+    {
+        if (Disposed) return;
+        if (disposing)
+        {
+            _stream.Dispose();
+            Disposed = true;
+        }
+        
+    }
+    
     public void Dispose()
     {
-        if (IsDisposed) return;
-        IsDisposed = true;
-        Log.Information("Disposing Link");
-        IsConnectedChanged?.Invoke(this, false);
-        _stream.Close();
+        Dispose(true);
         GC.SuppressFinalize(this);
     }
 
@@ -36,7 +42,7 @@ public class Link : IDisposable
         catch (Exception e)
         {
             Log.Debug("Exception at Link: {@Exception}", e.ToString());
-            Dispose();
+            IsConnectedChanged?.Invoke(this, false);
             return 0;
         }
     }
@@ -51,7 +57,7 @@ public class Link : IDisposable
         catch (Exception e)
         {
             Log.Debug("Exception at Link: {@Exception}", e.ToString());
-            Dispose();
+            IsConnectedChanged?.Invoke(this, false);
             return 0;
         }
     }

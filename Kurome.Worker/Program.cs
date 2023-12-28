@@ -3,6 +3,7 @@ using System.IO;
 using System.Threading;
 using Infrastructure.Devices;
 using Kurome.Core.Devices;
+using Kurome.Core.Filesystem;
 using Kurome.Core.Interfaces;
 using Kurome.Core.Persistence;
 using Kurome.Extensions;
@@ -45,6 +46,7 @@ builder.ConfigureServices(services =>
         services.AddDbContext<DataContext>();
         services.AddSingleton<IIdentityProvider, IdentityProvider>();
         services.AddSingleton<IDeviceRepository, DeviceRepository>();
+        services.AddSingleton<IFileSystemHost, FileSystemHost>();
         services.AddNetworkServices();
     });
 var host = builder.Build();
