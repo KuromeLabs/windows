@@ -7,6 +7,7 @@ public class Link : IDisposable
 {
     private readonly SslStream _stream;
     private bool Disposed { get; set; } = false;
+    private readonly ILogger _logger = Serilog.Log.ForContext(typeof(Link));
 
     public event EventHandler<bool>? IsConnectedChanged;
 
@@ -23,11 +24,11 @@ public class Link : IDisposable
             _stream.Dispose();
             Disposed = true;
         }
-        
     }
-    
+
     public void Dispose()
     {
+        _logger.Information("Disposing Link");
         Dispose(true);
         GC.SuppressFinalize(this);
     }

@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using DokanNet;
 
 namespace Kurome.Core.Filesystem;
@@ -15,7 +16,8 @@ public class CacheNode
     public DateTime? LastWriteTime { get; set; } = DateTime.Now;
     public long Length { get; set; } = 0;
     public uint FileAttributes { get; set; }
-    public readonly Dictionary<string, CacheNode> Children = new();
+    public readonly ConcurrentDictionary<string, CacheNode> Children = new();
+    public readonly object NodeLock = new();
 
     public FileInformation ToFileInfo()
     {

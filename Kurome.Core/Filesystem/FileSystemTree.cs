@@ -4,7 +4,6 @@ namespace Kurome.Core.Filesystem;
 
 public class FileSystemTree
 {
-    private readonly ReaderWriterLockSlim _lock = new();
     public CacheNode Root;
     private readonly Device _device;
 
@@ -16,20 +15,12 @@ public class FileSystemTree
 
     public CacheNode? GetNode(string path)
     {
-        _lock.EnterUpgradeableReadLock();
-        try
-        {
-            var parts = new Queue<string>(path.Split('\\', StringSplitOptions.RemoveEmptyEntries));
-            var result = (CacheNode)Root;
-            while (result != null && parts.Count > 0 && (result.FileAttributes & (uint) FileAttributes.Directory) != 0)
-                result = GetChild(parts.Dequeue(), (CacheNode)result);
-            if (parts.Count > 0) result = null;
-            return result;
-        }
-        finally
-        {
-            _lock.ExitUpgradeableReadLock();
-        }
+        var parts = new Queue<string>(path.Split('\\', StringSplitOptions.RemoveEmptyEntries));
+        var result = (CacheNode)Root;
+        while (result != null && parts.Count > 0 && (result.FileAttributes & (uint)FileAttributes.Directory) != 0)
+            result = GetChild(parts.Dequeue(), (CacheNode)result);
+        if (parts.Count > 0) result = null;
+        return result;
     }
 
     private CacheNode? GetChild(string child, CacheNode node)
@@ -40,159 +31,77 @@ public class FileSystemTree
 
     public IEnumerable<CacheNode> GetChildren(CacheNode node)
     {
-        _lock.EnterUpgradeableReadLock();
-        try
-        {
-            if (node.Children.Count == 0) UpdateChildren(node);
-
-            return node.Children.Values;
-        }
-        finally
-        {
-            _lock.ExitUpgradeableReadLock();
-        }
+        if (node.Children.Count == 0) UpdateChildren(node);
+        return node.Children.Values;
     }
 
     private void UpdateChildren(CacheNode node)
     {
         Log.Information("Attempting to get children from device with path {0}", node.FullName);
-        _lock.EnterWriteLock();
         var nodes = _device.GetFileNodes(node.FullName);
-        try
-        {
-            node.Children.Clear();
-            if (nodes != null)
-                foreach (var n in nodes)
-                {
-                    n.Parent = node;
-                    node.Children.Add(n.Name, n);
-                }
-        }
-        finally
-        {
-            _lock.ExitWriteLock();
-        }
+        node.Children.Clear();
+        if (nodes != null)
+            foreach (var n in nodes)
+            {
+                n.Parent = node;
+                node.Children.TryAdd(n.Name, n);
+            }
     }
 
     public CacheNode CreateFileChild(CacheNode directory, string fileName)
     {
-        _lock.EnterWriteLock();
-        CacheNode node;
-        try
-        {
-            _device.CreateEmptyFile(fileName);
-            node = new CacheNode { Name = Path.GetFileName(fileName) };
-            node.FileAttributes |= (uint)FileAttributes.Archive;
-            directory.Children.Add(Path.GetFileName(fileName), node);
-            node.Parent = directory;
-        }
-        finally
-        {
-            _lock.ExitWriteLock();
-        }
+        _device.CreateEmptyFile(fileName);
+        var node = new CacheNode { Name = Path.GetFileName(fileName) };
+        node.FileAttributes |= (uint)FileAttributes.Archive;
+        directory.Children.TryAdd(Path.GetFileName(fileName), node);
+        node.Parent = directory;
 
         return node;
     }
 
     public CacheNode CreateDirectoryChild(CacheNode directory, string directoryName)
     {
-        CacheNode node;
-        _lock.EnterWriteLock();
         _device.CreateDirectory(directoryName);
-        try
-        {
-            node = new CacheNode { Name = Path.GetFileName(directoryName) };
-            node.FileAttributes |= (uint)FileAttributes.Directory;
-            directory.Children.Add(Path.GetFileName(directoryName), node);
-            node.Parent = directory;
-        }
-        finally
-        {
-            _lock.ExitWriteLock();
-        }
+        var node = new CacheNode { Name = Path.GetFileName(directoryName) };
+        node.FileAttributes |= (uint)FileAttributes.Directory;
+        directory.Children.TryAdd(Path.GetFileName(directoryName), node);
+        node.Parent = directory;
 
         return node;
     }
 
     public void SetLength(CacheNode node, long length)
     {
-        _lock.EnterWriteLock();
         _device.SetLength(node.FullName, length);
-        try
-        {
-            node.Length = length;
-        }
-        finally
-        {
-            _lock.ExitWriteLock();
-        }
+        node.Length = length;
     }
 
     public void Move(CacheNode oldNode, string newName, CacheNode destination)
     {
-        _lock.EnterWriteLock();
         _device.Rename(oldNode.FullName, newName);
-        try
-        {
-            oldNode.Parent!.Children.Remove(oldNode.Name);
-            oldNode.Name = Path.GetFileName(newName);
-            oldNode.Parent = destination;
-            destination.Children.Add(Path.GetFileName(newName), oldNode);
-        }
-        finally
-        {
-            _lock.ExitWriteLock();
-        }
+        oldNode.Parent!.Children.TryRemove(oldNode.Name, out _);
+        oldNode.Name = Path.GetFileName(newName);
+        oldNode.Parent = destination;
+        destination.Children.TryAdd(Path.GetFileName(newName), oldNode);
     }
 
     public void Delete(CacheNode node)
     {
-        _lock.EnterWriteLock();
         _device.Delete(node.FullName);
-        try
-        {
-            node.Parent!.Children.Remove(node.Name);
-            node.Parent = null;
-        }
-        finally
-        {
-            _lock.ExitWriteLock();
-        }
+        node.Parent!.Children.TryRemove(node.Name, out _);
+        node.Parent = null;
     }
 
     public void SetFileAttributes(CacheNode node, DateTime? cTime, DateTime? laTime, DateTime? lwTime, uint attributes)
     {
-        var ucTime = cTime == null ? 0 : ((DateTimeOffset)cTime).ToUnixTimeMilliseconds();
-        var ulaTime = laTime == null ? 0 : ((DateTimeOffset)laTime).ToUnixTimeMilliseconds();
-        var ulwTime = lwTime == null ? 0 : ((DateTimeOffset)lwTime).ToUnixTimeMilliseconds();
-        _lock.EnterWriteLock();
-        
-        try
-        {
-            node.FileAttributes = attributes;
-            _device.SetFileTime(node.FullName, ucTime, ulaTime, ulwTime);
-            node.CreationTime = cTime;
-            node.LastAccessTime = laTime;
-            node.LastWriteTime = lwTime;
-        }
-        finally
-        {
-            _lock.ExitWriteLock();
-        }
-    }
+        var ucTime = cTime?.ToFileTimeUtc() ?? 0;
+        var ulaTime = laTime?.ToFileTimeUtc() ?? 0;
+        var ulwTime = lwTime?.ToFileTimeUtc() ?? 0;
 
-    public void Write(CacheNode node, Memory<byte> data, long offset)
-    {
-        _lock.EnterWriteLock();
-        try
-        {
-            if (node.Length < offset + data.Length)
-                node.Length = offset + data.Length;
-            _device.WriteFileBuffer(data, node.FullName, offset);
-        }
-        finally
-        {
-            _lock.ExitWriteLock();
-        }
+        node.FileAttributes = attributes;
+        _device.SetFileTime(node.FullName, ucTime, ulaTime, ulwTime);
+        node.CreationTime = cTime;
+        node.LastAccessTime = laTime;
+        node.LastWriteTime = lwTime;
     }
 }

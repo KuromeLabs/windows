@@ -1,6 +1,6 @@
+using System.Buffers;
 using System.Buffers.Binary;
-using DokanNet;
-using DokanNet.Logging;
+using System.Runtime.InteropServices;
 using FlatSharp;
 using Kurome.Core.Filesystem;
 using Kurome.Core.flatbuffers;
@@ -25,15 +25,10 @@ public class Device : IDisposable
     {
     }
 
-    ~Device()
-    {
-        Dispose(false);
-    }
-
     public Guid Id { get; set; }
     public string Name { get; set; } = null!;
     private Link? _link { get; set; }
-    private ILogger _logger = Log.ForContext(typeof(Device));
+    private readonly ILogger _logger = Log.ForContext(typeof(Device));
     private readonly object _lock = new();
     private long _totalSpace = -1;
     private long _freeSpace = -1;
@@ -56,12 +51,14 @@ public class Device : IDisposable
     {
         if (Disposed) return;
         _logger.Information($"Disposing device {Id}");
-        if (disposing) {
+        if (disposing)
+        {
             _logger.Information($"Unmounting device {Id}");
             _fileSystemHost?.Unmount("E");
             _link?.Dispose();
-            _link = null;
+            _fileSystemHost?.DisposeInstance("E");
         }
+        _link = null;
         Disposed = true;
     }
 
@@ -73,17 +70,17 @@ public class Device : IDisposable
 
     public void SetLength(string fileName, long length)
     {
-        SendQuery(FlatBufferHelper.SetLengthCommand(SanitizeName(fileName), length));
+        SendCommand(FlatBufferHelper.SetLengthCommand(SanitizeName(fileName), length));
     }
 
     public void SetFileTime(string fileName, long cTime, long laTime, long lwTime)
     {
-        SendQuery(FlatBufferHelper.SetFileTimeCommand(SanitizeName(fileName), cTime, laTime, lwTime));
+        SendCommand(FlatBufferHelper.SetFileTimeCommand(SanitizeName(fileName), cTime, laTime, lwTime));
     }
 
     public void Rename(string fileName, string newFileName)
     {
-        SendQuery(FlatBufferHelper.RenameCommand(SanitizeName(fileName), SanitizeName(newFileName)));
+        SendCommand(FlatBufferHelper.RenameCommand(SanitizeName(fileName), SanitizeName(newFileName)));
     }
 
     public IEnumerable<CacheNode>? GetFileNodes(string fileName)
@@ -132,6 +129,7 @@ public class Device : IDisposable
             _totalSpace = -1;
             _freeSpace = -1;
         }
+
         if (_totalSpace == -1 || _freeSpace == -1)
         {
             var response = SendQuery(FlatBufferHelper.DeviceInfoSpaceQuery());
@@ -142,6 +140,7 @@ public class Device : IDisposable
                 free = 0;
                 return false;
             }
+
             _totalSpace = deviceInfo!.Space!.TotalBytes;
             _freeSpace = deviceInfo.Space.FreeBytes;
         }
@@ -153,12 +152,12 @@ public class Device : IDisposable
 
     public void CreateEmptyFile(string fileName)
     {
-        SendQuery(FlatBufferHelper.CreateFileCommand(SanitizeName(fileName)));
+        SendCommand(FlatBufferHelper.CreateFileCommand(SanitizeName(fileName)));
     }
 
     public void CreateDirectory(string directoryName)
     {
-        SendQuery(FlatBufferHelper.CreateDirectoryCommand(SanitizeName(directoryName)));
+        SendCommand(FlatBufferHelper.CreateDirectoryCommand(SanitizeName(directoryName)));
     }
 
     public int ReceiveFileBuffer(byte[] buffer, string fileName, long offset, int bytesToRead)
@@ -168,7 +167,7 @@ public class Device : IDisposable
         raw!.Data?.CopyTo(buffer);
         return raw.Data == null ? 0 : bytesToRead;
     }
-    
+
     public unsafe int ReceiveFileBufferUnsafe(IntPtr buffer, string fileName, long offset, int bytesToRead)
     {
         var response = SendQuery(FlatBufferHelper.ReadFileQuery(SanitizeName(fileName), offset, bytesToRead));
@@ -184,9 +183,17 @@ public class Device : IDisposable
         SendQuery(FlatBufferHelper.WriteFileCommand(buffer, SanitizeName(fileName), offset));
     }
 
+    public void WriteFileBufferUnsafe(IntPtr buffer, string fileName, long offset, int bytesToWrite)
+    {
+        var bytes = ArrayPool<byte>.Shared.Rent(bytesToWrite);
+        Marshal.Copy(buffer, bytes, 0, bytesToWrite);
+        SendCommand(FlatBufferHelper.WriteFileCommand(bytes, SanitizeName(fileName), offset));
+        ArrayPool<byte>.Shared.Return(bytes);
+    }
+
     public void Delete(string fileName)
     {
-        SendQuery(FlatBufferHelper.DeleteCommand(SanitizeName(fileName)));
+        SendCommand(FlatBufferHelper.DeleteCommand(SanitizeName(fileName)));
     }
 
     private void SendPacket(Component component, long id = 0)
@@ -207,6 +214,14 @@ public class Device : IDisposable
         var buffer = new byte[size];
         if (_link?.Receive(buffer, size) <= 0) return null;
         return Packet.Serializer.Parse(buffer);
+    }
+
+    private void SendCommand(Component component)
+    {
+        lock (_lock)
+        {
+            SendPacket(component);
+        }
     }
 
     private Packet? SendQuery(Component component)
