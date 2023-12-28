@@ -8,7 +8,7 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <PackageReference Include="DokanNet" Version="2.0.5.2" />
+        <PackageReference Include="DokanNet" Version="2.1.0" />
         <PackageReference Include="FastExpressionCompiler" Version="4.0.1" />
         <PackageReference Include="FlatSharp.Compiler" Version="7.4.0">
             <PrivateAssets>all</PrivateAssets>
@@ -29,12 +29,8 @@
     </PropertyGroup>
 
     <ItemGroup>
-
-        <FlatSharpSchema Include="flatbuffers\device\pair.fbs"/>
         <FlatSharpSchema Include="flatbuffers\device\info.fbs"/>
         <FlatSharpSchema Include="flatbuffers\device\device.fbs"/>
-
-        <FlatSharpSchema Include="flatbuffers\file\raw.fbs"/>
         <FlatSharpSchema Include="flatbuffers\file\file_info.fbs"/>
         <FlatSharpSchema Include="flatbuffers\file\file.fbs"/>
 
