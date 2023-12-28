@@ -163,7 +163,7 @@ public class LinkProvider
         {
             var stream = new SslStream(client.GetStream(), false, (_, _, _, _) => true);
             await stream.AuthenticateAsServerAsync(_sslService.GetSecurityContext(), true, SslProtocols.None, true);
-            stream.ReadTimeout = 5000;
+            stream.ReadTimeout = 10000;
             result = new Link(stream);
             
         }
