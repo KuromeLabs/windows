@@ -73,10 +73,10 @@ public class FileSystemTree
     public void SetLength(CacheNode node, long length)
     {
         _device.SetFileAttributes(node.FullName,
-            node.CreationTime.ToFileTimeUtc(),
-            node.LastAccessTime.ToFileTimeUtc(),
-            node.LastWriteTime.ToFileTimeUtc(),
-            node.FileAttributes, node.Length);
+            ((DateTimeOffset)node.CreationTime).ToUnixTimeMilliseconds(),
+            ((DateTimeOffset)node.LastAccessTime).ToUnixTimeMilliseconds(),
+            ((DateTimeOffset)node.LastWriteTime).ToUnixTimeMilliseconds(),
+            node.FileAttributes, length);
         node.Length = length;
     }
 
@@ -98,10 +98,15 @@ public class FileSystemTree
 
     public void SetFileAttributes(CacheNode node, DateTime? cTime, DateTime? laTime, DateTime? lwTime, uint attributes)
     {
-        var ucTime = cTime?.ToFileTimeUtc() ?? node.CreationTime.ToFileTimeUtc();
-        var ulaTime = laTime?.ToFileTimeUtc() ?? node.CreationTime.ToFileTimeUtc();
-        var ulwTime = lwTime?.ToFileTimeUtc() ?? node.CreationTime.ToFileTimeUtc();
-
+        var ucTime = cTime == null
+            ? ((DateTimeOffset)node.CreationTime).ToUnixTimeMilliseconds()
+            : ((DateTimeOffset)cTime.Value).ToUnixTimeMilliseconds();
+        var ulaTime = laTime == null
+            ? ((DateTimeOffset)node.LastAccessTime).ToUnixTimeMilliseconds()
+            : ((DateTimeOffset)laTime.Value).ToUnixTimeMilliseconds();
+        var ulwTime = lwTime == null
+            ? ((DateTimeOffset)node.LastWriteTime).ToUnixTimeMilliseconds()
+            : ((DateTimeOffset)lwTime.Value).ToUnixTimeMilliseconds();
         node.FileAttributes = attributes;
         _device.SetFileAttributes(node.FullName, ucTime, ulaTime, ulwTime, attributes, node.Length);
         node.CreationTime = cTime ?? node.CreationTime;
