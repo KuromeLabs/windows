@@ -11,12 +11,12 @@ public class CacheNode
     public string FullName => (Parent?.FullName ?? string.Empty) +
                               (Parent != null && Parent.Name != "\\" ? "\\" : string.Empty) + Name;
 
-    public DateTime? CreationTime { get; set; } = DateTime.Now;
-    public DateTime? LastAccessTime { get; set; } = DateTime.Now;
-    public DateTime? LastWriteTime { get; set; } = DateTime.Now;
+    public DateTime CreationTime { get; set; } = DateTime.Now;
+    public DateTime LastAccessTime { get; set; } = DateTime.Now;
+    public DateTime LastWriteTime { get; set; } = DateTime.Now;
     public long Length { get; set; } = 0;
     public uint FileAttributes { get; set; }
-    public readonly ConcurrentDictionary<string, CacheNode> Children = new();
+    public ConcurrentDictionary<string, CacheNode> Children = new();
     public readonly object NodeLock = new();
 
     public FileInformation ToFileInfo()

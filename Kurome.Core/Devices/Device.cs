@@ -1,9 +1,9 @@
 using System.Buffers;
 using System.Buffers.Binary;
+using System.Collections.Concurrent;
 using System.Runtime.InteropServices;
 using FlatSharp;
 using Kurome.Core.Filesystem;
-using Kurome.Core.flatbuffers;
 using Kurome.Core.Network;
 using Kurome.Fbs;
 using Serilog;
@@ -58,6 +58,7 @@ public class Device : IDisposable
             _link?.Dispose();
             _fileSystemHost?.DisposeInstance("E");
         }
+
         _link = null;
         Disposed = true;
     }
@@ -68,33 +69,37 @@ public class Device : IDisposable
         GC.SuppressFinalize(this);
     }
 
-    public void SetLength(string fileName, long length)
+    public void SetFileAttributes(string fileName, long cTime, long laTime, long lwTime, uint attributes, long length)
     {
-        SendCommand(FlatBufferHelper.SetLengthCommand(SanitizeName(fileName), length));
-    }
-
-    public void SetFileTime(string fileName, long cTime, long laTime, long lwTime)
-    {
-        SendCommand(FlatBufferHelper.SetFileTimeCommand(SanitizeName(fileName), cTime, laTime, lwTime));
+        SendCommand(new Component(new SetFileInfoCommand
+        {
+            Path = SanitizeName(fileName),
+            CreationTime = cTime,
+            LastAccessTime = laTime,
+            LastWriteTime = lwTime,
+            ExtraAttributes = attributes,
+            Length = length
+        }));
     }
 
     public void Rename(string fileName, string newFileName)
     {
-        SendCommand(FlatBufferHelper.RenameCommand(SanitizeName(fileName), SanitizeName(newFileName)));
+        SendCommand(new Component(new RenameFileCommand{NewPath = SanitizeName(newFileName), OldPath = SanitizeName(fileName)}));
     }
 
     public IEnumerable<CacheNode>? GetFileNodes(string fileName)
     {
-        var response = SendQuery(FlatBufferHelper.GetDirectoryQuery(SanitizeName(fileName)));
-        if (response == null || !FlatBufferHelper.TryGetFileResponseNode(response, out var result)) return null;
+        var response = SendQuery(new Component(new GetDirectoryQuery { Path =SanitizeName(fileName) }));
+        if (response == null || response.Component?.Kind != Component.ItemKind.GetDirectoryResponse) return null;
+        var result = response.Component.Value.GetDirectoryResponse.Node;
         return result!.Children!.Select(x => new CacheNode
         {
-            Name = x.Attributes!.Name!,
-            Length = x.Attributes.Length,
-            CreationTime = DateTimeOffset.FromUnixTimeMilliseconds(x.Attributes.CreationTime).LocalDateTime,
-            LastAccessTime = DateTimeOffset.FromUnixTimeMilliseconds(x.Attributes!.LastAccessTime).LocalDateTime,
-            LastWriteTime = DateTimeOffset.FromUnixTimeMilliseconds(x.Attributes!.LastWriteTime).LocalDateTime,
-            FileAttributes = x.Attributes.ExtraAttributes
+            Name = x.Name!,
+            Length = x.Length,
+            CreationTime = DateTimeOffset.FromUnixTimeMilliseconds(x.CreationTime).LocalDateTime,
+            LastAccessTime = DateTimeOffset.FromUnixTimeMilliseconds(x.LastAccessTime).LocalDateTime,
+            LastWriteTime = DateTimeOffset.FromUnixTimeMilliseconds(x.LastWriteTime).LocalDateTime,
+            FileAttributes = x.ExtraAttributes
         });
     }
 
@@ -102,16 +107,17 @@ public class Device : IDisposable
     {
         try
         {
-            var response = SendQuery(FlatBufferHelper.GetDirectoryQuery("/"));
-            if (response == null || !FlatBufferHelper.TryGetFileResponseNode(response, out var file)) return null;
+            var response = SendQuery(new Component(new GetDirectoryQuery { Path = "/" }));
+            if (response == null || response.Component?.Kind != Component.ItemKind.GetDirectoryResponse) return null;
+            var file = response.Component.Value.GetDirectoryResponse.Node;
             return new CacheNode
             {
                 Name = "\\",
-                Length = file!.Attributes!.Length,
-                CreationTime = DateTimeOffset.FromUnixTimeMilliseconds(file.Attributes.CreationTime).LocalDateTime,
-                LastAccessTime = DateTimeOffset.FromUnixTimeMilliseconds(file.Attributes!.LastAccessTime).LocalDateTime,
-                LastWriteTime = DateTimeOffset.FromUnixTimeMilliseconds(file.Attributes!.LastWriteTime).LocalDateTime,
-                FileAttributes = file.Attributes.ExtraAttributes
+                Length = file!.Length,
+                CreationTime = DateTimeOffset.FromUnixTimeMilliseconds(file.CreationTime).LocalDateTime,
+                LastAccessTime = DateTimeOffset.FromUnixTimeMilliseconds(file.LastAccessTime).LocalDateTime,
+                LastWriteTime = DateTimeOffset.FromUnixTimeMilliseconds(file.LastWriteTime).LocalDateTime,
+                FileAttributes = file.ExtraAttributes
             };
         }
         catch (Exception e)
@@ -132,17 +138,17 @@ public class Device : IDisposable
 
         if (_totalSpace == -1 || _freeSpace == -1)
         {
-            var response = SendQuery(FlatBufferHelper.DeviceInfoSpaceQuery());
+            var response = SendQuery(new Component(new DeviceQuery()));
             _lastSpaceUpdate = DateTimeOffset.Now.ToUnixTimeMilliseconds();
-            if (response == null || !FlatBufferHelper.TryGetDeviceInfo(response, out var deviceInfo))
+            if (response == null || response.Component?.Kind != Component.ItemKind.DeviceQueryResponse)
             {
                 total = 0;
                 free = 0;
                 return false;
             }
-
-            _totalSpace = deviceInfo!.Space!.TotalBytes;
-            _freeSpace = deviceInfo.Space.FreeBytes;
+            var deviceInfo = response.Component.Value.DeviceQueryResponse;
+            _totalSpace = deviceInfo.TotalBytes;
+            _freeSpace = deviceInfo.FreeBytes;
         }
 
         total = _totalSpace;
@@ -150,50 +156,54 @@ public class Device : IDisposable
         return true;
     }
 
-    public void CreateEmptyFile(string fileName)
+    public void CreateEmptyFile(string fileName, uint extraAttributes = (uint) FileAttributes.Archive)
     {
-        SendCommand(FlatBufferHelper.CreateFileCommand(SanitizeName(fileName)));
+        SendCommand(new Component(new CreateFileCommand{Path = SanitizeName(fileName), ExtraAttributes = extraAttributes}));
     }
 
     public void CreateDirectory(string directoryName)
     {
-        SendCommand(FlatBufferHelper.CreateDirectoryCommand(SanitizeName(directoryName)));
+        SendCommand(new Component(new CreateDirectoryCommand{Path = SanitizeName(directoryName)}));
     }
 
-    public int ReceiveFileBuffer(byte[] buffer, string fileName, long offset, int bytesToRead)
-    {
-        var response = SendQuery(FlatBufferHelper.ReadFileQuery(SanitizeName(fileName), offset, bytesToRead));
-        if (response == null || !FlatBufferHelper.TryGetFileResponseRaw(response, out var raw)) return 0;
-        raw!.Data?.CopyTo(buffer);
-        return raw.Data == null ? 0 : bytesToRead;
-    }
+    // public int ReceiveFileBuffer(byte[] buffer, string fileName, long offset, int bytesToRead)
+    // {
+    //     var response = SendQuery(FlatBufferHelper.ReadFileQuery(SanitizeName(fileName), offset, bytesToRead));
+    //     if (response == null || !FlatBufferHelper.TryGetFileResponseRaw(response, out var raw)) return 0;
+    //     raw!.Data?.CopyTo(buffer);
+    //     return raw.Data == null ? 0 : bytesToRead;
+    // }
 
     public unsafe int ReceiveFileBufferUnsafe(IntPtr buffer, string fileName, long offset, int bytesToRead)
     {
-        var response = SendQuery(FlatBufferHelper.ReadFileQuery(SanitizeName(fileName), offset, bytesToRead));
-        if (response == null || !FlatBufferHelper.TryGetFileResponseRaw(response, out var raw)) return 0;
-        var memory = raw!.Data!.Value;
+        var readComponent = new Component(new ReadFileQuery
+            { Path = SanitizeName(fileName), Offset = offset, Length = bytesToRead });
+        var response = SendQuery(readComponent);
+        if (response == null || response.Component?.Kind != Component.ItemKind.ReadFileResponse ||
+            response.Component?.ReadFileResponse.Data == null) return 0;
+        var memory = response.Component.Value.ReadFileResponse.Data!.Value;
         var bufferSpan = new Span<byte>(buffer.ToPointer(), bytesToRead);
         memory.Span.CopyTo(bufferSpan);
-        return raw.Data == null ? 0 : bytesToRead;
+        return bytesToRead;
     }
 
     public void WriteFileBuffer(Memory<byte> buffer, string fileName, long offset)
     {
-        SendQuery(FlatBufferHelper.WriteFileCommand(buffer, SanitizeName(fileName), offset));
+        SendQuery(new Component(new WriteFileCommand{Path = SanitizeName(fileName), Offset = offset, Data = buffer}));
     }
 
     public void WriteFileBufferUnsafe(IntPtr buffer, string fileName, long offset, int bytesToWrite)
     {
         var bytes = ArrayPool<byte>.Shared.Rent(bytesToWrite);
         Marshal.Copy(buffer, bytes, 0, bytesToWrite);
-        SendCommand(FlatBufferHelper.WriteFileCommand(bytes, SanitizeName(fileName), offset));
+        SendCommand(new Component(new WriteFileCommand
+            { Path = SanitizeName(fileName), Offset = offset, Data = bytes.AsMemory(0, bytesToWrite) }));
         ArrayPool<byte>.Shared.Return(bytes);
     }
 
     public void Delete(string fileName)
     {
-        SendCommand(FlatBufferHelper.DeleteCommand(SanitizeName(fileName)));
+        SendCommand(new Component(new DeleteFileCommand { Path = SanitizeName(fileName) }));
     }
 
     private void SendPacket(Component component, long id = 0)

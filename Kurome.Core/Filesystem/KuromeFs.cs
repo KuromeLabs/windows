@@ -193,7 +193,8 @@ public class KuromeFs : IDokanOperations, IDokanOperationsUnsafe
             }
 
             var bytesToRead = offset + buffer.Length > size ? size - offset : buffer.Length;
-            bytesRead = _device.ReceiveFileBuffer(buffer, fileName, offset, (int)bytesToRead);
+            // bytesRead = _device.ReceiveFileBuffer(buffer, fileName, offset, (int)bytesToRead);
+            bytesRead = 0;
             return Trace(_mountPoint, nameof(ReadFile), fileName, node, DokanResult.Success,
                 $"bytesToRead:{bytesToRead}, R:{bytesRead}, O:{offset}");
         }

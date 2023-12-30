@@ -14,7 +14,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using Kurome.Core;
 using Kurome.Core.Devices;
-using Kurome.Core.flatbuffers;
 using Kurome.Core.Interfaces;
 using Kurome.Core.Network;
 using FlatSharp;
@@ -209,10 +208,9 @@ public class LinkProvider
             var size = BinaryPrimitives.ReadInt32LittleEndian(sizeBuffer);
             var readBuffer = ArrayPool<byte>.Shared.Rent(size);
             await client.GetStream().ReadExactlyAsync(readBuffer, 0, size, cancellationToken);
-            FlatBufferHelper.TryGetDeviceInfo(Packet.Serializer.Parse(readBuffer), out var info);
-            var details = info!.Details!;
+            var info = Packet.Serializer.Parse(readBuffer).Component?.DeviceQueryResponse;
             ArrayPool<byte>.Shared.Return(readBuffer);
-            return new Tuple<Guid, string>(Guid.Parse(details.Id!), details.Name!);
+            return new Tuple<Guid, string>(Guid.Parse(info!.Id!), info.Name!);
         }
         catch (Exception e)
         {

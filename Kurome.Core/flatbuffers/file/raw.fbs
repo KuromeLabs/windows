@@ -1,8 +1,0 @@
-namespace Kurome.Fbs;
-attribute "fs_serializer";
-attribute "fs_vector";
-table Raw (fs_serializer:"lazy") {
-    data:[ubyte] (fs_vector:"Memory");
-    offset:long;
-    length:int;
-}

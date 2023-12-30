@@ -29,11 +29,6 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <FlatSharpSchema Include="flatbuffers\device\info.fbs"/>
-        <FlatSharpSchema Include="flatbuffers\device\device.fbs"/>
-        <FlatSharpSchema Include="flatbuffers\file\file_info.fbs"/>
-        <FlatSharpSchema Include="flatbuffers\file\file.fbs"/>
-
         <FlatSharpSchema Include="flatbuffers\packet.fbs"/>
     </ItemGroup>
 

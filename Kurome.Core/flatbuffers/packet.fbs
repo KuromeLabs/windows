@@ -1,13 +1,98 @@
-include "file/file_info.fbs";
-include "device/info.fbs";
-include "device/device.fbs";
-include "file/file.fbs";
-
 namespace Kurome.Fbs;
 attribute "fs_serializer";
-union Component { DeviceQuery, DeviceResponse, FileQuery, FileCommand, FileResponse }
+attribute "fs_vector";
+union Component { DeviceQuery, DeviceQueryResponse, 
+GetFileInfoQuery, GetDirectoryQuery, ReadFileQuery, 
+ReadFileResponse, GetFileInfoResponse, GetDirectoryResponse,
+CreateFileCommand, CreateDirectoryCommand, WriteFileCommand, SetFileInfoCommand, DeleteFileCommand, RenameFileCommand, Node }
 
 table Packet (fs_serializer:"lazy") {
     component:Component;
     id:long;
+}
+
+table DeviceQuery (fs_serializer:"lazy") {}
+
+table DeviceQueryResponse (fs_serializer:"lazy") {
+    total_bytes:long;
+    free_bytes:long;
+    name:string;
+    id:string;
+    local_ip:string;
+}
+
+table GetFileInfoQuery (fs_serializer:"lazy") {
+    path:string;
+}
+
+table GetFileInfoResponse (fs_serializer:"lazy") {
+    path:string;
+    node: Node;
+}
+
+table GetDirectoryQuery (fs_serializer:"lazy") {
+    path:string;
+}
+
+table GetDirectoryResponse (fs_serializer:"lazy") {
+    path:string;
+    node: Node;
+}
+
+table ReadFileQuery (fs_serializer:"lazy") {
+    path:string;
+    offset:long;
+    length:int;
+}
+
+table ReadFileResponse (fs_serializer:"lazy") {
+    path:string;
+    data:[ubyte] (fs_vector:"Memory");
+    offset:long;
+    length:int;
+}
+
+table CreateFileCommand {
+    path:string;
+    extra_attributes:uint32;
+}
+
+table CreateDirectoryCommand {
+    path:string;
+}
+
+table WriteFileCommand (fs_serializer:"lazy") {
+    path:string;
+    data:[ubyte] (fs_vector:"Memory");
+    offset:long;
+    length:int;
+}
+
+table SetFileInfoCommand (fs_serializer:"lazy") {
+    path:string;
+    length:long;
+    creation_time:long;
+    last_access_time:long;
+    last_write_time:long;
+    extra_attributes:uint32;
+}
+
+table RenameFileCommand (fs_serializer:"lazy") {
+    old_path: string;
+    new_path: string;
+}
+
+table DeleteFileCommand (fs_serializer:"lazy") {
+    path: string;
+}
+
+table Node (fs_serializer:"lazy") {
+    name:string;
+    length:long;
+    creation_time:long;
+    last_access_time:long;
+    last_write_time:long;
+    extra_attributes:uint32;
+    exists:bool;
+    children:[Node];
 }

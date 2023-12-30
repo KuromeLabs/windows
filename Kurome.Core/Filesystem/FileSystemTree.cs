@@ -72,7 +72,11 @@ public class FileSystemTree
 
     public void SetLength(CacheNode node, long length)
     {
-        _device.SetLength(node.FullName, length);
+        _device.SetFileAttributes(node.FullName,
+            node.CreationTime.ToFileTimeUtc(),
+            node.LastAccessTime.ToFileTimeUtc(),
+            node.LastWriteTime.ToFileTimeUtc(),
+            node.FileAttributes, node.Length);
         node.Length = length;
     }
 
@@ -94,14 +98,14 @@ public class FileSystemTree
 
     public void SetFileAttributes(CacheNode node, DateTime? cTime, DateTime? laTime, DateTime? lwTime, uint attributes)
     {
-        var ucTime = cTime?.ToFileTimeUtc() ?? 0;
-        var ulaTime = laTime?.ToFileTimeUtc() ?? 0;
-        var ulwTime = lwTime?.ToFileTimeUtc() ?? 0;
+        var ucTime = cTime?.ToFileTimeUtc() ?? node.CreationTime.ToFileTimeUtc();
+        var ulaTime = laTime?.ToFileTimeUtc() ?? node.CreationTime.ToFileTimeUtc();
+        var ulwTime = lwTime?.ToFileTimeUtc() ?? node.CreationTime.ToFileTimeUtc();
 
         node.FileAttributes = attributes;
-        _device.SetFileTime(node.FullName, ucTime, ulaTime, ulwTime);
-        node.CreationTime = cTime;
-        node.LastAccessTime = laTime;
-        node.LastWriteTime = lwTime;
+        _device.SetFileAttributes(node.FullName, ucTime, ulaTime, ulwTime, attributes, node.Length);
+        node.CreationTime = cTime ?? node.CreationTime;
+        node.LastAccessTime = laTime ?? node.CreationTime;
+        node.LastWriteTime = lwTime ?? node.CreationTime;
     }
 }
