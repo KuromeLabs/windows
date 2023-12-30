@@ -1,4 +1,6 @@
 using System.Net.Security;
+using System.Reactive.Linq;
+using System.Reactive.Subjects;
 using Serilog;
 
 namespace Kurome.Core.Network;
@@ -9,7 +11,8 @@ public class Link : IDisposable
     private bool Disposed { get; set; } = false;
     private readonly ILogger _logger = Serilog.Log.ForContext(typeof(Link));
 
-    public event EventHandler<bool>? IsConnectedChanged;
+    private readonly Subject<bool> _isConnected = new();
+    public IObservable<bool> IsConnected => _isConnected.AsObservable();
 
     public Link(SslStream stream)
     {
@@ -43,7 +46,7 @@ public class Link : IDisposable
         catch (Exception e)
         {
             Log.Debug("Exception at Link: {@Exception}", e.ToString());
-            IsConnectedChanged?.Invoke(this, false);
+            _isConnected.OnCompleted();
             return 0;
         }
     }
@@ -58,7 +61,7 @@ public class Link : IDisposable
         catch (Exception e)
         {
             Log.Debug("Exception at Link: {@Exception}", e.ToString());
-            IsConnectedChanged?.Invoke(this, false);
+            _isConnected.OnCompleted();
             return 0;
         }
     }
@@ -71,7 +74,7 @@ public class Link : IDisposable
 
     public async void Start(CancellationToken cancellationToken)
     {
-        IsConnectedChanged?.Invoke(this, true);
+        _isConnected.OnNext(true);
         // while (!cancellationToken.IsCancellationRequested)
         // {
         //     var sizeBuffer = new byte[4];

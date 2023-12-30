@@ -7,6 +7,8 @@ using System.Net;
 using System.Net.NetworkInformation;
 using System.Net.Security;
 using System.Net.Sockets;
+using System.Reactive.Concurrency;
+using System.Reactive.Linq;
 using System.Security.Authentication;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
@@ -164,7 +166,6 @@ public class LinkProvider
             await stream.AuthenticateAsServerAsync(_sslService.GetSecurityContext(), true, SslProtocols.None, true);
             stream.ReadTimeout = 10000;
             result = new Link(stream);
-            
         }
         catch (Exception e)
         {
@@ -177,23 +178,16 @@ public class LinkProvider
         var device = new Device(id, name);
         device.Connect(result);
         _deviceRepository.AddActiveDevice(device);
-        
-        EventHandler<bool>? handler = null;
-        handler = (sender, isConnected) =>
-        {
-            _logger.LogInformation($"Link isConnected event: {isConnected}");
-            if (isConnected)
-            {
-                _deviceRepository.AddActiveDevice(device);
-            }
-            else
-            {
-                result.IsConnectedChanged -= handler;
-                _deviceRepository.RemoveActiveDevice(device);
+
+        result.IsConnected
+            .ObserveOn(Scheduler.Default)
+            .Subscribe(onConnected => { _deviceRepository.AddActiveDevice(device); }, 
+            () => {
                 device.Dispose();
-            }
-        };
-        result.IsConnectedChanged += handler;
+                _deviceRepository.RemoveActiveDevice(device);
+            });
+
+
         result.Start(cancellationToken);
         device.Mount(_fileSystemHost);
     }
