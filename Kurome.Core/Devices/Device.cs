@@ -87,20 +87,26 @@ public class Device : IDisposable
         SendCommand(new Component(new RenameFileCommand{NewPath = SanitizeName(newFileName), OldPath = SanitizeName(fileName)}));
     }
 
-    public IEnumerable<CacheNode>? GetFileNodes(string fileName)
+    public List<CacheNode>? GetFileNodes(string fileName)
     {
         var response = SendQuery(new Component(new GetDirectoryQuery { Path =SanitizeName(fileName) }));
         if (response == null || response.Component?.Kind != Component.ItemKind.GetDirectoryResponse) return null;
         var result = response.Component.Value.GetDirectoryResponse.Node;
-        return result!.Children!.Select(x => new CacheNode
+        var list = new List<CacheNode>();
+        for (var i = 0; i < result?.Children?.Count; i++)
         {
-            Name = x.Name!,
-            Length = x.Length,
-            CreationTime = DateTimeOffset.FromUnixTimeMilliseconds(x.CreationTime).LocalDateTime,
-            LastAccessTime = DateTimeOffset.FromUnixTimeMilliseconds(x.LastAccessTime).LocalDateTime,
-            LastWriteTime = DateTimeOffset.FromUnixTimeMilliseconds(x.LastWriteTime).LocalDateTime,
-            FileAttributes = x.ExtraAttributes
-        });
+            var x = result.Children[i];
+            list.Add(new CacheNode
+            {
+                Name = x.Name!,
+                Length = x.Length,
+                CreationTime = DateTimeOffset.FromUnixTimeMilliseconds(x.CreationTime).LocalDateTime,
+                LastAccessTime = DateTimeOffset.FromUnixTimeMilliseconds(x.LastAccessTime).LocalDateTime,
+                LastWriteTime = DateTimeOffset.FromUnixTimeMilliseconds(x.LastWriteTime).LocalDateTime,
+                FileAttributes = x.ExtraAttributes
+            });
+        }
+        return list;
     }
 
     public CacheNode? GetRootNode()
