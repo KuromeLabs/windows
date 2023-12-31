@@ -68,7 +68,15 @@ public class Link : IDisposable
 
     public void Send(ReadOnlySpan<byte> data, int length)
     {
-        _stream.Write(data[..length]);
+        try
+        {
+            _stream.Write(data[..length]);
+        }
+        catch (Exception e)
+        {
+            Log.Debug("Exception at Link: {@Exception}", e.ToString());
+            _isConnected.OnCompleted();
+        }
     }
     
 
