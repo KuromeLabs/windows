@@ -77,6 +77,9 @@ public class KuromeFs : IDokanOperations, IDokanOperationsUnsafe
                     if (nodeExists)
                         return Trace(_mountPoint, nameof(CreateFile), fileName, node, DokanResult.AlreadyExists,
                             $"Mode: {mode}, Attributes: {attributes}, Options: {options}, Share: {share}, Access: {access}");
+                    if (!parentNodeExists)
+                        return Trace(_mountPoint, nameof(CreateFile), fileName, node, DokanResult.PathNotFound,
+                            $"Mode: {mode}, Attributes: {attributes}, Options: {options}, Share: {share}, Access: {access}");
                     lock (parentNode!.NodeLock)
                     {
                         var newNode = _cache.CreateDirectoryChild(parentNode!, fileName);
