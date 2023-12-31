@@ -71,52 +71,69 @@ public class Device : IDisposable
 
     public void SetFileAttributes(string fileName, long cTime, long laTime, long lwTime, uint attributes, long length)
     {
-        SendCommand(new Component(new SetFileInfoCommand
-        {
-            Path = SanitizeName(fileName),
-            CreationTime = cTime,
-            LastAccessTime = laTime,
-            LastWriteTime = lwTime,
-            ExtraAttributes = attributes,
-            Length = length
-        }));
+        lock (_lock)
+            SendPacket(new Component(new SetFileInfoCommand
+            {
+                Path = SanitizeName(fileName),
+                CreationTime = cTime,
+                LastAccessTime = laTime,
+                LastWriteTime = lwTime,
+                ExtraAttributes = attributes,
+                Length = length
+            }));
     }
 
     public void Rename(string fileName, string newFileName)
     {
-        SendCommand(new Component(new RenameFileCommand{NewPath = SanitizeName(newFileName), OldPath = SanitizeName(fileName)}));
+        lock (_lock)
+            SendPacket(new Component(new RenameFileCommand
+                { NewPath = SanitizeName(newFileName), OldPath = SanitizeName(fileName) }));
     }
 
-    public List<CacheNode>? GetFileNodes(string fileName)
+    public Dictionary<string, CacheNode>? GetChildrenNodes(CacheNode parent)
     {
-        var response = SendQuery(new Component(new GetDirectoryQuery { Path =SanitizeName(fileName) }));
-        if (response == null || response.Component?.Kind != Component.ItemKind.GetDirectoryResponse) return null;
-        var result = response.Component.Value.GetDirectoryResponse.Node;
-        var list = new List<CacheNode>();
-        for (var i = 0; i < result?.Children?.Count; i++)
+        byte[]? data;
+        lock (_lock)
         {
-            var x = result.Children[i];
-            list.Add(new CacheNode
+            SendPacket(new Component(new GetDirectoryQuery { Path = SanitizeName(parent.FullName) }));
+            data = ReadPacketRentedBuffer();
+            if (data == null) return null;
+        }
+        var response = Packet.Serializer.Parse(data);
+        if (response.Component?.Kind != Component.ItemKind.GetDirectoryResponse) return null;
+        var result = response.Component.Value.GetDirectoryResponse.Node;
+        if (result == null) return null;
+        var list = result.Children!.ToDictionary(x => x.Name!, x =>
+            new CacheNode
             {
                 Name = x.Name!,
                 Length = x.Length,
                 CreationTime = DateTimeOffset.FromUnixTimeMilliseconds(x.CreationTime).LocalDateTime,
                 LastAccessTime = DateTimeOffset.FromUnixTimeMilliseconds(x.LastAccessTime).LocalDateTime,
                 LastWriteTime = DateTimeOffset.FromUnixTimeMilliseconds(x.LastWriteTime).LocalDateTime,
-                FileAttributes = x.ExtraAttributes
+                FileAttributes = x.ExtraAttributes,
+                Parent = parent
             });
-        }
+        ArrayPool<byte>.Shared.Return(data);
         return list;
     }
 
     public CacheNode? GetRootNode()
     {
+        
         try
         {
-            var response = SendQuery(new Component(new GetDirectoryQuery { Path = "/" }));
-            if (response == null || response.Component?.Kind != Component.ItemKind.GetDirectoryResponse) return null;
+            byte[]? data;
+            lock (_lock)
+            {
+                SendPacket(new Component(new GetDirectoryQuery { Path = "/" }));
+                data = ReadPacketRentedBuffer();
+                if (data == null) return null;
+            }
+            var response = Packet.Serializer.Parse(data);
+            if (response.Component?.Kind != Component.ItemKind.GetDirectoryResponse) return null;
             var file = response.Component.Value.GetDirectoryResponse.Node;
-            return new CacheNode
+            var root = new CacheNode
             {
                 Name = "\\",
                 Length = file!.Length,
@@ -125,17 +142,21 @@ public class Device : IDisposable
                 LastWriteTime = DateTimeOffset.FromUnixTimeMilliseconds(file.LastWriteTime).LocalDateTime,
                 FileAttributes = file.ExtraAttributes
             };
+            ArrayPool<byte>.Shared.Return(data);
+            return root;
         }
         catch (Exception e)
         {
             _logger.Error(e.ToString());
         }
-
+        
         return null;
     }
 
     public bool GetSpace(out long total, out long free)
     {
+        total = 0;
+        free = 0;
         if (DateTimeOffset.Now.ToUnixTimeMilliseconds() - _lastSpaceUpdate > 15000)
         {
             _totalSpace = -1;
@@ -144,17 +165,20 @@ public class Device : IDisposable
 
         if (_totalSpace == -1 || _freeSpace == -1)
         {
-            var response = SendQuery(new Component(new DeviceQuery()));
-            _lastSpaceUpdate = DateTimeOffset.Now.ToUnixTimeMilliseconds();
-            if (response == null || response.Component?.Kind != Component.ItemKind.DeviceQueryResponse)
+            byte[]? data;
+            lock (_lock)
             {
-                total = 0;
-                free = 0;
-                return false;
+                SendPacket(new Component(new DeviceQuery()));
+                data = ReadPacketRentedBuffer();
+                if (data == null) return false;
             }
+            var response = Packet.Serializer.Parse(data);
+            if (response.Component?.Kind != Component.ItemKind.DeviceQueryResponse) return false;
             var deviceInfo = response.Component.Value.DeviceQueryResponse;
             _totalSpace = deviceInfo.TotalBytes;
             _freeSpace = deviceInfo.FreeBytes;
+            _lastSpaceUpdate = DateTimeOffset.Now.ToUnixTimeMilliseconds();
+            ArrayPool<byte>.Shared.Return(data);
         }
 
         total = _totalSpace;
@@ -162,91 +186,79 @@ public class Device : IDisposable
         return true;
     }
 
-    public void CreateEmptyFile(string fileName, uint extraAttributes = (uint) FileAttributes.Archive)
+    public void CreateEmptyFile(string fileName, uint extraAttributes = (uint)FileAttributes.Archive)
     {
-        SendCommand(new Component(new CreateFileCommand{Path = SanitizeName(fileName), ExtraAttributes = extraAttributes}));
+        lock (_lock)
+            SendPacket(new Component(new CreateFileCommand
+                { Path = SanitizeName(fileName), ExtraAttributes = extraAttributes }));
     }
 
     public void CreateDirectory(string directoryName)
     {
-        SendCommand(new Component(new CreateDirectoryCommand{Path = SanitizeName(directoryName)}));
+        lock (_lock)
+            SendPacket(new Component(new CreateDirectoryCommand { Path = SanitizeName(directoryName) }));
     }
-
-    // public int ReceiveFileBuffer(byte[] buffer, string fileName, long offset, int bytesToRead)
-    // {
-    //     var response = SendQuery(FlatBufferHelper.ReadFileQuery(SanitizeName(fileName), offset, bytesToRead));
-    //     if (response == null || !FlatBufferHelper.TryGetFileResponseRaw(response, out var raw)) return 0;
-    //     raw!.Data?.CopyTo(buffer);
-    //     return raw.Data == null ? 0 : bytesToRead;
-    // }
 
     public unsafe int ReceiveFileBufferUnsafe(IntPtr buffer, string fileName, long offset, int bytesToRead)
     {
         var readComponent = new Component(new ReadFileQuery
             { Path = SanitizeName(fileName), Offset = offset, Length = bytesToRead });
-        var response = SendQuery(readComponent);
-        if (response == null || response.Component?.Kind != Component.ItemKind.ReadFileResponse ||
+        byte[]? data = null;
+        lock (_lock)
+        {
+            SendPacket(readComponent);
+            data = ReadPacketRentedBuffer();
+        }
+        if (data == null) return 0;
+        var response = Packet.Serializer.Parse(data);
+        if (response.Component?.Kind != Component.ItemKind.ReadFileResponse ||
             response.Component?.ReadFileResponse.Data == null) return 0;
         var memory = response.Component.Value.ReadFileResponse.Data!.Value;
         var bufferSpan = new Span<byte>(buffer.ToPointer(), bytesToRead);
         memory.Span.CopyTo(bufferSpan);
+        ArrayPool<byte>.Shared.Return(data);
         return bytesToRead;
-    }
-
-    public void WriteFileBuffer(Memory<byte> buffer, string fileName, long offset)
-    {
-        SendQuery(new Component(new WriteFileCommand{Path = SanitizeName(fileName), Offset = offset, Data = buffer}));
     }
 
     public void WriteFileBufferUnsafe(IntPtr buffer, string fileName, long offset, int bytesToWrite)
     {
         var bytes = ArrayPool<byte>.Shared.Rent(bytesToWrite);
         Marshal.Copy(buffer, bytes, 0, bytesToWrite);
-        SendCommand(new Component(new WriteFileCommand
-            { Path = SanitizeName(fileName), Offset = offset, Data = bytes.AsMemory(0, bytesToWrite) }));
+        lock (_lock)
+            SendPacket(new Component(new WriteFileCommand
+                { Path = SanitizeName(fileName), Offset = offset, Data = bytes.AsMemory(0, bytesToWrite) }));
         ArrayPool<byte>.Shared.Return(bytes);
     }
 
     public void Delete(string fileName)
     {
-        SendCommand(new Component(new DeleteFileCommand { Path = SanitizeName(fileName) }));
+        lock (_lock)
+            SendPacket(new Component(new DeleteFileCommand { Path = SanitizeName(fileName) }));
     }
 
     private void SendPacket(Component component, long id = 0)
     {
         var packet = new Packet { Component = component, Id = id };
         var size = Packet.Serializer.GetMaxSize(packet);
-        Span<byte> buffer = new byte[4 + size];
-        var length = Packet.Serializer.Write(buffer[4..], packet);
-        BinaryPrimitives.WriteInt32LittleEndian(buffer[..4], length);
+        var buffer = ArrayPool<byte>.Shared.Rent(4 + size);
+        var length = Packet.Serializer.Write(buffer.AsSpan()[4..], packet);
+        BinaryPrimitives.WriteInt32LittleEndian(buffer.AsSpan()[..4], length);
         _link?.Send(buffer, length + 4);
+        ArrayPool<byte>.Shared.Return(buffer);
     }
 
-    private Packet? ReadPacket()
+    private byte[]? ReadPacketRentedBuffer()
     {
         var sizeBuffer = new byte[4];
         if (_link?.Receive(sizeBuffer, 4) <= 0) return null;
         var size = BinaryPrimitives.ReadInt32LittleEndian(sizeBuffer);
-        var buffer = new byte[size];
-        if (_link?.Receive(buffer, size) <= 0) return null;
-        return Packet.Serializer.Parse(buffer);
-    }
-
-    private void SendCommand(Component component)
-    {
-        lock (_lock)
+        var buffer = ArrayPool<byte>.Shared.Rent(size);
+        if (_link?.Receive(buffer, size) <= 0)
         {
-            SendPacket(component);
+            ArrayPool<byte>.Shared.Return(buffer);
+            return null;
         }
-    }
-
-    private Packet? SendQuery(Component component)
-    {
-        lock (_lock)
-        {
-            SendPacket(component);
-            return ReadPacket();
-        }
+        return buffer;
     }
 
     private string SanitizeName(string fileName)

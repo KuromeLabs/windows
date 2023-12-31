@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using Serilog;
 
 namespace Kurome.Core.Filesystem;
@@ -38,14 +39,10 @@ public class FileSystemTree
     private void UpdateChildren(CacheNode node)
     {
         Log.Information("Attempting to get children from device with path {0}", node.FullName);
-        var nodes = _device.GetFileNodes(node.FullName);
+        var nodes = _device.GetChildrenNodes(node);
         node.Children.Clear();
-        if (nodes != null)
-            foreach (var n in nodes)
-            {
-                n.Parent = node;
-                node.Children.TryAdd(n.Name, n);
-            }
+        if (nodes == null) return;
+        node.Children = new ConcurrentDictionary<string, CacheNode>(nodes);
     }
 
     public CacheNode CreateFileChild(CacheNode directory, string fileName)
