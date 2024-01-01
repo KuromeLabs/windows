@@ -1,6 +1,10 @@
+using System.Buffers;
+using System.Buffers.Binary;
 using System.Net.Security;
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
+using FlatSharp;
+using Kurome.Fbs;
 using Serilog;
 
 namespace Kurome.Core.Network;
@@ -13,6 +17,22 @@ public class Link : IDisposable
 
     private readonly Subject<bool> _isConnected = new();
     public IObservable<bool> IsConnected => _isConnected.AsObservable();
+    
+    private readonly Subject<Buffer?> _dataReceived = new();
+    public IObservable<Buffer?> DataReceived => _dataReceived.AsObservable();
+    private readonly object _lock = new();
+    
+    public sealed class Buffer 
+    {
+        public byte[] Data { get; set; }
+        public int Size { get; set; }
+        public long Id { get; set; }
+        
+        public void Free()
+        {
+            ArrayPool<byte>.Shared.Return(Data);
+        }
+    }
 
     public Link(SslStream stream)
     {
@@ -51,26 +71,13 @@ public class Link : IDisposable
         }
     }
 
-    public int Receive(byte[] buffer, int size)
-    {
-        try
-        {
-            _stream.ReadExactly(buffer, 0, size);
-            return size;
-        }
-        catch (Exception e)
-        {
-            Log.Debug("Exception at Link: {@Exception}", e.ToString());
-            _isConnected.OnCompleted();
-            return 0;
-        }
-    }
+
 
     public void Send(ReadOnlySpan<byte> data, int length)
     {
         try
         {
-            _stream.Write(data[..length]);
+            lock (_lock) _stream.Write(data[..length]);
         }
         catch (Exception e)
         {
@@ -83,14 +90,25 @@ public class Link : IDisposable
     public async void Start(CancellationToken cancellationToken)
     {
         _isConnected.OnNext(true);
-        // while (!cancellationToken.IsCancellationRequested)
-        // {
-        //     var sizeBuffer = new byte[4];
-        //     await ReceiveAsync(sizeBuffer, 4, cancellationToken);
-        //     var size = BinaryPrimitives.ReadInt32LittleEndian(sizeBuffer);
-        //     var buffer = new byte[size];
-        //     await ReceiveAsync(buffer, size, cancellationToken);
-        //     
-        // }
+        while (!cancellationToken.IsCancellationRequested)
+        {
+            try
+            {
+                var sizeBuffer = new byte[4];
+                if (await ReceiveAsync(sizeBuffer, 4, cancellationToken) == 0) break;
+                var size = BinaryPrimitives.ReadInt32LittleEndian(sizeBuffer);
+                var buffer = ArrayPool<byte>.Shared.Rent(size);
+                if (await ReceiveAsync(buffer, size, cancellationToken) == 0) break;
+                var id = Packet.Serializer.Parse(buffer).Id;
+                _dataReceived.OnNext(new Buffer { Data = buffer, Size = size, Id = id });
+            }
+            catch (Exception e)
+            {
+                Log.Debug("Exception at Link: {@Exception}", e.ToString());
+                break;
+            }
+        }
+        _dataReceived.OnNext(null);
+        _isConnected.OnCompleted();
     }
 }
