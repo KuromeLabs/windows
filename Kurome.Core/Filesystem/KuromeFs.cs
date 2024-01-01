@@ -1,25 +1,19 @@
 using System.Diagnostics.CodeAnalysis;
-using System.Runtime.InteropServices;
 using System.Security.AccessControl;
-using System.Text;
 using DokanNet;
 using Serilog;
 using FileAccess = DokanNet.FileAccess;
 
 namespace Kurome.Core.Filesystem;
 
-public class KuromeFs : IDokanOperations, IDokanOperationsUnsafe
+public class KuromeFs(Device device, uint componentLength = 127) : IDokanOperationsUnsafe
 {
-    private readonly bool _caseInsensitive;
-    private readonly Device _device;
-    private readonly uint _maximumComponentLength;
-    public string VolumeLabel = "Kurome";
     private string _mountPoint = "";
     private readonly ILogger _logger = Log.ForContext(typeof(KuromeFs));
 
     private FileSystemTree? _cache;
 
-    protected NtStatus Trace(string driveLetter, string method, string? fileName, CacheNode? info, NtStatus result,
+    private NtStatus Trace(string driveLetter, string method, string? fileName, CacheNode? info, NtStatus result,
         string extra = "")
 
     {
@@ -27,15 +21,14 @@ public class KuromeFs : IDokanOperations, IDokanOperationsUnsafe
         return result;
     }
 
-    public KuromeFs(bool caseInsensitive, Device device, uint maximumComponentLength = 127)
+    public bool Init()
     {
-        _caseInsensitive = caseInsensitive;
-        _device = device;
-        _maximumComponentLength = maximumComponentLength;
-        VolumeLabel = _device.Name;
+        var root = device.GetRootNode();
+        if (root == null)
+            return false;
+        _cache = new FileSystemTree(root, device);
+        return true;
     }
-
-    string illegalCharacters = "*";
 
     public NtStatus CreateFile(
         string fileName,
@@ -57,7 +50,7 @@ public class KuromeFs : IDokanOperations, IDokanOperationsUnsafe
         info.Context = node;
         var nodeExists = node != null;
         var parentPath = Path.GetDirectoryName(fileName);
-        var parentNode = parentPath == null ? null : _cache.GetNode(parentPath);
+        var parentNode = parentPath == null ? null : _cache!.GetNode(parentPath);
         var parentNodeExists = parentNode != null;
         var nodeIsDirectory = nodeExists && (node!.FileAttributes & (uint)FileAttributes.Directory) != 0;
         if (nodeIsDirectory) info.IsDirectory = true;
@@ -82,10 +75,11 @@ public class KuromeFs : IDokanOperations, IDokanOperationsUnsafe
                             $"Mode: {mode}, Attributes: {attributes}, Options: {options}, Share: {share}, Access: {access}");
                     lock (parentNode!.NodeLock)
                     {
-                        var newNode = _cache.CreateDirectoryChild(parentNode!, fileName);
+                        var newNode = _cache!.CreateDirectoryChild(parentNode, fileName);
                         newNode.FileAttributes |= (uint)(attributes & ~FileAttributes.Normal);
                         info.Context = newNode;
                     }
+
                     break;
             }
         else
@@ -116,10 +110,11 @@ public class KuromeFs : IDokanOperations, IDokanOperationsUnsafe
                             $"Mode: {mode}, Attributes: {attributes}, Options: {options}, Share: {share}, Access: {access}");
                     lock (parentNode!.NodeLock)
                     {
-                        var newNode = _cache.CreateFileChild(parentNode!, fileName);
+                        var newNode = _cache!.CreateFileChild(parentNode, fileName);
                         newNode.FileAttributes |= (uint)(attributes & ~FileAttributes.Normal);
                         info.Context = newNode;
                     }
+
                     break;
                 case FileMode.Create:
                     if (!parentNodeExists)
@@ -131,12 +126,14 @@ public class KuromeFs : IDokanOperations, IDokanOperationsUnsafe
                         return Trace(_mountPoint, nameof(CreateFile), fileName, node, DokanResult.AlreadyExists,
                             $"Mode: {mode}, Attributes: {attributes}, Options: {options}, Share: {share}, Access: {access}");
                     }
+
                     lock (parentNode!.NodeLock)
                     {
-                        var newNode0 = _cache.CreateFileChild(parentNode!, fileName);
+                        var newNode0 = _cache!.CreateFileChild(parentNode, fileName);
                         newNode0.FileAttributes |= (uint)(attributes & ~FileAttributes.Normal);
                         info.Context = newNode0;
                     }
+
                     break;
                 case FileMode.OpenOrCreate:
                     if (nodeExists)
@@ -147,10 +144,11 @@ public class KuromeFs : IDokanOperations, IDokanOperationsUnsafe
                             $"Mode: {mode}, Attributes: {attributes}, Options: {options}, Share: {share}, Access: {access}");
                     lock (parentNode!.NodeLock)
                     {
-                        var newNode1 = _cache.CreateFileChild(parentNode!, fileName);
+                        var newNode1 = _cache!.CreateFileChild(parentNode, fileName);
                         newNode1.FileAttributes |= (uint)(attributes & ~FileAttributes.Normal);
                         info.Context = newNode1;
                     }
+
                     break;
                 case FileMode.Truncate:
                     if (!nodeExists)
@@ -166,11 +164,12 @@ public class KuromeFs : IDokanOperations, IDokanOperationsUnsafe
     public void Cleanup(string fileName, IDokanFileInfo info)
     {
         var node = info.Context as CacheNode;
-        lock (node!.NodeLock)
-        {
-            if (info.DeleteOnClose && node != null && (!info.IsDirectory || node.Children.Count == 0))
-                _cache.Delete(node);
-        }
+        if (node != null)
+            lock (node.NodeLock)
+            {
+                if (info.DeleteOnClose && (!info.IsDirectory || node.Children.IsEmpty))
+                    _cache!.Delete(node);
+            }
 
         Trace(_mountPoint, nameof(Cleanup), fileName, node, DokanResult.Success, $"deleteOnClose:{info.DeleteOnClose}");
     }
@@ -184,33 +183,17 @@ public class KuromeFs : IDokanOperations, IDokanOperationsUnsafe
     public NtStatus ReadFile(string fileName, byte[] buffer, [UnscopedRef] out int bytesRead, long offset,
         IDokanFileInfo info)
     {
-        var node = info.Context as CacheNode;
-        lock (node!.NodeLock)
-        {
-            var size = node!.Length;
-            if (offset >= size)
-            {
-                bytesRead = 0;
-                return Trace(_mountPoint, nameof(ReadFile), fileName, node, DokanResult.Success,
-                    $"R:{bytesRead}, O:{offset}");
-            }
-
-            var bytesToRead = offset + buffer.Length > size ? size - offset : buffer.Length;
-            // bytesRead = _device.ReceiveFileBuffer(buffer, fileName, offset, (int)bytesToRead);
-            bytesRead = 0;
-            return Trace(_mountPoint, nameof(ReadFile), fileName, node, DokanResult.Success,
-                $"bytesToRead:{bytesToRead}, R:{bytesRead}, O:{offset}");
-        }
+        //we implement the unsafe version
+        bytesRead = 0;
+        return DokanResult.NotImplemented;
     }
 
     public NtStatus WriteFile(string fileName, byte[] buffer, [UnscopedRef] out int bytesWritten, long offset,
         IDokanFileInfo info)
     {
-        var node = info.Context as CacheNode;
-        // _cache.Write(node!, buffer, offset);
-        bytesWritten = buffer.Length;
-        return Trace(_mountPoint, nameof(WriteFile), fileName, node, DokanResult.Success,
-            $"W:{bytesWritten}, O:{offset}");
+        //we implement the unsafe version
+        bytesWritten = 0;
+        return DokanResult.NotImplemented;
     }
 
     public NtStatus FlushFileBuffers(string fileName, IDokanFileInfo info)
@@ -238,7 +221,7 @@ public class KuromeFs : IDokanOperations, IDokanOperationsUnsafe
         var dirNode = info.Context as CacheNode;
         lock (dirNode!.NodeLock)
         {
-            var nodes = _cache.GetChildren(dirNode).ToList();
+            var nodes = _cache!.GetChildren(dirNode).ToList();
             files = new List<FileInformation>(nodes.Count);
             foreach (var node in nodes.Where(node =>
                          DokanHelper.DokanIsNameInExpression(searchPattern, node.Name, true)))
@@ -251,9 +234,8 @@ public class KuromeFs : IDokanOperations, IDokanOperationsUnsafe
     public NtStatus SetFileAttributes(string fileName, FileAttributes attributes, IDokanFileInfo info)
     {
         var node = (info.Context as CacheNode)!;
-        lock (node!.NodeLock)
+        lock (node.NodeLock)
         {
-            _logger.Information($"Current attributes: {node.FileAttributes}, isDirectory: {info.IsDirectory}");
             if (info.IsDirectory)
             {
                 attributes |= FileAttributes.Directory;
@@ -274,9 +256,9 @@ public class KuromeFs : IDokanOperations, IDokanOperationsUnsafe
         IDokanFileInfo info)
     {
         var node = (info.Context as CacheNode)!;
-        lock (node!.NodeLock)
+        lock (node.NodeLock)
         {
-            _cache.SetFileAttributes(node, creationTime, lastAccessTime, lastWriteTime, node.FileAttributes);
+            _cache!.SetFileAttributes(node, creationTime, lastAccessTime, lastWriteTime, node.FileAttributes);
         }
 
         return Trace(_mountPoint, nameof(SetFileTime), fileName, node, DokanResult.Success);
@@ -306,7 +288,7 @@ public class KuromeFs : IDokanOperations, IDokanOperationsUnsafe
 
     public NtStatus MoveFile(string oldName, string newName, bool replace, IDokanFileInfo info)
     {
-        var newNode = _cache.GetNode(newName);
+        var newNode = _cache!.GetNode(newName);
         var oldNode = _cache.GetNode(oldName);
         lock (oldNode!.NodeLock)
         {
@@ -316,7 +298,7 @@ public class KuromeFs : IDokanOperations, IDokanOperationsUnsafe
                 if (destination == null)
                     return Trace(_mountPoint, nameof(MoveFile), oldName, oldNode, DokanResult.PathNotFound);
                 // oldNode!.Move(_deviceAccessor, newName, destination);
-                _cache.Move(oldNode!, newName, destination);
+                _cache.Move(oldNode, newName, destination);
                 return Trace(_mountPoint, nameof(MoveFile), oldName, oldNode, DokanResult.Success);
             }
 
@@ -324,7 +306,7 @@ public class KuromeFs : IDokanOperations, IDokanOperationsUnsafe
             {
                 if (info.IsDirectory) return DokanResult.AccessDenied;
                 _cache.Delete(newNode);
-                _cache.Move(oldNode!, newName, destination!);
+                _cache.Move(oldNode, newName, destination!);
                 return Trace(_mountPoint, nameof(MoveFile), oldName, oldNode, DokanResult.Success);
             }
 
@@ -335,9 +317,9 @@ public class KuromeFs : IDokanOperations, IDokanOperationsUnsafe
     public NtStatus SetEndOfFile(string fileName, long length, IDokanFileInfo info)
     {
         var node = (info.Context as CacheNode)!;
-        lock (node!.NodeLock)
+        lock (node.NodeLock)
         {
-            _cache.SetLength(node!, length);
+            _cache!.SetLength(node, length);
             return Trace(_mountPoint, nameof(SetEndOfFile), fileName, node, DokanResult.Success);
         }
     }
@@ -345,10 +327,10 @@ public class KuromeFs : IDokanOperations, IDokanOperationsUnsafe
     public NtStatus SetAllocationSize(string fileName, long length, IDokanFileInfo info)
     {
         var node = (info.Context as CacheNode)!;
-        lock (node!.NodeLock)
+        lock (node.NodeLock)
         {
             if (length < node.Length)
-                _cache.SetLength(node, length);
+                _cache!.SetLength(node, length);
             return Trace(_mountPoint, nameof(SetAllocationSize), fileName, node, DokanResult.Success);
         }
     }
@@ -370,37 +352,36 @@ public class KuromeFs : IDokanOperations, IDokanOperationsUnsafe
         totalNumberOfBytes = 0;
         totalNumberOfFreeBytes = 0;
         freeBytesAvailable = 0;
-        if (_device.GetSpace(out var total, out var free))
+        if (device.GetSpace(out var total, out var free))
         {
             totalNumberOfBytes = total;
             freeBytesAvailable = free;
             totalNumberOfFreeBytes = free;
             return Trace(_mountPoint, nameof(GetDiskFreeSpace), null, null, DokanResult.Success,
-                $"Label: {VolumeLabel}, Total: {total}, Free: {free}");
+                $"Label: {device.Name}, Total: {total}, Free: {free}");
         }
 
-        ;
         return Trace(_mountPoint, nameof(GetDiskFreeSpace), null, null, DokanResult.Unsuccessful,
-            $"Label: {VolumeLabel}, Total: {total}, Free: {free}");
+            $"Label: {device.Name}, Total: {total}, Free: {free}");
     }
 
     public NtStatus GetVolumeInformation([UnscopedRef] out string volumeLabel,
         [UnscopedRef] out FileSystemFeatures features,
         [UnscopedRef] out string fileSystemName, [UnscopedRef] out uint maximumComponentLength, IDokanFileInfo info)
     {
-        volumeLabel = VolumeLabel;
+        volumeLabel = device.Name;
         features = FileSystemFeatures.CasePreservedNames | FileSystemFeatures.CaseSensitiveSearch |
                    FileSystemFeatures.UnicodeOnDisk;
         fileSystemName = "Kurome";
-        maximumComponentLength = _maximumComponentLength;
+        maximumComponentLength = componentLength;
         return Trace(_mountPoint, nameof(GetVolumeInformation), null, null, DokanResult.Success);
     }
 
-    public NtStatus GetFileSecurity(string fileName, [UnscopedRef] out FileSystemSecurity security,
+    public NtStatus GetFileSecurity(string fileName, [UnscopedRef] out FileSystemSecurity? security,
         AccessControlSections sections,
         IDokanFileInfo info)
     {
-        security = new FileSecurity();
+        security = null;
         return DokanResult.NotImplemented;
     }
 
@@ -413,8 +394,6 @@ public class KuromeFs : IDokanOperations, IDokanOperationsUnsafe
     public NtStatus Mounted(string mountPoint, IDokanFileInfo info)
     {
         _mountPoint = mountPoint;
-        var root = _device.GetRootNode();
-        _cache = new FileSystemTree(root, _device);
         return Trace(_mountPoint, nameof(Mounted), null, null, DokanResult.Success);
     }
 
@@ -436,7 +415,7 @@ public class KuromeFs : IDokanOperations, IDokanOperationsUnsafe
         var node = info.Context as CacheNode;
         lock (node!.NodeLock)
         {
-            var size = node!.Length;
+            var size = node.Length;
             if (offset >= size)
             {
                 bytesRead = 0;
@@ -445,7 +424,7 @@ public class KuromeFs : IDokanOperations, IDokanOperationsUnsafe
             }
 
             var bytesToRead = offset + bufferLength > size ? size - offset : bufferLength;
-            bytesRead = _device.ReceiveFileBufferUnsafe(buffer, node.FullName, offset, (int)bytesToRead);
+            bytesRead = device.ReceiveFileBufferUnsafe(buffer, node.FullName, offset, (int)bytesToRead);
             return Trace(_mountPoint, nameof(ReadFile), fileName, node, DokanResult.Success,
                 $"bytesToRead:{bytesToRead}, R:{bytesRead}, O:{offset}");
         }
@@ -458,7 +437,7 @@ public class KuromeFs : IDokanOperations, IDokanOperationsUnsafe
         var node = info.Context as CacheNode;
         lock (node!.NodeLock)
         {
-            _device.WriteFileBufferUnsafe(buffer, fileName, offset, (int)bufferLength);
+            device.WriteFileBufferUnsafe(buffer, fileName, offset, (int)bufferLength);
             if (offset + bufferLength > node.Length)
                 node.Length = offset + bufferLength;
             bytesWritten = (int)bufferLength;

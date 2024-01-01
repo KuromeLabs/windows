@@ -8,10 +8,16 @@ public class FileSystemHost : IFileSystemHost
 {
     private readonly Dokan _dokan = new(new NullLogger());
     private readonly ConcurrentDictionary<string, DokanInstance> _dokanInstances = new();
+    private readonly Serilog.ILogger _logger = Serilog.Log.ForContext<FileSystemHost>();
     
     public void Mount(string mountPoint, Device device)
     {
-        var fs = new KuromeFs(false, device);
+        var fs = new KuromeFs(device);
+        if (!fs.Init())
+        {
+            _logger.Error("Could not mount filesystem - device returned null root node");
+            return;
+        }
         var builder = new DokanInstanceBuilder(_dokan)
             .ConfigureLogger(() => new KuromeDokanLogger())
             .ConfigureOptions(options =>
@@ -21,6 +27,7 @@ public class FileSystemHost : IFileSystemHost
                 options.SingleThread = false;
             });
         var instance = builder.Build(fs);
+        
         _dokanInstances.TryAdd(mountPoint, instance);
     }
 
