@@ -13,7 +13,7 @@ public class FileSystemHost : IFileSystemHost
     {
         var fs = new KuromeFs(false, device);
         var builder = new DokanInstanceBuilder(_dokan)
-            .ConfigureLogger(() => new NullLogger())
+            .ConfigureLogger(() => new KuromeDokanLogger())
             .ConfigureOptions(options =>
             {
                 options.Options = DokanOptions.FixedDrive ;
