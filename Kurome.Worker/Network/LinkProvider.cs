@@ -1,6 +1,7 @@
 using System;
 using System.Buffers;
 using System.Buffers.Binary;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net;
@@ -32,6 +33,7 @@ public class LinkProvider
     private readonly ILogger<LinkProvider> _logger;
     private readonly IDeviceRepository _deviceRepository;
     private readonly IFileSystemHost _fileSystemHost;
+    private readonly ConcurrentDictionary<string, UdpClient> _udpClients = new();
 
     public LinkProvider(IIdentityProvider identityProvider, ISecurityService<X509Certificate2> sslService,
         ILogger<LinkProvider> logger, IDeviceRepository deviceRepository, IFileSystemHost fileSystemHost)
@@ -73,7 +75,8 @@ public class LinkProvider
         {
             try
             {
-                CastUdp(GetLocalIpAddresses());
+                UpdateUdpClients();
+                CastUdp();
                 await Task.Delay(2000, cancellationToken);
             }
             catch (Exception e)
@@ -85,32 +88,52 @@ public class LinkProvider
         return 0;
     }
 
-    private void CastUdp(IEnumerable<string> addresses)
+    private void CastUdp()
     {
         var id = _identityProvider.GetEnvironmentId();
-        foreach (var ip in addresses)
+        foreach (var (ip, udpClient) in _udpClients)
         {
-            var udpClient = new UdpClient(AddressFamily.InterNetwork);
-            udpClient.Client.Bind(new IPEndPoint(IPAddress.Parse(ip), 33586));
             var message = "kurome:" + ip + ":" + _identityProvider.GetEnvironmentName() + ":" + id;
             var data = Encoding.Default.GetBytes(message);
-            // _logger.LogInformation("UDP Broadcast: \"{0}\" to {1}", message, ip);
-            udpClient.Send(data, data.Length, new IPEndPoint(IPAddress.Parse("255.255.255.255"), 33586));
-            udpClient.Close();
+            try
+            {
+                udpClient.Send(data, data.Length, new IPEndPoint(IPAddress.Parse("255.255.255.255"), 33586));
+                // _logger.LogInformation("UDP Broadcast: \"{0}\" to {1}", message, ip);
+            }
+            catch (Exception e)
+            {
+                _logger.LogError("Failed to send UDP broadcast: {Error}", e.ToString());
+                udpClient.Dispose();
+                _udpClients.TryRemove(ip, out _);
+            }
         }
     }
 
-    private static IEnumerable<string> GetLocalIpAddresses()
+    private void UpdateUdpClients()
     {
         var networkInterfaces = NetworkInterface.GetAllNetworkInterfaces();
-        return (from network in networkInterfaces
-            where network.OperationalStatus == OperationalStatus.Up
-            select network.GetIPProperties()
-            into properties
-            from address in properties.UnicastAddresses
-            where address.Address.AddressFamily == AddressFamily.InterNetwork
-            where !IPAddress.IsLoopback(address.Address)
-            select address.Address.ToString()).ToList();
+        foreach (var networkInterface in networkInterfaces)
+        {
+            if (networkInterface.OperationalStatus != OperationalStatus.Up) continue;
+            var properties = networkInterface.GetIPProperties();
+            foreach (var address in properties.UnicastAddresses)
+            {
+                if (address.Address.AddressFamily != AddressFamily.InterNetwork) continue;
+                if (IPAddress.IsLoopback(address.Address)) continue;
+                var ip = address.Address.ToString();
+                if (_udpClients.ContainsKey(ip)) continue;
+                var client = new UdpClient(AddressFamily.InterNetwork);
+                try
+                {
+                    client.Client.Bind(new IPEndPoint(address.Address, 33586));
+                    _udpClients.TryAdd(ip, client);
+                } catch (Exception e)
+                {
+                    _logger.LogError("Failed to bind UDP client to {Ip}: {Error}", ip, e.ToString());
+                    client.Dispose();
+                }
+            }
+        }
     }
 
     private async void SendIdentity(TcpClient client, CancellationToken cancellationToken)
@@ -186,8 +209,7 @@ public class LinkProvider
                 device.Dispose();
                 _deviceRepository.RemoveActiveDevice(device);
             });
-
-
+        
         result.Start(cancellationToken);
         device.Mount(_fileSystemHost);
     }
