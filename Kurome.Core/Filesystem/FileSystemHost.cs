@@ -26,9 +26,15 @@ public class FileSystemHost : IFileSystemHost
                 options.MountPoint = mountPoint + ":\\";
                 options.SingleThread = false;
             });
-        var instance = builder.Build(fs);
-        
-        _dokanInstances.TryAdd(mountPoint, instance);
+        try
+        {
+            var instance = builder.Build(fs);
+            _dokanInstances.TryAdd(mountPoint, instance);
+        }
+        catch (Exception e)
+        {
+            _logger.Error("Could not mount filesystem - exception: {@Exception}", e);
+        }
     }
 
     public void Unmount(string mountPoint)
