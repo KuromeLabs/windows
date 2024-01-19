@@ -1,11 +1,12 @@
-using System.Windows.Controls;
+using System.Windows;
 using System.Windows.Data;
 using Kurome.Core;
 using Kurome.Ui.ViewModels;
+using Wpf.Ui.Controls;
 
 namespace Kurome.Ui.Pages.Devices;
 
-public partial class Devices : Page
+public partial class Devices : INavigableView<DevicesViewModel>
 {
     public DevicesViewModel ViewModel { get; }
 
@@ -16,5 +17,13 @@ public partial class Devices : Page
         BindingOperations.EnableCollectionSynchronization(viewModel.ActiveDevices, viewModel.ActiveDevicesLock);
         
         InitializeComponent();
+    }
+
+    private void OnDeviceSelected(object sender, RoutedEventArgs e)
+    {
+        var cardAction = (CardAction)sender;
+        var selectedDevice = (Device) cardAction.DataContext;
+        if (selectedDevice != null)
+            ViewModel.OnDeviceClicked(selectedDevice);
     }
 }

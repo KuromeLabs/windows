@@ -36,6 +36,7 @@
         </ui:TitleBar>
         <ui:NavigationView x:Name="RootNavigation" Grid.Row="1"
                            TitleBar="{Binding ElementName=TitleBar, Mode=OneWay}"
+                           BreadcrumbBar="{Binding ElementName=BreadcrumbBar}"
                            IsBackButtonVisible="Collapsed"
                            FrameMargin="0"
                            MenuItemsSource="{Binding ViewModel.MenuItems}"

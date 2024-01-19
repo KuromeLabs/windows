@@ -39,10 +39,7 @@ public partial class MainWindow
             return;
         }
 
-        RootNavigation.HeaderVisibility =
-            navigationView.SelectedItem?.TargetPageType != typeof(Devices)
-                ? Visibility.Visible
-                : Visibility.Collapsed;
+        RootNavigation.HeaderVisibility = Visibility.Visible;
     }
 
     private void MainWindow_OnSizeChanged(object sender, SizeChangedEventArgs e)
