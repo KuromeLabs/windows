@@ -27,6 +27,9 @@ public partial class App : System.Windows.Application
         .ConfigureServices(
             (context, services) =>
             {
+                
+                
+                services.AddSingleton<PipeService>();
                 services.AddSingleton<INavigationService, NavigationService>();
                 services.AddSingleton<DevicesViewModel>();
                 services.AddSingleton<Devices>();
@@ -36,7 +39,6 @@ public partial class App : System.Windows.Application
                 services.AddSingleton<MainWindow>();
                 services.AddSingleton<IContentDialogService, ContentDialogService>();
                 services.AddHostedService<HostService>();
-                services.AddHostedService<PipeService>();
             }
             )
         .UseSerilog((hostingContext, services, loggerConfiguration) => loggerConfiguration

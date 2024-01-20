@@ -1,35 +1,36 @@
 using System.Collections.ObjectModel;
-using CommunityToolkit.Mvvm.ComponentModel;
+using System.Reactive.Linq;
+using DynamicData;
 using Kurome.Core;
 using Kurome.Ui.Pages.Devices;
+using Kurome.Ui.Services;
+using ReactiveUI;
+using ReactiveUI.Fody.Helpers;
 using Wpf.Ui;
 
 namespace Kurome.Ui.ViewModels;
 
-public partial class DevicesViewModel : ObservableObject
+public partial class DevicesViewModel : ReactiveObject
 {
     private readonly INavigationService _navigationService;
-    [ObservableProperty] private ICollection<Device> _activeDevices = new ObservableCollection<Device>();
+    private readonly PipeService _pipeService;
 
-    public readonly object ActiveDevicesLock = new();
+    private readonly ReadOnlyObservableCollection<Device> _activeDevices;
+    public ReadOnlyObservableCollection<Device> ActiveDevices => _activeDevices;
 
-    [ObservableProperty] private Device? _selectedDevice;
+    [Reactive] public Device SelectedDevice { get; set; }
 
-    public DevicesViewModel(INavigationService navigationService)
+    public DevicesViewModel(INavigationService navigationService, PipeService pipeService)
     {
         _navigationService = navigationService;
-    }
+        _pipeService = pipeService;
+        Console.WriteLine("Doing the property thing");
+        _pipeService.ActiveDevices
+            .Connect()
+            .ObserveOn(RxApp.MainThreadScheduler)
+            .Bind(out _activeDevices)
+            .Subscribe();
 
-    public void SetDevices(List<Device> devices)
-    {
-        lock (ActiveDevicesLock)
-        {
-            ActiveDevices.Clear();
-            foreach (var device in devices)
-            {
-                ActiveDevices.Add(device);
-            }
-        }
     }
 
     public void OnDeviceClicked(Device device)

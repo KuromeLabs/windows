@@ -2,10 +2,8 @@ using System.Buffers.Binary;
 using System.IO.Pipes;
 using System.Text;
 using System.Text.Json;
-using System.Windows;
-using System.Windows.Data;
+using DynamicData;
 using Kurome.Core;
-using Kurome.Ui.ViewModels;
 using Microsoft.Extensions.Hosting;
 using Serilog;
 
@@ -13,7 +11,7 @@ namespace Kurome.Ui.Services;
 
 public class PipeService : IHostedService
 {
-    private readonly DevicesViewModel _devicesViewModel;
+
 
     private NamedPipeClientStream _pipeClient = new(".", "KuromePipe", PipeDirection.InOut,
         PipeOptions.Asynchronous);
@@ -21,9 +19,10 @@ public class PipeService : IHostedService
 
     private readonly ILogger _logger = Log.ForContext<PipeService>();
 
-    public PipeService(DevicesViewModel devicesViewModel)
+    public readonly SourceList<Device> ActiveDevices = new();
+
+    public PipeService()
     {
-        _devicesViewModel = devicesViewModel;
     }
 
     public async void Send(string message, CancellationToken cancellationToken)
@@ -67,6 +66,7 @@ public class PipeService : IHostedService
                 catch (Exception e)
                 {
                     await _pipeClient.DisposeAsync();
+                    ActiveDevices.Clear();
                     _logger.Error(e, "Error while reading from pipe");
                 }
             }
@@ -78,7 +78,11 @@ public class PipeService : IHostedService
     private void ProcessMessage(string message)
     {
         var devices = JsonSerializer.Deserialize<List<Device>>(message);
-        _devicesViewModel.SetDevices(devices);
+        ActiveDevices.Edit(action =>
+        {
+            action.Clear();
+            action.AddRange(devices);
+        });
     }
 
     public Task StopAsync(CancellationToken cancellationToken)

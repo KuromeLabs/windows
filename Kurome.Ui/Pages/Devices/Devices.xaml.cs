@@ -14,8 +14,7 @@ public partial class Devices : INavigableView<DevicesViewModel>
     {
         ViewModel = viewModel;
         DataContext = this;
-        BindingOperations.EnableCollectionSynchronization(viewModel.ActiveDevices, viewModel.ActiveDevicesLock);
-        
+      
         InitializeComponent();
     }
 

@@ -23,41 +23,58 @@
                  mc:Ignorable="d">
 
     <Grid>
-        
 
-        <!-- <ContentPresenter x:Name="RootContentDialog" Grid.Row="0" /> -->
+
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
         
-        <ui:TitleBar
-            x:Name="TitleBar"
-            Title="{Binding ViewModel.ApplicationTitle}"
-            Grid.Row="0"
-            CloseWindowByDoubleClickOnIcon="True">
-            
-        </ui:TitleBar>
-        <ui:NavigationView x:Name="RootNavigation" Grid.Row="1"
+        <ui:NavigationView x:Name="RootNavigation"
+                           Padding="0"
                            TitleBar="{Binding ElementName=TitleBar, Mode=OneWay}"
                            BreadcrumbBar="{Binding ElementName=BreadcrumbBar}"
-                           IsBackButtonVisible="Collapsed"
+                           IsBackButtonVisible="Visible"
+                           IsPaneToggleVisible="True"
                            FrameMargin="0"
                            MenuItemsSource="{Binding ViewModel.MenuItems}"
                            PaneClosed="NavigationView_OnPaneClosed"
                            PaneDisplayMode="Left"
                            PaneOpened="NavigationView_OnPaneOpened"
-                           SelectionChanged="OnNavigationSelectionChanged"
-                           >
+                           SelectionChanged="OnNavigationSelectionChanged">
             <ui:NavigationView.Header>
                 <StackPanel Margin="42,32,42,20">
                     <ui:BreadcrumbBar x:Name="BreadcrumbBar" />
-                    <!-- <controls:PageControlDocumentation Margin="0,10,0,0" NavigationView="{Binding ElementName=NavigationView}" /> -->
+                    
                 </StackPanel>
+
             </ui:NavigationView.Header>
-            
+
             <ui:NavigationView.ContentOverlay>
                 <Grid>
                     <ui:SnackbarPresenter x:Name="SnackbarPresenter" />
                 </Grid>
             </ui:NavigationView.ContentOverlay>
         </ui:NavigationView>
+        
+        
+        <ui:TitleBar
+            x:Name="TitleBar"
+            Title="{Binding ViewModel.ApplicationTitle}"
+            Grid.Row="0"
+            CloseWindowByDoubleClickOnIcon="True">
+
+        </ui:TitleBar>
+        
+        
+        <ui:InfoBar 
+            Grid.Row="1" 
+            Title="Status" 
+            Message="{Binding ViewModel.ServiceStatus}" 
+            IsOpen="True" 
+            IsClosable="False" 
+            Severity="Success"/>
     </Grid>
 
 
