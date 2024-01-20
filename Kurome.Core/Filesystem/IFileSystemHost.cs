@@ -4,5 +4,4 @@ public interface IFileSystemHost
 {
     public void Mount(string mountPoint, Device device);
     public void Unmount(string mountPoint);
-    public void DisposeInstance(string mountPoint);
 }

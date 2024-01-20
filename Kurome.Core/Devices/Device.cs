@@ -56,7 +56,6 @@ public class Device : IDisposable
             _logger.Information($"Unmounting device {Id}");
             _fileSystemHost?.Unmount("E");
             _link?.Dispose();
-            _fileSystemHost?.DisposeInstance("E");
         }
 
         _link = null;

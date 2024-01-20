@@ -40,10 +40,6 @@ public class FileSystemHost : IFileSystemHost
     public void Unmount(string mountPoint)
     {
         _dokan.RemoveMountPoint(mountPoint);
-    }
-
-    public void DisposeInstance(string mountPoint)
-    {
         _dokanInstances.TryRemove(mountPoint, out var instance);
         instance?.WaitForFileSystemClosed(uint.MaxValue);
         instance?.Dispose();
