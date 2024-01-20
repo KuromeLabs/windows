@@ -1,35 +1,30 @@
-
+using DynamicData;
 
 namespace Kurome.Core.Devices;
 
 public class DeviceRepository : IDeviceRepository
 {
 
-    private readonly Dictionary<Guid, Device> _activeDevices = new();
     
+    private readonly SourceCache<Device, Guid> _activeDeviceCache = new (t => t.Id);
 
     public List<Device> GetSavedDevices()
     {
         throw new NotImplementedException();
     }
 
-    public List<Device> GetActiveDevices()
+    public IObservableCache<Device, Guid> GetActiveDevices()
     {
-        return _activeDevices.Values.ToList();
+        return _activeDeviceCache.AsObservableCache();
     }
 
     public void AddActiveDevice(Device device)
     {
-        _activeDevices.TryAdd(device.Id, device);
-        DeviceAdded?.Invoke(this, device);
+        _activeDeviceCache.AddOrUpdate(device);
     }
 
     public void RemoveActiveDevice(Device device)
     {
-        _activeDevices.Remove(device.Id);
-        DeviceRemoved?.Invoke(this, device);
+        _activeDeviceCache.Remove(device);
     }
-
-    public event EventHandler<Device>? DeviceAdded;
-    public event EventHandler<Device>? DeviceRemoved;
 }
