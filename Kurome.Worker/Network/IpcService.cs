@@ -26,6 +26,7 @@ public class IpcService
 
     private readonly NamedPipeServerStream _pipeServer = new("KuromePipe", PipeDirection.InOut, 1, 
         PipeTransmissionMode.Byte, PipeOptions.Asynchronous);
+
     public async Task StartAsync(CancellationToken cancellationToken)
     {
         ObserveDevices(cancellationToken);
@@ -37,6 +38,7 @@ public class IpcService
                 _logger.LogInformation($"Incoming pipe connection");
                 SendActiveDevices(cancellationToken);
             }
+
             try
             {
                 var buffer = new byte[4];
@@ -44,12 +46,12 @@ public class IpcService
                 var length = BinaryPrimitives.ReadInt32LittleEndian(buffer);
                 buffer = new byte[length];
                 await _pipeServer.ReadExactlyAsync(buffer, cancellationToken);
-                Console.WriteLine("Received: " + Encoding.UTF8.GetString(buffer));
+                _logger.LogInformation($"Incoming message: {Encoding.UTF8.GetString(buffer)}");
             }
             catch (Exception e)
             {
                 _pipeServer.Disconnect();
-                Console.WriteLine(e);
+                _logger.LogError(e, "Error while reading from pipe. If you closed the client, this is expected.");
                 await Task.Delay(2000, cancellationToken);
             }
         }
