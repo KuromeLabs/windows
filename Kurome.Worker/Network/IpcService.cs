@@ -1,10 +1,13 @@
 using System;
 using System.Buffers.Binary;
 using System.IO.Pipes;
+using System.Reactive.Concurrency;
+using System.Reactive.Linq;
 using System.Text;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using DynamicData;
 using Kurome.Core.Devices;
 using Microsoft.Extensions.Logging;
 
@@ -52,20 +55,23 @@ public class IpcService
         }
     }
 
-    private async void SendActiveDevices(CancellationToken cancellationToken)
+    private void SendActiveDevices(CancellationToken cancellationToken)
     {
-        var devices = _deviceRepository.GetActiveDevices();
+        var devices = _deviceRepository.GetActiveDevices().Items;
         var json = JsonSerializer.Serialize(devices);
-        await Send(json, cancellationToken);
+        Send(json, cancellationToken);
     }
 
     private void ObserveDevices(CancellationToken cancellationToken)
     {
-        _deviceRepository.DeviceAdded += (_, _) => SendActiveDevices(cancellationToken);
-        _deviceRepository.DeviceRemoved += (_, _) => SendActiveDevices(cancellationToken);
+        _deviceRepository.GetActiveDevices()
+            .Connect()
+            .Bind(out var list)
+            .ObserveOn(Scheduler.Default)
+            .Subscribe(_ => Send(JsonSerializer.Serialize(list), cancellationToken));
     }
 
-    public async Task Send(string message, CancellationToken cancellationToken)
+    private async void Send(string message, CancellationToken cancellationToken)
     {
         if (!_pipeServer.IsConnected) return;
         var messageLength = Encoding.UTF8.GetByteCount(message);

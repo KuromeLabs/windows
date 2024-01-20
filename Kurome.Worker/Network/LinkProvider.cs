@@ -175,7 +175,7 @@ public class LinkProvider
 
         var id = info.Item1;
         var name = info.Item2;
-        var existingDevice = _deviceRepository.GetActiveDevices().FirstOrDefault(x => x.Id == id);
+        var existingDevice = _deviceRepository.GetActiveDevices().KeyValues.FirstOrDefault(x => x.Key == id).Value;
         if (existingDevice != null)
         {
             _logger.LogInformation("Device {Name} ({Id}) is already active, reconnecting", name, id);
