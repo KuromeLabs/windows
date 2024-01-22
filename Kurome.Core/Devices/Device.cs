@@ -13,7 +13,6 @@ namespace Kurome.Core;
 
 public class Device : IDisposable
 {
-    private IFileSystemHost? _fileSystemHost;
 
     public Device(Guid id, string name)
     {
@@ -39,13 +38,7 @@ public class Device : IDisposable
     {
         _link = link;
     }
-
-    public void Mount(IFileSystemHost fileSystemHost)
-    {
-        _fileSystemHost = fileSystemHost;
-        _logger.Information($"Mounting device {Id}");
-        _fileSystemHost.Mount("E", this);
-    }
+    
 
     protected virtual void Dispose(bool disposing)
     {
@@ -53,8 +46,6 @@ public class Device : IDisposable
         _logger.Information($"Disposing device {Id}");
         if (disposing)
         {
-            _logger.Information($"Unmounting device {Id}");
-            _fileSystemHost?.Unmount("E");
             _link?.Dispose();
         }
 
@@ -100,9 +91,11 @@ public class Device : IDisposable
         if (data == null) return null;
         
         var response = Packet.Serializer.Parse(data.Data);
-        if (response.Component?.Kind != Component.ItemKind.GetDirectoryResponse) return null;
-        var result = response.Component.Value.GetDirectoryResponse.Node;
-        if (result == null) return null;
+        if (response.Component?.Kind != Component.ItemKind.GetDirectoryResponse || response.Component.Value.GetDirectoryResponse.Node == null) {
+            data.Free();
+            return null;
+        }
+        var result = response.Component.Value.GetDirectoryResponse.Node!;
         var list = result.Children!.ToDictionary(x => x.Name!, x =>
             new CacheNode
             {
@@ -132,7 +125,10 @@ public class Device : IDisposable
 
             if (data == null) return null;
             var response = Packet.Serializer.Parse(data.Data);
-            if (response.Component?.Kind != Component.ItemKind.GetDirectoryResponse) return null;
+            if (response.Component?.Kind != Component.ItemKind.GetDirectoryResponse) {
+                data.Free();
+                return null;
+            }
             var file = response.Component.Value.GetDirectoryResponse.Node;
             var root = new CacheNode
             {
@@ -176,7 +172,10 @@ public class Device : IDisposable
             if (data == null) return false;
             
             var response = Packet.Serializer.Parse(data.Data);
-            if (response.Component?.Kind != Component.ItemKind.DeviceQueryResponse) return false;
+            if (response.Component?.Kind != Component.ItemKind.DeviceQueryResponse) {
+                data.Free();
+                return false;
+            }
             var deviceInfo = response.Component.Value.DeviceQueryResponse;
             _totalSpace = deviceInfo.TotalBytes;
             _freeSpace = deviceInfo.FreeBytes;
@@ -215,7 +214,11 @@ public class Device : IDisposable
         if (data == null) return 0;
         var response = Packet.Serializer.Parse(data.Data);
         if (response.Component?.Kind != Component.ItemKind.ReadFileResponse ||
-            response.Component?.ReadFileResponse.Data == null) return 0;
+            response.Component?.ReadFileResponse.Data == null)
+        {
+            data.Free();
+            return 0;
+        }
         var memory = response.Component.Value.ReadFileResponse.Data!.Value;
         var bufferSpan = new Span<byte>(buffer.ToPointer(), bytesToRead);
         memory.Span.CopyTo(bufferSpan);
