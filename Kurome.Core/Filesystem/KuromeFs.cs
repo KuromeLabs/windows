@@ -167,7 +167,7 @@ public class KuromeFs(Device device, uint componentLength = 127) : IDokanOperati
         if (node != null)
             lock (node.NodeLock)
             {
-                if (info.DeleteOnClose && (!info.IsDirectory || node.Children.IsEmpty))
+                if (info.DeleteOnClose && (!info.IsDirectory || node.Children.Count == 0))
                     _cache!.Delete(node);
             }
 
@@ -221,8 +221,8 @@ public class KuromeFs(Device device, uint componentLength = 127) : IDokanOperati
         var dirNode = info.Context as CacheNode;
         lock (dirNode!.NodeLock)
         {
-            var nodes = _cache!.GetChildren(dirNode).ToList();
-            files = new List<FileInformation>(nodes.Count);
+            var nodes = _cache!.GetChildren(dirNode);
+            files = new List<FileInformation>();
             foreach (var node in nodes.Where(node =>
                          DokanHelper.DokanIsNameInExpression(searchPattern, node.Name, true)))
                 files.Add(node.ToFileInfo());
