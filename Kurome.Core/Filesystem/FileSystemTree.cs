@@ -38,43 +38,50 @@ public class FileSystemTree
         if (!node.ChildrenRefreshed)
             UpdateChildren(node);
         else
-            Task.Run(() => UpdateChildren(node)).ConfigureAwait(false);
-        
+            ScheduleChildrenUpdate(node);
+
         return node.Children.Values;
+    }
+    
+    private void ScheduleChildrenUpdate(CacheNode node)
+    {
+        if (_nodeChildrenUpdateOperations.ContainsKey(node.FullName) ||
+            DateTime.Now - node.LastChildrenRefresh < TimeSpan.FromSeconds(5)) return;
+        _nodeChildrenUpdateOperations.TryAdd(node.FullName, 0);
+        node.LastChildrenRefresh = DateTime.Now;
+        Task.Run(() => UpdateChildren(node)).ConfigureAwait(false);
     }
 
     private void UpdateChildren(CacheNode node)
     {
-        if (_nodeChildrenUpdateOperations.ContainsKey(node.FullName) && 
-            DateTime.Now - node.LastChildrenRefresh < TimeSpan.FromSeconds(5)) return;
-        _nodeChildrenUpdateOperations.TryAdd(node.FullName, 0);
-        node.LastChildrenRefresh = DateTime.Now;
-
-        var nodes = _deviceAccessor.GetChildrenNodes(node);
-        if (nodes == null)
+        lock (node.NodeLock)
         {
-            node.Children.Clear();
-            return;
-        }
-
-        foreach (var newNode in nodes)
-        {
-            if (!node.Children.TryGetValue(newNode.Key, out var existingNode))
-                node.Children.TryAdd(newNode.Key, newNode.Value);
-            else
+            var nodes = _deviceAccessor.GetChildrenNodes(node);
+            if (nodes == null)
             {
-                lock (existingNode.NodeLock)
+                node.Children.Clear();
+                return;
+            }
+
+            foreach (var newNode in nodes)
+            {
+                if (!node.Children.TryGetValue(newNode.Key, out var existingNode))
+                    node.Children.TryAdd(newNode.Key, newNode.Value);
+                else
                 {
-                    existingNode.Update(newNode.Value);
-                    existingNode.ChildrenRefreshed = false;
+                    lock (existingNode.NodeLock)
+                    {
+                        existingNode.Update(newNode.Value);
+                        existingNode.ChildrenRefreshed = false;
+                    }
                 }
             }
-        }
-
-        foreach (var oldNode in node.Children)
-        {
-            if (!nodes.ContainsKey(oldNode.Key))
-                node.Children.TryRemove(oldNode.Key, out _);
+            
+            foreach (var oldNode in node.Children)
+            {
+                if (!nodes.ContainsKey(oldNode.Key))
+                    node.Children.TryRemove(oldNode.Key, out _);
+            }
         }
         _nodeChildrenUpdateOperations.TryRemove(node.FullName, out _);
         node.ChildrenRefreshed = true;

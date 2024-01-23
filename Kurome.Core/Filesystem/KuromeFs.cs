@@ -18,7 +18,7 @@ public class KuromeFs(DeviceAccessor deviceAccessor, uint componentLength = 127)
         string extra = "")
 
     {
-        _logger.Debug("{0} {1}[\"{2}\" | {3} {4}] -> {5}", driveLetter, method, fileName, info, extra, result);
+        // _logger.Debug("{0} {1}[\"{2}\" | {3} {4}] -> {5}", driveLetter, method, fileName, info, extra, result);
         return result;
     }
 
@@ -46,12 +46,24 @@ public class KuromeFs(DeviceAccessor deviceAccessor, uint componentLength = 127)
         if (fileName.StartsWith("\\Android\\data") || fileName.StartsWith("\\Android\\obb"))
             return Trace(_mountPoint, nameof(CreateFile), fileName, null, DokanResult.AccessDenied,
                 $"Mode: {mode}, Attributes: {attributes}, Options: {options}, Share: {share}, Access: {access}");
-        var node = _cache?.GetNode(fileName);
+
+
+        if (_cache == null) return DokanResult.Error;
+        CacheNode? node = null;
+        CacheNode? parentNode;
+        if (fileName == "\\")
+        {
+            parentNode = null;
+            node = _cache.Root;
+        }
+        else
+        {
+            parentNode = _cache?.GetNode(Path.GetDirectoryName(fileName)!);
+            parentNode?.Children.TryGetValue(Path.GetFileName(fileName), out node);
+        }
 
         info.Context = node;
         var nodeExists = node != null;
-        var parentPath = Path.GetDirectoryName(fileName);
-        var parentNode = parentPath == null ? null : _cache!.GetNode(parentPath);
         var parentNodeExists = parentNode != null;
         var nodeIsDirectory = nodeExists && (node!.FileAttributes & (uint)FileAttributes.Directory) != 0;
         if (nodeIsDirectory) info.IsDirectory = true;
@@ -289,16 +301,17 @@ public class KuromeFs(DeviceAccessor deviceAccessor, uint componentLength = 127)
 
     public NtStatus MoveFile(string oldName, string newName, bool replace, IDokanFileInfo info)
     {
-        var newNode = _cache!.GetNode(newName);
-        var oldNode = _cache.GetNode(oldName);
-        var destination = _cache.GetNode(Path.GetDirectoryName(newName)!);
-        lock (oldNode!.NodeLock)
+        var oldNode = (info.Context as CacheNode)!;
+        lock (oldNode.NodeLock)
         {
+            var destination = _cache!.GetNode(Path.GetDirectoryName(newName)!);
+            if (destination == null)
+                return Trace(_mountPoint, nameof(MoveFile), oldName, oldNode, DokanResult.PathNotFound);
+            CacheNode? newNode;
+            lock (destination.NodeLock)
+                destination.Children.TryGetValue(Path.GetFileName(newName), out newNode);
             if (newNode == null)
             {
-                if (destination == null)
-                    return Trace(_mountPoint, nameof(MoveFile), oldName, oldNode, DokanResult.PathNotFound);
-                // oldNode!.Move(_deviceAccessor, newName, destination);
                 _cache.Move(oldNode, newName, destination);
                 return Trace(_mountPoint, nameof(MoveFile), oldName, oldNode, DokanResult.Success);
             }
@@ -307,7 +320,7 @@ public class KuromeFs(DeviceAccessor deviceAccessor, uint componentLength = 127)
             {
                 if (info.IsDirectory) return DokanResult.AccessDenied;
                 _cache.Delete(newNode);
-                _cache.Move(oldNode, newName, destination!);
+                _cache.Move(oldNode, newName, destination);
                 return Trace(_mountPoint, nameof(MoveFile), oldName, oldNode, DokanResult.Success);
             }
 
