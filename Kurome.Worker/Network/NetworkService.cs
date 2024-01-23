@@ -1,48 +1,31 @@
 using System;
-using System.Buffers;
 using System.Buffers.Binary;
 using System.Collections.Concurrent;
-using System.Collections.Generic;
-using System.Linq;
 using System.Net;
 using System.Net.NetworkInformation;
-using System.Net.Security;
 using System.Net.Sockets;
-using System.Reactive.Concurrency;
-using System.Reactive.Linq;
-using System.Security.Authentication;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using Kurome.Core;
-using Kurome.Core.Devices;
 using Kurome.Core.Interfaces;
-using Kurome.Core.Network;
-using FlatSharp;
-using Kurome.Core.Filesystem;
-using Kurome.Fbs;
 using Microsoft.Extensions.Logging;
 
 namespace Kurome.Network;
 
-public class LinkProvider
+public class NetworkService
 {
     private readonly IIdentityProvider _identityProvider;
-    private readonly ISecurityService<X509Certificate2> _sslService;
-    private readonly ILogger<LinkProvider> _logger;
-    private readonly IDeviceRepository _deviceRepository;
-    private readonly IFileSystemHost _fileSystemHost;
+    private readonly ILogger<NetworkService> _logger;
+    private readonly DeviceService _deviceService;
     private readonly ConcurrentDictionary<string, UdpClient> _udpClients = new();
 
-    public LinkProvider(IIdentityProvider identityProvider, ISecurityService<X509Certificate2> sslService,
-        ILogger<LinkProvider> logger, IDeviceRepository deviceRepository, IFileSystemHost fileSystemHost)
+    public NetworkService(IIdentityProvider identityProvider, ISecurityService<X509Certificate2> sslService,
+        ILogger<NetworkService> logger,  DeviceService deviceService)
     {
         _identityProvider = identityProvider;
-        _sslService = sslService;
         _logger = logger;
-        _deviceRepository = deviceRepository;
-        _fileSystemHost = fileSystemHost;
+        _deviceService = deviceService;
     }
 
     private async void StartUdpListener()
@@ -57,9 +40,10 @@ public class LinkProvider
         while (!cancellationToken.IsCancellationRequested)
             try
             {
+                _logger.LogInformation("Waiting for incoming TCP connection");
                 var client = await tcpListener.AcceptTcpClientAsync(cancellationToken);
                 _logger.LogInformation("Accepted connection from {Ip}", client.Client.RemoteEndPoint as IPEndPoint);
-                HandleServerConnection(client, cancellationToken);
+                _ = _deviceService.HandleIncomingTcp(client, cancellationToken);
             }
             catch (Exception e)
             {
@@ -136,7 +120,7 @@ public class LinkProvider
         }
     }
 
-    private async void SendIdentity(TcpClient client, CancellationToken cancellationToken)
+    private async Task SendIdentity(TcpClient client, CancellationToken cancellationToken)
     {
         var identity = $"{_identityProvider.GetEnvironmentName()}:{_identityProvider.GetEnvironmentId()}";
         var identityBytes = Encoding.UTF8.GetBytes(identity);
@@ -162,77 +146,6 @@ public class LinkProvider
         //
         // if (mountResult.ResultStatus == Result<Unit>.Status.Failure)
         //     _logger.LogError("{Error}", mountResult.Error);
-    }
-
-    public async void HandleServerConnection(TcpClient client, CancellationToken cancellationToken)
-    {
-        var info = await ReadIdentityAsync(client, cancellationToken);
-        if (info == null)
-        {
-            _logger.LogError("Failed to read device identity from incoming connection");
-            return;
-        }
-
-        var id = info.Item1;
-        var name = info.Item2;
-        var existingDevice = _deviceRepository.GetActiveDevices().KeyValues.FirstOrDefault(x => x.Key == id).Value;
-        if (existingDevice != null)
-        {
-            _logger.LogInformation("Device {Name} ({Id}) is already active, reconnecting", name, id);
-            existingDevice.Dispose();
-            _deviceRepository.RemoveActiveDevice(existingDevice);
-        }
-        Link? result = null;
-        try
-        {
-            var stream = new SslStream(client.GetStream(), false, (_, _, _, _) => true);
-            await stream.AuthenticateAsServerAsync(_sslService.GetSecurityContext(), true, SslProtocols.None, true);
-            stream.ReadTimeout = 10000;
-            result = new Link(stream);
-        }
-        catch (Exception e)
-        {
-            _logger.LogError($"{e}");
-            return;
-        }
-
-        _logger.LogInformation("Link established with {Name} ({Id})", info.Item2, id);
-
-        var device = new Device(id, name);
-        device.Connect(result);
-        _deviceRepository.AddActiveDevice(device);
-
-        result.IsConnected
-            .ObserveOn(Scheduler.Default)
-            .Subscribe(onConnected => { _deviceRepository.AddActiveDevice(device); }, 
-            () => {
-                device.Dispose();
-                _deviceRepository.RemoveActiveDevice(device);
-            });
-        
-        result.Start(cancellationToken);
-        device.Mount(_fileSystemHost);
-    }
-
-
-    private async Task<Tuple<Guid, string>?> ReadIdentityAsync(TcpClient client, CancellationToken cancellationToken)
-    {
-        var sizeBuffer = new byte[4];
-        try
-        {
-            await client.GetStream().ReadExactlyAsync(sizeBuffer, 0, 4, cancellationToken);
-            var size = BinaryPrimitives.ReadInt32LittleEndian(sizeBuffer);
-            var readBuffer = ArrayPool<byte>.Shared.Rent(size);
-            await client.GetStream().ReadExactlyAsync(readBuffer, 0, size, cancellationToken);
-            var info = Packet.Serializer.Parse(readBuffer).Component?.DeviceQueryResponse;
-            ArrayPool<byte>.Shared.Return(readBuffer);
-            return new Tuple<Guid, string>(Guid.Parse(info!.Id!), info.Name!);
-        }
-        catch (Exception e)
-        {
-            _logger.LogError("{@Exception}", e.ToString());
-            return null;
-        }
     }
     
 }

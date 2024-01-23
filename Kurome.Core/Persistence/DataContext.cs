@@ -1,3 +1,4 @@
+using Kurome.Core.Devices;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 

@@ -34,7 +34,7 @@ public partial class MainWindow
 
     private void OnNavigationSelectionChanged(object sender, RoutedEventArgs e)
     {
-        if (sender is not Wpf.Ui.Controls.NavigationView navigationView)
+        if (sender is not NavigationView navigationView)
         {
             return;
         }

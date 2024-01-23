@@ -3,7 +3,8 @@ using System.IO.Pipes;
 using System.Text;
 using System.Text.Json;
 using DynamicData;
-using Kurome.Core;
+using Kurome.Core.Devices;
+using Kurome.Network;
 using Microsoft.Extensions.Hosting;
 using Serilog;
 
@@ -77,11 +78,11 @@ public class PipeService : IHostedService
 
     private void ProcessMessage(string message)
     {
-        var devices = JsonSerializer.Deserialize<List<Device>>(message);
+        var devices = JsonSerializer.Deserialize<List<DeviceState>>(message);
         ActiveDevices.Edit(action =>
         {
             action.Clear();
-            action.AddRange(devices);
+            action.AddRange(devices.Select(x => x.Device));
         });
     }
 

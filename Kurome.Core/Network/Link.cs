@@ -13,9 +13,9 @@ public class Link : IDisposable
 {
     private readonly SslStream _stream;
     private bool Disposed { get; set; } = false;
-    private readonly ILogger _logger = Serilog.Log.ForContext(typeof(Link));
+    private readonly ILogger _logger = Log.ForContext(typeof(Link));
 
-    private readonly Subject<bool> _isConnected = new();
+    private readonly ReplaySubject<bool> _isConnected = new();
     public IObservable<bool> IsConnected => _isConnected.AsObservable();
     
     private readonly Subject<Buffer?> _dataReceived = new();

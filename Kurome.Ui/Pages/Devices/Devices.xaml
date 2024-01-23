@@ -5,7 +5,7 @@
       xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
       xmlns:local="clr-namespace:Kurome.Ui.Pages.Devices"
       xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
-      xmlns:models="clr-namespace:Kurome.Core;assembly=Kurome.Core"
+      xmlns:devices="clr-namespace:Kurome.Core.Devices;assembly=Kurome.Core"
       mc:Ignorable="d"
       d:DataContext="{d:DesignInstance local:Devices,IsDesignTimeCreatable=False}"
       ui:Design.Background="{DynamicResource ApplicationBackgroundBrush}"
@@ -21,7 +21,7 @@
             </ItemsPanelTemplate>
         </ItemsControl.ItemsPanel>
         <ItemsControl.Resources>
-            <DataTemplate DataType="{x:Type models:Device}">
+            <DataTemplate DataType="{x:Type devices:Device}">
                 <ui:CardAction Icon="{ui:SymbolIcon Phone32}" Click="OnDeviceSelected" Margin="8,8,8,8">
                     <Grid>
                         <Grid.RowDefinitions>

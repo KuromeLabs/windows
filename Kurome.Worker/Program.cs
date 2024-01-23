@@ -13,6 +13,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Serilog;
+using Serilog.Sinks.SystemConsole.Themes;
 
 var mutex = new Mutex(false, "Global\\kurome-mutex");
 if (!mutex.WaitOne(0, false))
@@ -33,7 +34,7 @@ builder.ConfigureAppConfiguration(c =>
 
 
 builder.UseSerilog((hostingContext, services, loggerConfiguration) => loggerConfiguration
-        .WriteTo.Console(outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj} <{SourceContext}>{NewLine}{Exception}", theme: Serilog.Sinks.SystemConsole.Themes.AnsiConsoleTheme.Literate )
+        .WriteTo.Console(outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj} <{SourceContext}>{NewLine}{Exception}", theme: AnsiConsoleTheme.Literate )
         .Enrich.FromLogContext()
         .ReadFrom.Configuration(hostingContext.Configuration));
     
@@ -46,7 +47,6 @@ builder.ConfigureServices(services =>
         services.AddDbContext<DataContext>();
         services.AddSingleton<IIdentityProvider, IdentityProvider>();
         services.AddSingleton<IDeviceRepository, DeviceRepository>();
-        services.AddSingleton<IFileSystemHost, FileSystemHost>();
         services.AddNetworkServices();
     });
 var host = builder.Build();

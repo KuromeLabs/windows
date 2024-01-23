@@ -1,18 +1,19 @@
 using System.Collections.Concurrent;
+using Kurome.Core.Devices;
 
 namespace Kurome.Core.Filesystem;
 
 public class FileSystemTree
 {
     public CacheNode Root;
-    private readonly Device _device;
+    private readonly DeviceAccessor _deviceAccessor;
     private readonly ConcurrentDictionary<string, byte> _nodeChildrenUpdateOperations = new();
 
 
-    public FileSystemTree(CacheNode root, Device device)
+    public FileSystemTree(CacheNode root, DeviceAccessor deviceAccessor)
     {
         Root = root;
-        _device = device;
+        _deviceAccessor = deviceAccessor;
     }
 
     public CacheNode? GetNode(string path)
@@ -49,7 +50,7 @@ public class FileSystemTree
         _nodeChildrenUpdateOperations.TryAdd(node.FullName, 0);
         node.LastChildrenRefresh = DateTime.Now;
 
-        var nodes = _device.GetChildrenNodes(node);
+        var nodes = _deviceAccessor.GetChildrenNodes(node);
         if (nodes == null)
         {
             node.Children.Clear();
@@ -81,7 +82,7 @@ public class FileSystemTree
 
     public CacheNode CreateFileChild(CacheNode directory, string fileName)
     {
-        _device.CreateEmptyFile(fileName);
+        _deviceAccessor.CreateEmptyFile(fileName);
         var node = new CacheNode { Name = Path.GetFileName(fileName) };
         node.FileAttributes |= (uint)FileAttributes.Archive;
         directory.Children.TryAdd(Path.GetFileName(fileName), node);
@@ -91,7 +92,7 @@ public class FileSystemTree
 
     public CacheNode CreateDirectoryChild(CacheNode directory, string directoryName)
     {
-        _device.CreateDirectory(directoryName);
+        _deviceAccessor.CreateDirectory(directoryName);
         var node = new CacheNode { Name = Path.GetFileName(directoryName) };
         node.FileAttributes |= (uint)FileAttributes.Directory;
         directory.Children.TryAdd(Path.GetFileName(directoryName), node);
@@ -101,7 +102,7 @@ public class FileSystemTree
 
     public void SetLength(CacheNode node, long length)
     {
-        _device.SetFileAttributes(node.FullName,
+        _deviceAccessor.SetFileAttributes(node.FullName,
             ((DateTimeOffset)node.CreationTime).ToUnixTimeMilliseconds(),
             ((DateTimeOffset)node.LastAccessTime).ToUnixTimeMilliseconds(),
             ((DateTimeOffset)node.LastWriteTime).ToUnixTimeMilliseconds(),
@@ -111,7 +112,7 @@ public class FileSystemTree
 
     public void Move(CacheNode oldNode, string newName, CacheNode destination)
     {
-        _device.Rename(oldNode.FullName, newName);
+        _deviceAccessor.Rename(oldNode.FullName, newName);
         oldNode.Parent!.Children.TryRemove(oldNode.Name, out _);
         oldNode.Name = Path.GetFileName(newName);
         oldNode.Parent = destination;
@@ -120,7 +121,7 @@ public class FileSystemTree
 
     public void Delete(CacheNode node)
     {
-        _device.Delete(node.FullName);
+        _deviceAccessor.Delete(node.FullName);
         node.Parent!.Children.TryRemove(node.Name, out _);
         node.Parent = null;
     }
@@ -137,7 +138,7 @@ public class FileSystemTree
             ? ((DateTimeOffset)node.LastWriteTime).ToUnixTimeMilliseconds()
             : ((DateTimeOffset)lwTime.Value).ToUnixTimeMilliseconds();
         node.FileAttributes = attributes;
-        _device.SetFileAttributes(node.FullName, ucTime, ulaTime, ulwTime, attributes, node.Length);
+        _deviceAccessor.SetFileAttributes(node.FullName, ucTime, ulaTime, ulwTime, attributes, node.Length);
         node.CreationTime = cTime ?? node.CreationTime;
         node.LastAccessTime = laTime ?? node.CreationTime;
         node.LastWriteTime = lwTime ?? node.CreationTime;

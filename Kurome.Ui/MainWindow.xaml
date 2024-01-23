@@ -63,11 +63,9 @@
             x:Name="TitleBar"
             Title="{Binding ViewModel.ApplicationTitle}"
             Grid.Row="0"
-            CloseWindowByDoubleClickOnIcon="True">
+            CloseWindowByDoubleClickOnIcon="True" />
 
-        </ui:TitleBar>
-        
-        
+
         <ui:InfoBar 
             Grid.Row="1" 
             Title="Status" 

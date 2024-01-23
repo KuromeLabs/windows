@@ -13,7 +13,5 @@
       
       ui:NavigationView.HeaderContent="{Binding ViewModel.SelectedDevice.Name, Mode=OneWay}" 
       >
-    <Grid>
-        
-    </Grid>
+    <Grid />
 </Page>

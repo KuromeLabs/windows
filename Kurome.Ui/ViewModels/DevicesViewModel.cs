@@ -1,7 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Reactive.Linq;
 using DynamicData;
-using Kurome.Core;
+using Kurome.Core.Devices;
 using Kurome.Ui.Pages.Devices;
 using Kurome.Ui.Services;
 using ReactiveUI;

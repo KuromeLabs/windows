@@ -6,19 +6,19 @@ namespace Kurome.Network;
 
 public class KuromeService : BackgroundService
 {
-    private readonly LinkProvider _linkProvider;
+    private readonly NetworkService _networkService;
     private readonly IpcService _ipcService;
 
-    public KuromeService(LinkProvider linkProvider, IpcService ipcService)
+    public KuromeService(NetworkService networkService, IpcService ipcService)
     {
-        _linkProvider = linkProvider;
+        _networkService = networkService;
         _ipcService = ipcService;
     }
 
     protected override Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        var tcpListenTask = _linkProvider.StartTcpListener(stoppingToken);
-        var udpCastTask = _linkProvider.StartUdpCaster(stoppingToken);
+        var tcpListenTask = _networkService.StartTcpListener(stoppingToken);
+        var udpCastTask = _networkService.StartUdpCaster(stoppingToken);
         var ipcTask = _ipcService.StartAsync(stoppingToken);
         return Task.WhenAll(tcpListenTask, udpCastTask, ipcTask);
     }

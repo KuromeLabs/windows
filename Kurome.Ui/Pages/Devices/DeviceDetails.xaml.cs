@@ -1,4 +1,3 @@
-using System.Windows.Controls;
 using Kurome.Ui.ViewModels;
 using Wpf.Ui.Controls;
 

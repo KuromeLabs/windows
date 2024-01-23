@@ -6,6 +6,7 @@
         <RootNamespace>Kurome</RootNamespace>
         <AssemblyName>Kurome</AssemblyName>
         <Nullable>enable</Nullable>
+        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     </PropertyGroup>
 
     <PropertyGroup>

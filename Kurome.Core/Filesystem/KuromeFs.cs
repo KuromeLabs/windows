@@ -1,12 +1,13 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Security.AccessControl;
 using DokanNet;
+using Kurome.Core.Devices;
 using Serilog;
 using FileAccess = DokanNet.FileAccess;
 
 namespace Kurome.Core.Filesystem;
 
-public class KuromeFs(Device device, uint componentLength = 127) : IDokanOperationsUnsafe
+public class KuromeFs(DeviceAccessor deviceAccessor, uint componentLength = 127) : IDokanOperationsUnsafe
 {
     private string _mountPoint = "";
     private readonly ILogger _logger = Log.ForContext(typeof(KuromeFs));
@@ -23,10 +24,10 @@ public class KuromeFs(Device device, uint componentLength = 127) : IDokanOperati
 
     public bool Init()
     {
-        var root = device.GetRootNode();
+        var root = deviceAccessor.GetRootNode();
         if (root == null)
             return false;
-        _cache = new FileSystemTree(root, device);
+        _cache = new FileSystemTree(root, deviceAccessor);
         return true;
     }
 
@@ -352,24 +353,24 @@ public class KuromeFs(Device device, uint componentLength = 127) : IDokanOperati
         totalNumberOfBytes = 0;
         totalNumberOfFreeBytes = 0;
         freeBytesAvailable = 0;
-        if (device.GetSpace(out var total, out var free))
+        if (deviceAccessor.GetSpace(out var total, out var free))
         {
             totalNumberOfBytes = total;
             freeBytesAvailable = free;
             totalNumberOfFreeBytes = free;
             return Trace(_mountPoint, nameof(GetDiskFreeSpace), null, null, DokanResult.Success,
-                $"Label: {device.Name}, Total: {total}, Free: {free}");
+                $"Label: {deviceAccessor.Device.Name}, Total: {total}, Free: {free}");
         }
 
         return Trace(_mountPoint, nameof(GetDiskFreeSpace), null, null, DokanResult.Unsuccessful,
-            $"Label: {device.Name}, Total: {total}, Free: {free}");
+            $"Label: {deviceAccessor.Device.Name}, Total: {total}, Free: {free}");
     }
 
     public NtStatus GetVolumeInformation([UnscopedRef] out string volumeLabel,
         [UnscopedRef] out FileSystemFeatures features,
         [UnscopedRef] out string fileSystemName, [UnscopedRef] out uint maximumComponentLength, IDokanFileInfo info)
     {
-        volumeLabel = device.Name;
+        volumeLabel = deviceAccessor.Device.Name;
         features = FileSystemFeatures.CasePreservedNames | FileSystemFeatures.CaseSensitiveSearch |
                    FileSystemFeatures.UnicodeOnDisk;
         fileSystemName = "Kurome";
@@ -424,7 +425,7 @@ public class KuromeFs(Device device, uint componentLength = 127) : IDokanOperati
             }
 
             var bytesToRead = offset + bufferLength > size ? size - offset : bufferLength;
-            bytesRead = device.ReceiveFileBufferUnsafe(buffer, node.FullName, offset, (int)bytesToRead);
+            bytesRead = deviceAccessor.ReceiveFileBufferUnsafe(buffer, node.FullName, offset, (int)bytesToRead);
             return Trace(_mountPoint, nameof(ReadFile), fileName, node, DokanResult.Success,
                 $"bytesToRead:{bytesToRead}, R:{bytesRead}, O:{offset}");
         }
@@ -437,7 +438,7 @@ public class KuromeFs(Device device, uint componentLength = 127) : IDokanOperati
         var node = info.Context as CacheNode;
         lock (node!.NodeLock)
         {
-            device.WriteFileBufferUnsafe(buffer, fileName, offset, (int)bufferLength);
+            deviceAccessor.WriteFileBufferUnsafe(buffer, fileName, offset, (int)bufferLength);
             if (offset + bufferLength > node.Length)
                 node.Length = offset + bufferLength;
             bytesWritten = (int)bufferLength;

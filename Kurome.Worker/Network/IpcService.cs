@@ -8,19 +8,18 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using DynamicData;
-using Kurome.Core.Devices;
 using Microsoft.Extensions.Logging;
 
 namespace Kurome.Network;
 
 public class IpcService
 {
-    private readonly IDeviceRepository _deviceRepository;
+    private readonly DeviceService _deviceService;
     private readonly ILogger<IpcService> _logger;
 
-    public IpcService(IDeviceRepository deviceRepository, ILogger<IpcService> logger)
+    public IpcService(DeviceService deviceService, ILogger<IpcService> logger)
     {
-        _deviceRepository = deviceRepository;
+        _deviceService = deviceService;
         _logger = logger;
     }
 
@@ -59,14 +58,14 @@ public class IpcService
 
     private void SendActiveDevices(CancellationToken cancellationToken)
     {
-        var devices = _deviceRepository.GetActiveDevices().Items;
+        var devices = _deviceService.DeviceStates.Items;
         var json = JsonSerializer.Serialize(devices);
         Send(json, cancellationToken);
     }
 
     private void ObserveDevices(CancellationToken cancellationToken)
     {
-        _deviceRepository.GetActiveDevices()
+        _deviceService.DeviceStates
             .Connect()
             .Bind(out var list)
             .ObserveOn(Scheduler.Default)

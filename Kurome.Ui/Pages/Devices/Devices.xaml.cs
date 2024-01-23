@@ -1,6 +1,5 @@
 using System.Windows;
-using System.Windows.Data;
-using Kurome.Core;
+using Kurome.Core.Devices;
 using Kurome.Ui.ViewModels;
 using Wpf.Ui.Controls;
 
