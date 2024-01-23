@@ -1,5 +1,4 @@
 using System.Collections.Concurrent;
-using Serilog;
 
 namespace Kurome.Core.Filesystem;
 
@@ -7,6 +6,8 @@ public class FileSystemTree
 {
     public CacheNode Root;
     private readonly Device _device;
+    private readonly ConcurrentDictionary<string, byte> _nodeChildrenUpdateOperations = new();
+
 
     public FileSystemTree(CacheNode root, Device device)
     {
@@ -17,32 +18,65 @@ public class FileSystemTree
     public CacheNode? GetNode(string path)
     {
         var parts = new Queue<string>(path.Split('\\', StringSplitOptions.RemoveEmptyEntries));
-        var result = (CacheNode)Root;
+        var result = Root;
         while (result != null && parts.Count > 0 && (result.FileAttributes & (uint)FileAttributes.Directory) != 0)
-            result = GetChild(parts.Dequeue(), (CacheNode)result);
+            result = GetChild(parts.Dequeue(), result);
         if (parts.Count > 0) result = null;
         return result;
     }
 
     private CacheNode? GetChild(string child, CacheNode node)
     {
-        if (node.Children.Count == 0) UpdateChildren(node);
+        if (!node.ChildrenRefreshed)
+            UpdateChildren(node);
         return node.Children.TryGetValue(child, out var n) ? n : null;
     }
 
     public IEnumerable<CacheNode> GetChildren(CacheNode node)
     {
-        if (node.Children.Count == 0) UpdateChildren(node);
+        if (!node.ChildrenRefreshed)
+            UpdateChildren(node);
+        else
+            Task.Run(() => UpdateChildren(node)).ConfigureAwait(false);
+        
         return node.Children.Values;
     }
 
     private void UpdateChildren(CacheNode node)
     {
-        Log.Information("Attempting to get children from device with path {0}", node.FullName);
+        if (_nodeChildrenUpdateOperations.ContainsKey(node.FullName) && 
+            DateTime.Now - node.LastChildrenRefresh < TimeSpan.FromSeconds(5)) return;
+        _nodeChildrenUpdateOperations.TryAdd(node.FullName, 0);
+        node.LastChildrenRefresh = DateTime.Now;
+
         var nodes = _device.GetChildrenNodes(node);
-        node.Children.Clear();
-        if (nodes == null) return;
-        node.Children = new ConcurrentDictionary<string, CacheNode>(nodes);
+        if (nodes == null)
+        {
+            node.Children.Clear();
+            return;
+        }
+
+        foreach (var newNode in nodes)
+        {
+            if (!node.Children.TryGetValue(newNode.Key, out var existingNode))
+                node.Children.TryAdd(newNode.Key, newNode.Value);
+            else
+            {
+                lock (existingNode.NodeLock)
+                {
+                    existingNode.Update(newNode.Value);
+                    existingNode.ChildrenRefreshed = false;
+                }
+            }
+        }
+
+        foreach (var oldNode in node.Children)
+        {
+            if (!nodes.ContainsKey(oldNode.Key))
+                node.Children.TryRemove(oldNode.Key, out _);
+        }
+        _nodeChildrenUpdateOperations.TryRemove(node.FullName, out _);
+        node.ChildrenRefreshed = true;
     }
 
     public CacheNode CreateFileChild(CacheNode directory, string fileName)
@@ -52,7 +86,6 @@ public class FileSystemTree
         node.FileAttributes |= (uint)FileAttributes.Archive;
         directory.Children.TryAdd(Path.GetFileName(fileName), node);
         node.Parent = directory;
-
         return node;
     }
 
@@ -63,7 +96,6 @@ public class FileSystemTree
         node.FileAttributes |= (uint)FileAttributes.Directory;
         directory.Children.TryAdd(Path.GetFileName(directoryName), node);
         node.Parent = directory;
-
         return node;
     }
 

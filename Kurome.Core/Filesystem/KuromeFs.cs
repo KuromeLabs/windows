@@ -290,9 +290,9 @@ public class KuromeFs(Device device, uint componentLength = 127) : IDokanOperati
     {
         var newNode = _cache!.GetNode(newName);
         var oldNode = _cache.GetNode(oldName);
+        var destination = _cache.GetNode(Path.GetDirectoryName(newName)!);
         lock (oldNode!.NodeLock)
         {
-            var destination = _cache.GetNode(Path.GetDirectoryName(newName)!);
             if (newNode == null)
             {
                 if (destination == null)

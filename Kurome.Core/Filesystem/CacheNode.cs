@@ -16,20 +16,32 @@ public class CacheNode
     public DateTime LastWriteTime { get; set; } = DateTime.Now;
     public long Length { get; set; } = 0;
     public uint FileAttributes { get; set; }
-    public ConcurrentDictionary<string, CacheNode> Children = new();
+    public bool ChildrenRefreshed = false;
+    public DateTime LastChildrenRefresh = DateTime.Now;
+    public readonly ConcurrentDictionary<string, CacheNode> Children = new();
     public readonly object NodeLock = new();
 
     public FileInformation ToFileInfo()
     {
         return new FileInformation
         {
-            Attributes = (FileAttributes) FileAttributes,
+            Attributes = (FileAttributes)FileAttributes,
             CreationTime = CreationTime,
             LastAccessTime = LastAccessTime,
             LastWriteTime = LastWriteTime,
             Length = Length,
             FileName = Name
         };
+    }
+
+    public void Update(CacheNode node)
+    {
+        Name = node.Name;
+        CreationTime = node.CreationTime;
+        LastAccessTime = node.LastAccessTime;
+        LastWriteTime = node.LastWriteTime;
+        Length = node.Length;
+        FileAttributes = node.FileAttributes;
     }
 
     public override string ToString()
