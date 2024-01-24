@@ -5,19 +5,19 @@ namespace Kurome.Core.Filesystem;
 
 public class FileSystemTree
 {
-    public CacheNode Root;
+    public CacheNode? Root;
     private readonly DeviceAccessor _deviceAccessor;
     private readonly ConcurrentDictionary<string, byte> _nodeChildrenUpdateOperations = new();
 
 
-    public FileSystemTree(CacheNode root, DeviceAccessor deviceAccessor)
+    public FileSystemTree(DeviceAccessor deviceAccessor)
     {
-        Root = root;
         _deviceAccessor = deviceAccessor;
     }
 
     public CacheNode? GetNode(string path)
     {
+        Root ??= _deviceAccessor.GetRootNode();
         var parts = new Queue<string>(path.Split('\\', StringSplitOptions.RemoveEmptyEntries));
         var result = Root;
         while (result != null && parts.Count > 0 && (result.FileAttributes & (uint)FileAttributes.Directory) != 0)

@@ -1,6 +1,7 @@
 using System;
 using System.Buffers;
 using System.Buffers.Binary;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Net.Security;
 using System.Net.Sockets;
@@ -28,7 +29,7 @@ namespace Kurome.Network;
 public class DeviceService(ILogger<DeviceService> logger, ISecurityService<X509Certificate2> sslService)
 {
     private readonly Dokan _dokan = new(new NullLogger());
-    private readonly Dictionary<Guid, DeviceContext> _activeDevices = new();
+    private readonly ConcurrentDictionary<Guid, DeviceContext> _activeDevices = new();
 
     private readonly SourceCache<DeviceState, Guid> _deviceStates = new(t => t.Device.Id);
     public IObservableCache<DeviceState, Guid> DeviceStates => _deviceStates.AsObservableCache();
@@ -50,13 +51,12 @@ public class DeviceService(ILogger<DeviceService> logger, ISecurityService<X509C
             Status = DeviceState.State.Connecting
         });
         logger.LogInformation("Checking existing devices");
-        var existingDeviceContext = _activeDevices.GetValueOrDefault(id);
-        if (existingDeviceContext != null)
+        
+        if (_activeDevices.TryGetValue(id, out var existingDeviceContext))
         {
             logger.LogInformation("Device {Name} ({Id}) is already active, reconnecting", name, id);
-            // _fileSystemHost.Unmount("E");
             existingDeviceContext.Dispose();
-            _activeDevices.Remove(id);
+            _activeDevices.TryRemove(id, out _);
             _deviceStates.AddOrUpdate(new DeviceState(new Device(id, name))
             {
                 Status = DeviceState.State.Disconnected
@@ -76,17 +76,20 @@ public class DeviceService(ILogger<DeviceService> logger, ISecurityService<X509C
             logger.LogError($"{e}");
             return;
         }
-
+        
+        
         logger.LogInformation("Link established with {Name} ({Id})", info.Item2, id);
 
         var deviceAccessor = new DeviceAccessor(link, new Device(id, name));
         var mountPoint = "E:";
         var deviceContext = new DeviceContext(deviceAccessor, link, _dokan, mountPoint);
-
+        _activeDevices.TryAdd(id, deviceContext);
         link.IsConnected
             .ObserveOn(TaskPoolScheduler.Default)
             .Subscribe(onConnected =>
                 {
+                    var instance = Mount(mountPoint, deviceAccessor);
+                    if (instance != null) deviceContext.SetDokanInstance(instance);
                     _deviceStates.AddOrUpdate(new DeviceState(new Device(id, name))
                     {
                         Status = DeviceState.State.ConnectedTrusted
@@ -95,17 +98,14 @@ public class DeviceService(ILogger<DeviceService> logger, ISecurityService<X509C
                 () =>
                 {
                     logger.LogInformation("Link disconnected from {Name} ({Id})", info.Item2, id);
-                    deviceContext.Dispose();
-                    _activeDevices.Remove(id);
+                    _activeDevices.Remove(id, out var context);
+                    context?.Dispose();
                     _deviceStates.AddOrUpdate(new DeviceState(new Device(id, name))
                     {
                         Status = DeviceState.State.Disconnected
                     });
                 });
-
-        link.Start(cancellationToken);
-        var instance = Mount(mountPoint, deviceAccessor);
-        if (instance != null) deviceContext.SetDokanInstance(instance);
+        _ = link.Start(cancellationToken);
     }
 
 
@@ -130,15 +130,11 @@ public class DeviceService(ILogger<DeviceService> logger, ISecurityService<X509C
     }
 
 
-    public DokanInstance? Mount(string mountPoint, DeviceAccessor deviceAccessor)
+    private DokanInstance? Mount(string mountPoint, DeviceAccessor deviceAccessor)
     {
-        var fs = new KuromeFs(deviceAccessor);
-        if (!fs.Init())
-        {
-            logger.LogError("Could not mount filesystem - device returned null root node");
-            return null;
-        }
+        var fs = new KuromeFs(mountPoint, deviceAccessor);
 
+        logger.LogInformation("Mounting filesystem");
         var builder = new DokanInstanceBuilder(_dokan)
             .ConfigureLogger(() => new KuromeDokanLogger())
             .ConfigureOptions(options =>
@@ -150,6 +146,7 @@ public class DeviceService(ILogger<DeviceService> logger, ISecurityService<X509C
         try
         {
             var instance = builder.Build(fs);
+            logger.LogInformation("Successfully mounted filesystem at {MountPoint}", mountPoint);
             return instance;
         }
         catch (Exception e)
@@ -172,8 +169,10 @@ public class DeviceService(ILogger<DeviceService> logger, ISecurityService<X509C
             _logger.Information($"Disposing DeviceContext {accessor.Device.Id}");
             if (disposing)
             {
+                _logger.Information($"Unmounting filesystem at {mountPoint}");
                 dokan.RemoveMountPoint(mountPoint);
                 _instance?.WaitForFileSystemClosed(uint.MaxValue);
+                _logger.Information("Disposing DokanInstance");
                 _instance?.Dispose();
                 link.Dispose();
             }
