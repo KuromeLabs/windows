@@ -87,8 +87,9 @@ public class Link : IDisposable
     }
     
 
-    public async void Start(CancellationToken cancellationToken)
+    public async Task Start(CancellationToken cancellationToken)
     {
+        await Task.Yield();
         _isConnected.OnNext(true);
         while (!cancellationToken.IsCancellationRequested)
         {
