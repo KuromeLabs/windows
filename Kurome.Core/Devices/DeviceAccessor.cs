@@ -41,21 +41,18 @@ public class DeviceAccessor(Link link, Device device)
 
     public Dictionary<string, CacheNode>? GetChildrenNodes(CacheNode parent)
     {
-        Link.Buffer? data;
         var id = Interlocked.Increment(ref _packetId);
         SendPacket(new Component(new GetDirectoryQuery { Path = SanitizeName(parent.FullName) }), id);
-        data = _link?.DataReceived
-            .Where(x => x == null || x.Id == id)
-            .Take(1)
-            .Wait();
-
+        var data = _link?.GetBufferBlocking(id, 5000);
         if (data == null) return null;
-        
         var response = Packet.Serializer.Parse(data.Data);
-        if (response.Component?.Kind != Component.ItemKind.GetDirectoryResponse || response.Component.Value.GetDirectoryResponse.Node == null) {
+        if (response.Component?.Kind != Component.ItemKind.GetDirectoryResponse ||
+            response.Component.Value.GetDirectoryResponse.Node == null)
+        {
             data.Free();
             return null;
         }
+
         var result = response.Component.Value.GetDirectoryResponse.Node!;
         var list = result.Children!.ToDictionary(x => x.Name!, x =>
             new CacheNode
@@ -79,17 +76,16 @@ public class DeviceAccessor(Link link, Device device)
         {
             var id = Interlocked.Increment(ref _packetId);
             SendPacket(new Component(new GetDirectoryQuery { Path = "/" }), id);
-            data = _link?.DataReceived
-                .Where(x => x == null || x.Id == id)
-                .Take(1)
-                .Wait();
 
+            data = _link?.GetBufferBlocking(id, 5000);
             if (data == null) return null;
             var response = Packet.Serializer.Parse(data.Data);
-            if (response.Component?.Kind != Component.ItemKind.GetDirectoryResponse) {
+            if (response.Component?.Kind != Component.ItemKind.GetDirectoryResponse)
+            {
                 data.Free();
                 return null;
             }
+
             var file = response.Component.Value.GetDirectoryResponse.Node;
             var root = new CacheNode
             {
@@ -123,20 +119,18 @@ public class DeviceAccessor(Link link, Device device)
 
         if (_totalSpace == -1 || _freeSpace == -1)
         {
-            Link.Buffer? data;
             var id = Interlocked.Increment(ref _packetId);
             SendPacket(new Component(new DeviceQuery()), id);
-            data = _link?.DataReceived
-                .Where(x => x == null || x.Id == id)
-                .Take(1)
-                .Wait();
+
+            var data = _link?.GetBufferBlocking(id, 5000);
             if (data == null) return false;
-            
             var response = Packet.Serializer.Parse(data.Data);
-            if (response.Component?.Kind != Component.ItemKind.DeviceQueryResponse) {
+            if (response.Component?.Kind != Component.ItemKind.DeviceQueryResponse)
+            {
                 data.Free();
                 return false;
             }
+
             var deviceInfo = response.Component.Value.DeviceQueryResponse;
             _totalSpace = deviceInfo.TotalBytes;
             _freeSpace = deviceInfo.FreeBytes;
@@ -164,14 +158,9 @@ public class DeviceAccessor(Link link, Device device)
     {
         var readComponent = new Component(new ReadFileQuery
             { Path = SanitizeName(fileName), Offset = offset, Length = bytesToRead });
-        Link.Buffer? data;
         var id = Interlocked.Increment(ref _packetId);
         SendPacket(readComponent, id);
-        data = _link?.DataReceived
-            .Where(x => x == null || x.Id == id)
-            .Take(1)
-            .Wait();
-        
+        var data = _link?.GetBufferBlocking(id, 5000);
         if (data == null) return 0;
         var response = Packet.Serializer.Parse(data.Data);
         if (response.Component?.Kind != Component.ItemKind.ReadFileResponse ||
@@ -211,10 +200,9 @@ public class DeviceAccessor(Link link, Device device)
         _link?.Send(buffer, length + 4);
         ArrayPool<byte>.Shared.Return(buffer);
     }
-    
+
     private string SanitizeName(string fileName)
     {
         return fileName.Replace("\\", "/");
     }
-    
 }

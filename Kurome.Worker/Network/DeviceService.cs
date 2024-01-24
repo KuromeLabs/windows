@@ -51,7 +51,7 @@ public class DeviceService(ILogger<DeviceService> logger, ISecurityService<X509C
             Status = DeviceState.State.Connecting
         });
         logger.LogInformation("Checking existing devices");
-        
+
         if (_activeDevices.TryGetValue(id, out var existingDeviceContext))
         {
             logger.LogInformation("Device {Name} ({Id}) is already active, reconnecting", name, id);
@@ -68,7 +68,6 @@ public class DeviceService(ILogger<DeviceService> logger, ISecurityService<X509C
         {
             var stream = new SslStream(client.GetStream(), false, (_, _, _, _) => true);
             await stream.AuthenticateAsServerAsync(sslService.GetSecurityContext(), true, SslProtocols.None, true);
-            stream.ReadTimeout = 10000;
             link = new Link(stream);
         }
         catch (Exception e)
@@ -76,36 +75,35 @@ public class DeviceService(ILogger<DeviceService> logger, ISecurityService<X509C
             logger.LogError($"{e}");
             return;
         }
-        
-        
+
+
         logger.LogInformation("Link established with {Name} ({Id})", info.Item2, id);
 
         var deviceAccessor = new DeviceAccessor(link, new Device(id, name));
         var mountPoint = "E:";
         var deviceContext = new DeviceContext(deviceAccessor, link, _dokan, mountPoint);
         _activeDevices.TryAdd(id, deviceContext);
-        link.IsConnected
+
+        link.DataReceived.IgnoreElements()
             .ObserveOn(TaskPoolScheduler.Default)
-            .Subscribe(onConnected =>
+            .Subscribe(_ => { }, _ =>
+            {
+                logger.LogInformation("Link closed with {Name} ({Id})", info.Item2, id);
+                deviceContext.Dispose();
+                _activeDevices.TryRemove(id, out var _);
+                _deviceStates.AddOrUpdate(new DeviceState(new Device(id, name))
                 {
-                    var instance = Mount(mountPoint, deviceAccessor);
-                    if (instance != null) deviceContext.SetDokanInstance(instance);
-                    _deviceStates.AddOrUpdate(new DeviceState(new Device(id, name))
-                    {
-                        Status = DeviceState.State.ConnectedTrusted
-                    });
-                },
-                () =>
-                {
-                    logger.LogInformation("Link disconnected from {Name} ({Id})", info.Item2, id);
-                    _activeDevices.Remove(id, out var context);
-                    context?.Dispose();
-                    _deviceStates.AddOrUpdate(new DeviceState(new Device(id, name))
-                    {
-                        Status = DeviceState.State.Disconnected
-                    });
+                    Status = DeviceState.State.Disconnected
                 });
-        _ = link.Start(cancellationToken);
+            }, () => { });
+        var instance = Mount(mountPoint, deviceAccessor);
+        if (instance != null) deviceContext.SetDokanInstance(instance);
+        _deviceStates.AddOrUpdate(new DeviceState(new Device(id, name))
+        {
+            Status = DeviceState.State.ConnectedTrusted
+        });
+
+        new Thread(() => link.Start(cancellationToken)).Start();
     }
 
 
@@ -170,10 +168,13 @@ public class DeviceService(ILogger<DeviceService> logger, ISecurityService<X509C
             if (disposing)
             {
                 _logger.Information($"Unmounting filesystem at {mountPoint}");
-                dokan.RemoveMountPoint(mountPoint);
-                _instance?.WaitForFileSystemClosed(uint.MaxValue);
-                _logger.Information("Disposing DokanInstance");
-                _instance?.Dispose();
+                if (dokan.RemoveMountPoint(mountPoint))
+                {
+                    _instance?.WaitForFileSystemClosed(uint.MaxValue);
+                    _logger.Information("Disposing DokanInstance");
+                    _instance?.Dispose();
+                }
+
                 link.Dispose();
             }
 
