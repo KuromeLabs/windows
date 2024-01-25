@@ -37,12 +37,17 @@
                            BreadcrumbBar="{Binding ElementName=BreadcrumbBar}"
                            IsBackButtonVisible="Visible"
                            IsPaneToggleVisible="True"
-                           FrameMargin="0"
                            MenuItemsSource="{Binding ViewModel.MenuItems}"
                            PaneClosed="NavigationView_OnPaneClosed"
                            PaneDisplayMode="Left"
                            PaneOpened="NavigationView_OnPaneOpened"
                            SelectionChanged="OnNavigationSelectionChanged">
+            
+            <ui:NavigationView.Resources>
+                <SolidColorBrush x:Key="NavigationViewContentBackground" Color="Transparent" />
+                <SolidColorBrush x:Key="NavigationViewContentGridBorderBrush" Color="Transparent" />
+            </ui:NavigationView.Resources>
+            
             <ui:NavigationView.Header>
                 <StackPanel Margin="42,32,42,20">
                     <ui:BreadcrumbBar x:Name="BreadcrumbBar" />
@@ -51,11 +56,12 @@
 
             </ui:NavigationView.Header>
 
-            <ui:NavigationView.ContentOverlay>
+            <ui:NavigationView.ContentOverlay >
                 <Grid>
                     <ui:SnackbarPresenter x:Name="SnackbarPresenter" />
                 </Grid>
             </ui:NavigationView.ContentOverlay>
+            
         </ui:NavigationView>
         
         
@@ -71,6 +77,7 @@
             Title="Status" 
             Message="{Binding ViewModel.ServiceStatus}" 
             IsOpen="True" 
+            
             IsClosable="False" 
             Severity="Success"/>
     </Grid>

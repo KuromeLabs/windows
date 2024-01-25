@@ -20,7 +20,7 @@ public class PipeService : IHostedService
 
     private readonly ILogger _logger = Log.ForContext<PipeService>();
 
-    public readonly SourceList<Device> ActiveDevices = new();
+    public readonly SourceList<DeviceState> ActiveDevices = new();
 
     public PipeService()
     {
@@ -82,7 +82,7 @@ public class PipeService : IHostedService
         ActiveDevices.Edit(action =>
         {
             action.Clear();
-            action.AddRange(devices.Select(x => x.Device));
+            action.AddRange(devices);
         });
     }
 

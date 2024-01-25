@@ -60,6 +60,7 @@ public class IpcService
     {
         var devices = _deviceService.DeviceStates.Items;
         var json = JsonSerializer.Serialize(devices);
+        _logger.LogInformation($"Sending active devices: {json}");
         Send(json, cancellationToken);
     }
 
@@ -67,19 +68,27 @@ public class IpcService
     {
         _deviceService.DeviceStates
             .Connect()
-            .Bind(out var list)
             .ObserveOn(Scheduler.Default)
+            .Bind(out var list)
             .Subscribe(_ => Send(JsonSerializer.Serialize(list), cancellationToken));
     }
 
     private async void Send(string message, CancellationToken cancellationToken)
     {
-        if (!_pipeServer.IsConnected) return;
-        var messageLength = Encoding.UTF8.GetByteCount(message);
-        var buffer = new byte[4 + messageLength];
-        Encoding.UTF8.GetBytes(message, buffer.AsSpan()[4..]);
-        BinaryPrimitives.WriteInt32LittleEndian(buffer.AsSpan()[..4], messageLength);
-        await _pipeServer.WriteAsync(buffer, cancellationToken);
+        try
+        {
+            if (!_pipeServer.IsConnected) return;
+            var messageLength = Encoding.UTF8.GetByteCount(message);
+            var buffer = new byte[4 + messageLength];
+            Encoding.UTF8.GetBytes(message, buffer.AsSpan()[4..]);
+            BinaryPrimitives.WriteInt32LittleEndian(buffer.AsSpan()[..4], messageLength);
+            await _pipeServer.WriteAsync(buffer, cancellationToken);
+        }
+        catch (Exception e)
+        {
+            _logger.LogError(e, "Error while writing to pipe");
+        }
+        
     }
     
 }

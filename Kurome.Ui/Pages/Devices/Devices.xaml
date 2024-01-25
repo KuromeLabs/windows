@@ -5,11 +5,9 @@
       xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
       xmlns:local="clr-namespace:Kurome.Ui.Pages.Devices"
       xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
-      xmlns:devices="clr-namespace:Kurome.Core.Devices;assembly=Kurome.Core"
+      xmlns:network="clr-namespace:Kurome.Network;assembly=Kurome"
       mc:Ignorable="d"
       d:DataContext="{d:DesignInstance local:Devices,IsDesignTimeCreatable=False}"
-      ui:Design.Background="{DynamicResource ApplicationBackgroundBrush}"
-      ui:Design.Foreground="{DynamicResource TextFillColorPrimaryBrush}"
       ui:NavigationView.HeaderContent="Devices"
       Title="Devices">
     
@@ -21,7 +19,7 @@
             </ItemsPanelTemplate>
         </ItemsControl.ItemsPanel>
         <ItemsControl.Resources>
-            <DataTemplate DataType="{x:Type devices:Device}">
+            <DataTemplate DataType="{x:Type network:DeviceState}">
                 <ui:CardAction Icon="{ui:SymbolIcon Phone32}" Click="OnDeviceSelected" Margin="8,8,8,8">
                     <Grid>
                         <Grid.RowDefinitions>
@@ -32,18 +30,17 @@
                             <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
-                        <TextBlock
+                        <ui:TextBlock
                             Grid.Row="0"
                             Grid.Column="1"
                             Margin="12,4,0,0"
-                            FontWeight="Bold"
+                            FontTypography="BodyStrong"
                             Text="{Binding Name}" />
-                        <TextBlock
+                        <ui:TextBlock
                             Grid.Row="1"
                             Grid.Column="1"
                             Margin="12,0,0,4"
-                            Foreground="{ui:ThemeResource TextFillColorSecondaryBrush}"
-                            Text="{Binding Id}" />
+                            Text="{Binding StatusMessage}" />
                     </Grid>
                 </ui:CardAction>
             </DataTemplate>

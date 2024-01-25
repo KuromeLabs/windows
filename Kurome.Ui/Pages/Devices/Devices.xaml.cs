@@ -1,5 +1,5 @@
 using System.Windows;
-using Kurome.Core.Devices;
+using Kurome.Network;
 using Kurome.Ui.ViewModels;
 using Wpf.Ui.Controls;
 
@@ -20,7 +20,7 @@ public partial class Devices : INavigableView<DevicesViewModel>
     private void OnDeviceSelected(object sender, RoutedEventArgs e)
     {
         var cardAction = (CardAction)sender;
-        var selectedDevice = (Device) cardAction.DataContext;
+        var selectedDevice = (DeviceState) cardAction.DataContext;
         if (selectedDevice != null)
             ViewModel.OnDeviceClicked(selectedDevice);
     }

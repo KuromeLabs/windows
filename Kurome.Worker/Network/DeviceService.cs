@@ -2,7 +2,8 @@ using System;
 using System.Buffers;
 using System.Buffers.Binary;
 using System.Collections.Concurrent;
-using System.Collections.Generic;
+using System.IO;
+using System.Linq;
 using System.Net.Security;
 using System.Net.Sockets;
 using System.Reactive.Concurrency;
@@ -31,7 +32,7 @@ public class DeviceService(ILogger<DeviceService> logger, ISecurityService<X509C
     private readonly Dokan _dokan = new(new NullLogger());
     private readonly ConcurrentDictionary<Guid, DeviceContext> _activeDevices = new();
 
-    private readonly SourceCache<DeviceState, Guid> _deviceStates = new(t => t.Device.Id);
+    private readonly SourceCache<DeviceState, Guid> _deviceStates = new(t => t.Id);
     public IObservableCache<DeviceState, Guid> DeviceStates => _deviceStates.AsObservableCache();
 
     public async Task HandleIncomingTcp(TcpClient client, CancellationToken cancellationToken)
@@ -46,10 +47,7 @@ public class DeviceService(ILogger<DeviceService> logger, ISecurityService<X509C
 
         var id = info.Item1;
         var name = info.Item2;
-        _deviceStates.AddOrUpdate(new DeviceState(new Device(id, name))
-        {
-            Status = DeviceState.State.Connecting
-        });
+        _deviceStates.AddOrUpdate(new DeviceState(name, id, DeviceState.State.Connecting, "Connecting..."));
         logger.LogInformation("Checking existing devices");
 
         if (_activeDevices.TryGetValue(id, out var existingDeviceContext))
@@ -57,10 +55,7 @@ public class DeviceService(ILogger<DeviceService> logger, ISecurityService<X509C
             logger.LogInformation("Device {Name} ({Id}) is already active, reconnecting", name, id);
             existingDeviceContext.Dispose();
             _activeDevices.TryRemove(id, out _);
-            _deviceStates.AddOrUpdate(new DeviceState(new Device(id, name))
-            {
-                Status = DeviceState.State.Disconnected
-            });
+            _deviceStates.AddOrUpdate(new DeviceState(name, id, DeviceState.State.Disconnected, "Disconnected"));
         }
 
         Link? link;
@@ -93,19 +88,17 @@ public class DeviceService(ILogger<DeviceService> logger, ISecurityService<X509C
                 logger.LogInformation("Link closed with {Name} ({Id})", info.Item2, id);
                 deviceContext.Dispose();
                 _activeDevices.TryRemove(id, out var _);
-                _deviceStates.AddOrUpdate(new DeviceState(new Device(id, name))
-                {
-                    Status = DeviceState.State.Disconnected
-                });
+                _deviceStates.AddOrUpdate(new DeviceState(name, id, DeviceState.State.Disconnected, "Disconnected"));
             }, () => { });
+        _deviceStates.AddOrUpdate(new DeviceState(name, id, DeviceState.State.ConnectedTrusted, "Connected"));
         var instance = Mount(mountPoint, deviceAccessor);
-        if (instance != null) deviceContext.SetDokanInstance(instance);
-        _deviceStates.AddOrUpdate(new DeviceState(new Device(id, name))
+        if (instance != null)
         {
-            Status = DeviceState.State.ConnectedTrusted
-        });
+            deviceContext.SetDokanInstance(instance);
+            _deviceStates.AddOrUpdate(new DeviceState(name, id, DeviceState.State.ConnectedTrusted, $"Connected - Mounted on {mountPoint}\\"));
+        }
+        
 
-        new Thread(() => link.Start(cancellationToken)).Start();
         new Thread(() => link.Start(cancellationToken))
         {
             IsBackground = true,
@@ -200,9 +193,11 @@ public class DeviceService(ILogger<DeviceService> logger, ISecurityService<X509C
     }
 }
 
-public class DeviceState(Device device)
+public class DeviceState(string name, Guid id, DeviceState.State status, string statusMessage)
 {
-    public Device Device { get; set; } = device;
+    public string Name { get; set; } = name;
+    public Guid Id { get; set; } = id;
+    public string StatusMessage { get; set; } = statusMessage;
     public State Status { get; set; } = State.Disconnected;
 
     public enum State
