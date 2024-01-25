@@ -80,7 +80,9 @@ public class DeviceService(ILogger<DeviceService> logger, ISecurityService<X509C
         logger.LogInformation("Link established with {Name} ({Id})", info.Item2, id);
 
         var deviceAccessor = new DeviceAccessor(link, new Device(id, name));
-        var mountPoint = "E:";
+        var list = Enumerable.Range('C', 'Z' - 'C').Select(i => (char) i + ":")
+            .Except(DriveInfo.GetDrives().Select(s => s.Name.Replace("\\", ""))).ToList();
+        var mountPoint = list[0];
         var deviceContext = new DeviceContext(deviceAccessor, link, _dokan, mountPoint);
         _activeDevices.TryAdd(id, deviceContext);
 
