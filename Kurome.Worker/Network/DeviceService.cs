@@ -104,6 +104,10 @@ public class DeviceService(ILogger<DeviceService> logger, ISecurityService<X509C
         });
 
         new Thread(() => link.Start(cancellationToken)).Start();
+        new Thread(() => link.Start(cancellationToken))
+        {
+            IsBackground = true,
+        }.Start();
     }
 
 
