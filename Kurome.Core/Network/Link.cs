@@ -4,7 +4,7 @@ using System.Net.Security;
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
 using FlatSharp;
-using Kurome.Fbs;
+using Kurome.Fbs.Device;
 using Serilog;
 
 namespace Kurome.Core.Network;

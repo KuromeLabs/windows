@@ -1,4 +1,4 @@
-namespace Kurome.Fbs;
+namespace Kurome.Fbs.Device;
 attribute "fs_serializer";
 attribute "fs_vector";
 union Component { DeviceQuery, DeviceQueryResponse, 

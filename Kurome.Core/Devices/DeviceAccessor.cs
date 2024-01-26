@@ -5,7 +5,7 @@ using System.Runtime.InteropServices;
 using FlatSharp;
 using Kurome.Core.Filesystem;
 using Kurome.Core.Network;
-using Kurome.Fbs;
+using Kurome.Fbs.Device;
 using Serilog;
 
 namespace Kurome.Core.Devices;

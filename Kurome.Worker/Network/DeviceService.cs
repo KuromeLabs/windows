@@ -20,7 +20,7 @@ using Kurome.Core.Devices;
 using Kurome.Core.Filesystem;
 using Kurome.Core.Interfaces;
 using Kurome.Core.Network;
-using Kurome.Fbs;
+using Kurome.Fbs.Device;
 using Microsoft.Extensions.Logging;
 using Serilog;
 using ILogger = Serilog.ILogger;
