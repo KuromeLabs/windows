@@ -4,11 +4,15 @@ attribute "fs_vector";
 union Component { DeviceQuery, DeviceQueryResponse, 
 GetFileInfoQuery, GetDirectoryQuery, ReadFileQuery, 
 ReadFileResponse, GetFileInfoResponse, GetDirectoryResponse,
-CreateFileCommand, CreateDirectoryCommand, WriteFileCommand, SetFileInfoCommand, DeleteFileCommand, RenameFileCommand, Node, FailResponse }
+CreateFileCommand, CreateDirectoryCommand, WriteFileCommand, SetFileInfoCommand, DeleteFileCommand, RenameFileCommand, Node, FailResponse, Pair }
 
 table Packet (fs_serializer:"lazy") {
     component:Component;
     id:long;
+}
+
+table Pair (fs_serializer:"lazy") {
+    value: bool;
 }
 
 //whatever the query was, there was an exception thrown so it failed

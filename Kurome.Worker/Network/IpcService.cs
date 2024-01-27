@@ -71,6 +71,12 @@ public class IpcService
             .ObserveOn(Scheduler.Default)
             .Bind(out var list)
             .Subscribe(_ => Send(JsonSerializer.Serialize(list), cancellationToken));
+
+        _deviceService.DeviceStates.Connect().WhenPropertyChanged(x => x.Status).Subscribe(v =>
+        {
+            _logger.LogInformation($"Device {v.Sender.Device.Name} changed status to {v.Value}");
+            //TODO: send pair request to UI
+        });
     }
 
     private async void Send(string message, CancellationToken cancellationToken)

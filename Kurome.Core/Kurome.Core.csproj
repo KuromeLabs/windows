@@ -10,7 +10,6 @@
     <ItemGroup>
         <PackageReference Include="DokanNet" Version="2.1.0" />
         <PackageReference Include="DynamicData" Version="8.3.27" />
-        <PackageReference Include="FastExpressionCompiler" Version="4.0.1" />
         <PackageReference Include="FlatSharp.Compiler" Version="7.4.0">
             <PrivateAssets>all</PrivateAssets>
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>

@@ -3,7 +3,6 @@ using System.IO;
 using System.Threading;
 using Infrastructure.Devices;
 using Kurome.Core.Devices;
-using Kurome.Core.Filesystem;
 using Kurome.Core.Interfaces;
 using Kurome.Core.Persistence;
 using Kurome.Extensions;
@@ -44,7 +43,7 @@ builder.ConfigureServices(services =>
         {
             opt.ServiceName = "Kurome";
         });
-        services.AddDbContext<DataContext>();
+        services.AddDbContext<DataContext>(ServiceLifetime.Singleton);
         services.AddSingleton<IIdentityProvider, IdentityProvider>();
         services.AddSingleton<IDeviceRepository, DeviceRepository>();
         services.AddNetworkServices();

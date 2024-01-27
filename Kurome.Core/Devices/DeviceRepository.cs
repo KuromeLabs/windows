@@ -1,30 +1,33 @@
 using DynamicData;
+using Kurome.Core.Persistence;
+using Microsoft.EntityFrameworkCore;
 
 namespace Kurome.Core.Devices;
 
 public class DeviceRepository : IDeviceRepository
 {
+    private readonly DataContext _context;
 
-    
-    private readonly SourceCache<Device, Guid> _activeDeviceCache = new (t => t.Id);
-
-    public List<Device> GetSavedDevices()
+    public DeviceRepository(DataContext context)
     {
-        throw new NotImplementedException();
+        _context = context;
     }
 
-    public IObservableCache<Device, Guid> GetActiveDevices()
+    public async Task<List<Device>> GetSavedDevices()
     {
-        return _activeDeviceCache.AsObservableCache();
+        return await _context.Devices
+            .ToListAsync();
     }
 
-    public void AddActiveDevice(Device device)
+    public async Task<Device?> GetSavedDevice(Guid id)
     {
-        _activeDeviceCache.AddOrUpdate(device);
+        return await _context.Devices
+            .FirstOrDefaultAsync(x => x.Id == id);
     }
 
-    public void RemoveActiveDevice(Device device)
+    public async Task SaveDevice(Device device)
     {
-        _activeDeviceCache.Remove(device);
+        _context.Devices.Add(device);
+        await _context.SaveChangesAsync();
     }
 }

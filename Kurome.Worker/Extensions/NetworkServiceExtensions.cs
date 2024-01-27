@@ -11,6 +11,7 @@ public static class NetworkServiceExtensions
     public static IServiceCollection AddNetworkServices(this IServiceCollection services)
     {
         services.AddSingleton<DeviceService>();
+        services.AddSingleton<FileSystemService>();
         services.AddSingleton<ISecurityService<X509Certificate2>, SslService>();
         services.AddSingleton<IpcService>();
         services.AddSingleton<NetworkService>();
