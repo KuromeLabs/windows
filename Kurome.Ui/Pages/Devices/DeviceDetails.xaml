@@ -6,12 +6,38 @@
       xmlns:local="clr-namespace:Kurome.Ui.Pages.Devices"
       xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
       mc:Ignorable="d"
-      Title="DeviceDetails" Height="450" Width="800"
+      Title="DeviceDetails"
       d:DataContext="{d:DesignInstance local:DeviceDetails, IsDesignTimeCreatable=False}"
       ui:Design.Background="{DynamicResource ApplicationBackgroundBrush}"
       ui:Design.Foreground="{DynamicResource TextFillColorPrimaryBrush}"
-      
-      ui:NavigationView.HeaderContent="{Binding ViewModel.SelectedDevice.Name, Mode=OneWay}" 
-      >
-    <Grid />
+
+      ui:NavigationView.HeaderContent="{Binding ViewModel.SelectedDevice.Device.Name, Mode=OneWay}">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="Auto" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+            <Viewbox MaxHeight="100" MaxWidth="100">
+                <ui:SymbolIcon Symbol="Phone48" Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+            </Viewbox>
+            <StackPanel Margin="12,0,0,0" VerticalAlignment="Center">
+                <ui:TextBlock
+                    Text="{Binding ViewModel.SelectedDevice.Device.Name, Mode=OneWay}"
+                    Foreground="{DynamicResource TextFillColorPrimaryBrush}" 
+                    FontTypography="Title"
+                    />
+                <ui:TextBlock Text="{Binding ViewModel.SelectedDevice.Device.Id, Mode=OneWay}"
+                              Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                <ui:TextBlock Text="{Binding ViewModel.SelectedDevice.StatusMessage, Mode=OneWay}"
+                              Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+            </StackPanel>
+        </StackPanel>
+
+
+    </Grid>
 </Page>
