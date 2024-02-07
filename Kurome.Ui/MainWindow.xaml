@@ -23,14 +23,11 @@
                  mc:Ignorable="d">
 
     <Grid>
-
-
         <Grid.RowDefinitions>
             <RowDefinition Height="*" />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        
         <ui:NavigationView x:Name="RootNavigation"
                            Padding="0"
                            TitleBar="{Binding ElementName=TitleBar, Mode=OneWay}"
@@ -42,28 +39,29 @@
                            PaneDisplayMode="Left"
                            PaneOpened="NavigationView_OnPaneOpened"
                            SelectionChanged="OnNavigationSelectionChanged">
-            
+
             <ui:NavigationView.Resources>
                 <SolidColorBrush x:Key="NavigationViewContentBackground" Color="Transparent" />
                 <SolidColorBrush x:Key="NavigationViewContentGridBorderBrush" Color="Transparent" />
             </ui:NavigationView.Resources>
-            
+
             <ui:NavigationView.Header>
                 <StackPanel Margin="42,32,42,20">
                     <ui:BreadcrumbBar x:Name="BreadcrumbBar" />
-                    
+
                 </StackPanel>
 
             </ui:NavigationView.Header>
 
-            <ui:NavigationView.ContentOverlay >
+            <ui:NavigationView.ContentOverlay>
                 <Grid>
                     <ui:SnackbarPresenter x:Name="SnackbarPresenter" />
                 </Grid>
             </ui:NavigationView.ContentOverlay>
-            
+
         </ui:NavigationView>
         
+        <ContentPresenter x:Name="RootContentDialog" Grid.Row="0" />
         
         <ui:TitleBar
             x:Name="TitleBar"
@@ -71,15 +69,14 @@
             Grid.Row="0"
             CloseWindowByDoubleClickOnIcon="True" />
 
+        <ui:InfoBar
+            Grid.Row="1"
+            Title="Status"
+            Message="{Binding ViewModel.ServiceStatus}"
+            IsOpen="True"
 
-        <ui:InfoBar 
-            Grid.Row="1" 
-            Title="Status" 
-            Message="{Binding ViewModel.ServiceStatus}" 
-            IsOpen="True" 
-            
-            IsClosable="False" 
-            Severity="Success"/>
+            IsClosable="False"
+            Severity="Success" />
     </Grid>
 
 

@@ -25,9 +25,9 @@ public class DeviceRepository : IDeviceRepository
             .FirstOrDefaultAsync(x => x.Id == id);
     }
 
-    public async Task SaveDevice(Device device)
+    public int SaveDevice(Device device)
     {
         _context.Devices.Add(device);
-        await _context.SaveChangesAsync();
+        return _context.SaveChanges();
     }
 }

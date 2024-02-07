@@ -8,12 +8,17 @@ namespace Kurome.Ui;
 
 public partial class MainWindow 
 {
+    private readonly DialogViewModel _dialogViewModel;
+
     public MainWindow(
         MainWindowViewModel viewModel,
+        DialogViewModel dialogViewModel,
         INavigationService navigationService,
-        IServiceProvider serviceProvider
+        IServiceProvider serviceProvider,
+        IContentDialogService contentDialogService
     )
     {
+        _dialogViewModel = dialogViewModel;
         // Appearance.SystemThemeWatcher.Watch(this);
 
         ViewModel = viewModel;
@@ -22,7 +27,7 @@ public partial class MainWindow
         InitializeComponent();
 
         navigationService.SetNavigationControl(RootNavigation);
-
+        contentDialogService.SetContentPresenter(RootContentDialog);
         RootNavigation.SetServiceProvider(serviceProvider);
     }
 

@@ -1,4 +1,5 @@
 using System.Security.Cryptography.X509Certificates;
+using System.Text.Json.Serialization;
 
 namespace Kurome.Core.Devices;
 
@@ -18,5 +19,6 @@ public class Device
 
     public Guid Id { get; set; }
     public string Name { get; set; } = null!;
+    [JsonIgnore]
     public X509Certificate2? Certificate { get; set; }
 }

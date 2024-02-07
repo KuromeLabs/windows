@@ -10,6 +10,7 @@ using System.Reactive.Linq;
 using System.Runtime.CompilerServices;
 using System.Security.Authentication;
 using System.Security.Cryptography.X509Certificates;
+using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
 using DynamicData;
@@ -33,10 +34,9 @@ public class DeviceService(
     private readonly SourceCache<DeviceState, Guid> _deviceStates = new(t => t.Device.Id);
     public IObservableCache<DeviceState, Guid> DeviceStates => _deviceStates.AsObservableCache();
 
-    public async Task HandleIncomingTcp(TcpClient client, CancellationToken cancellationToken)
+    public void HandleIncomingTcp(TcpClient client, CancellationToken cancellationToken)
     {
-        await Task.Yield();
-        var info = await ReadIdentityAsync(client, cancellationToken);
+        var info = ReadIdentityAsync(client, cancellationToken).Result;
         if (info == null)
         {
             logger.LogError("Failed to read device identity from incoming connection");
@@ -47,18 +47,17 @@ public class DeviceService(
         var name = info.Item2;
         logger.LogInformation("Checking existing active devices");
         var existingDeviceState = _deviceStates.Lookup(id);
-        if (existingDeviceState.HasValue && existingDeviceState.Value.IsConnectedOrConnecting())
+        if (existingDeviceState.HasValue && existingDeviceState.Value.IsConnected)
         {
             logger.LogInformation("Device {Name} ({Id}) is already active, disconnecting", name, id);
             DisconnectDevice(id);
-            return;
         }
 
-        var deviceState = new DeviceState(new Device { Name = name, Id = id },
-            DeviceState.State.Connecting, "Connecting...");
+        var deviceState = new DeviceState(new Device { Name = name, Id = id }, null, "Connecting...");
+        deviceState.IsConnected = true;
         _deviceStates.AddOrUpdate(deviceState);
-        var device = await deviceRepository.GetSavedDevice(id);
-        var isDeviceTrusted = device != null;
+        var device = deviceRepository.GetSavedDevice(id).Result;
+
         Link? link;
         try
         {
@@ -68,33 +67,35 @@ public class DeviceService(
                 if (certificate == null) return false;
                 if (device != null && certificate.Equals(device.Certificate))
                 {
-                    isDeviceTrusted = true;
+                    deviceState.UpdatePairState(DeviceState.PairState.Paired);
                     return true;
                 }
 
-                isDeviceTrusted = false;
+                deviceState.UpdatePairState(DeviceState.PairState.Unpaired);
                 device = new Device(id, name, (X509Certificate2)certificate);
                 return true;
             });
-            await stream.AuthenticateAsServerAsync(sslService.GetSecurityContext(), true, SslProtocols.None, true);
+            stream.AuthenticateAsServer(sslService.GetSecurityContext(), true, SslProtocols.None, true);
             link = new Link(stream);
         }
         catch (Exception e)
         {
-            isDeviceTrusted = false;
+            deviceState.UpdatePairState(DeviceState.PairState.Unpaired);
             logger.LogError($"{e}");
             return;
         }
 
         logger.LogInformation("Link established with {Name} ({Id})", info.Item2, id);
-        SetDeviceServices(isDeviceTrusted, deviceState, link);
+        deviceState.Device = device!;
+        deviceState.Link = link;
+        StartDeviceServices(deviceState);
         link.DataReceived
             .Where(x => Packet.Serializer.Parse(x.Data).Component?.Kind == Component.ItemKind.Pair)
             .ObserveOn(Scheduler.Default)
             .Subscribe(buffer =>
             {
                 var pair = Packet.Serializer.Parse(buffer.Data).Component?.Pair!;
-                HandleIncomingPair(pair.Value, deviceState, link);
+                HandleIncomingPairPacket(pair, device.Id);
             }, _ =>
             {
                 logger.LogInformation("Link closed with {Name} ({Id})", device.Name, device.Id);
@@ -107,37 +108,98 @@ public class DeviceService(
         }.Start();
     }
 
-    private void SetDeviceServices(bool isDeviceTrusted, DeviceState deviceState, Link link)
+
+    public void OnIncomingPairRequestAccepted(Guid id)
     {
-        if (isDeviceTrusted)
+        var state = _deviceStates.Lookup(id);
+        if (!state.HasValue) return;
+        state.Value.IncomingPairTimer?.Dispose();
+        if (state.Value.State != DeviceState.PairState.PairRequestedByPeer) return;
+        if (deviceRepository.SaveDevice(state.Value.Device) == 0)
         {
-            var deviceAccessor = new DeviceAccessor(link, deviceState.Device);
-            _deviceStates.AddOrUpdate(deviceState.UpdateStatus(DeviceState.State.ConnectedTrusted, "Connected"));
+            logger.LogError("Failed to save device {Name} ({Id})", state.Value.Device.Name, state.Value.Device.Id);
+            return;
+        }
+        _deviceStates.AddOrUpdate(state.Value.UpdatePairState(DeviceState.PairState.Paired));
+        var packet = new Packet { Component = new Component(new Pair { Value = true }), Id = -1 };
+        var maxSize = Packet.Serializer.GetMaxSize(packet);
+        var buffer = ArrayPool<byte>.Shared.Rent(maxSize + 4);
+        var span = buffer.AsSpan();
+        var length = Packet.Serializer.Write(span[4..], packet);
+        BinaryPrimitives.WriteInt32LittleEndian(span[..4], length);
+        state.Value.Link?.Send(buffer, length + 4);
+        ArrayPool<byte>.Shared.Return(buffer);
+        StartDeviceServices(state.Value);
+    }
+
+    private void HandleIncomingPairPacket(Pair pair, Guid id)
+    {
+        var state = _deviceStates.Lookup(id);
+        if (!state.HasValue) return;
+        if (pair.Value)
+        {
+            switch (state.Value.State)
+            {
+                case DeviceState.PairState.Paired:
+                    //pair request but we are already paired, ignore
+                    break;
+                case DeviceState.PairState.PairRequested:
+                    //we requested pair and it's accepted
+                    break;
+                case DeviceState.PairState.Unpaired:
+                    //incoming pair request from peer
+
+                    state.Value.IncomingPairTimer?.Dispose();
+                    state.Value.IncomingPairTimer = new Timer(t =>
+                    {
+                        logger.LogInformation("Pair request timed out for {Id}", id);
+                        if (!state.HasValue) return;
+                        if (state.Value.State != DeviceState.PairState.PairRequestedByPeer) return;
+                        _deviceStates.AddOrUpdate(state.Value.UpdatePairState(DeviceState.PairState.Unpaired));
+                        state.Value.IncomingPairTimer?.Dispose();
+                    }, null, 25000, Timeout.Infinite);
+                    _deviceStates.AddOrUpdate(state.Value.UpdatePairState(DeviceState.PairState.PairRequestedByPeer));
+                    break;
+            }
+        }
+        else
+        {
+            switch (state.Value.State)
+            {
+                case DeviceState.PairState.Paired:
+                    //unpair request
+                    break;
+                case DeviceState.PairState.PairRequested:
+                    //we requested pair and it's rejected
+                    break;
+            }
+        }
+    }
+
+    private void StartDeviceServices(DeviceState deviceState)
+    {
+        if (deviceState.State == DeviceState.PairState.Paired)
+        {
+            var deviceAccessor = new DeviceAccessor(deviceState.Link!, deviceState.Device);
+            _deviceStates.AddOrUpdate(deviceState
+                .UpdateStatus("Connected"));
             fileSystemService.MountToAvailableMountPoint(deviceAccessor);
         }
         else
         {
-            _deviceStates.AddOrUpdate(deviceState.UpdateStatus(DeviceState.State.ConnectedUntrusted,
-                "Connected (Not Trusted)"));
+            _deviceStates.AddOrUpdate(deviceState
+                .UpdateStatus("Connected (Not Trusted)"));
         }
     }
 
-    private void HandleIncomingPair(bool paired, DeviceState deviceState, Link link)
-    {
-        if (paired)
-        {
-            //incoming pair request, for now accept automatically
-            //TODO: implement properly
-            deviceRepository.SaveDevice(deviceState.Device);
-            SetDeviceServices(true, deviceState, link);
-        }
-    }
 
     private void DisconnectDevice(Guid id)
     {
-        var state = _deviceStates.Lookup(id).Value;
-        fileSystemService.Unmount(state.Device.Id);
-        _deviceStates.AddOrUpdate(state.UpdateStatus(DeviceState.State.Disconnected, "Disconnected"));
+        var state = _deviceStates.Lookup(id);
+        if (!state.HasValue) return;
+        fileSystemService.Unmount(state.Value.Device.Id);
+        _deviceStates.Remove(id);
+        state.Value.Dispose();
     }
 
 
@@ -162,44 +224,54 @@ public class DeviceService(
     }
 }
 
-public class DeviceState(Device device, DeviceState.State status, string statusMessage) : INotifyPropertyChanged
+public sealed class DeviceState(Device device, Link? link, string statusMessage)
+    : INotifyPropertyChanged, IDisposable
 {
     public Device Device { get; set; } = device;
+    [JsonIgnore] public Link? Link { get; set; } = link;
+    [JsonIgnore] public Timer? IncomingPairTimer { get; set; }
     public string StatusMessage { get; set; } = statusMessage;
-    public State Status { get; set; } = status;
+    public bool IsConnected;
+    public PairState State { get; set; } = PairState.Unpaired;
 
-    public enum State
+    public DeviceState UpdateStatus(string statusMessage)
     {
-        Disconnected,
-        Connecting,
-        ConnectedTrusted,
-        ConnectedUntrusted
-    }
-
-    public bool IsConnectedOrConnecting()
-    {
-        return Status is State.ConnectedTrusted or State.ConnectedUntrusted or State.Connecting;
-    }
-
-    public DeviceState UpdateStatus(State status, string statusMessage)
-    {
-        Status = status;
         StatusMessage = statusMessage;
         return this;
     }
 
+    public DeviceState UpdatePairState(PairState state)
+    {
+        State = state;
+        return this;
+    }
+
+    public enum PairState
+    {
+        Paired,
+        Unpaired,
+        PairRequested,
+        PairRequestedByPeer
+    }
+
+
     public event PropertyChangedEventHandler? PropertyChanged;
 
-    protected virtual void OnPropertyChanged([CallerMemberName] string? propertyName = null)
+    private void OnPropertyChanged([CallerMemberName] string? propertyName = null)
     {
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
     }
 
-    protected bool SetField<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)
+    private bool SetField<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)
     {
         if (EqualityComparer<T>.Default.Equals(field, value)) return false;
         field = value;
         OnPropertyChanged(propertyName);
         return true;
+    }
+
+    public void Dispose()
+    {
+        Link?.Dispose();
     }
 }

@@ -46,6 +46,8 @@ public class IpcService
                 buffer = new byte[length];
                 await _pipeServer.ReadExactlyAsync(buffer, cancellationToken);
                 _logger.LogInformation($"Incoming message: {Encoding.UTF8.GetString(buffer)}");
+                var msg = Encoding.UTF8.GetString(buffer);
+                ProcessMessage(msg);
             }
             catch (Exception e)
             {
@@ -59,8 +61,9 @@ public class IpcService
     private void SendActiveDevices(CancellationToken cancellationToken)
     {
         var devices = _deviceService.DeviceStates.Items;
-        var json = JsonSerializer.Serialize(devices);
-        _logger.LogInformation($"Sending active devices: {json}");
+        var devicesJson = JsonSerializer.Serialize(devices);
+        _logger.LogInformation($"Sending active devices: {devicesJson}");
+        var json = new IpcPacket { PacketType = IpcPacket.Type.DeviceList, Data = devicesJson };
         Send(json, cancellationToken);
     }
 
@@ -70,23 +73,68 @@ public class IpcService
             .Connect()
             .ObserveOn(Scheduler.Default)
             .Bind(out var list)
-            .Subscribe(_ => Send(JsonSerializer.Serialize(list), cancellationToken));
-
-        _deviceService.DeviceStates.Connect().WhenPropertyChanged(x => x.Status).Subscribe(v =>
+            .Subscribe(_ =>
+            {
+                var data = JsonSerializer.Serialize(list);
+                var ipcPacket = new IpcPacket { PacketType = IpcPacket.Type.DeviceList, Data = data };
+                Send(ipcPacket, cancellationToken);
+            }, cancellationToken);
+        
+        _deviceService.DeviceStates.Connect().WhenPropertyChanged(x => x.State)
+            .ObserveOn(Scheduler.Default)
+            .Subscribe(v =>
+            {
+                _logger.LogInformation($"Device {v.Sender.Device.Name} changed status to {v.Value}");
+                switch (v.Value)
+                {
+                    case DeviceState.PairState.PairRequestedByPeer:
+                    {
+                        var pairRequestPacket = new IpcPacket
+                        {
+                            PacketType = IpcPacket.Type.IncomingPairRequest,
+                            Data = JsonSerializer.Serialize(v.Sender)
+                        };
+                        Send(pairRequestPacket, cancellationToken);
+                        break;
+                    }
+                    case DeviceState.PairState.Unpaired:
+                        var cancelPairRequestPacket = new IpcPacket
+                        {
+                            PacketType = IpcPacket.Type.CancelIncomingPairRequest,
+                            Data = JsonSerializer.Serialize(v.Sender)
+                        };
+                        Send(cancelPairRequestPacket, cancellationToken);
+                        break;
+                }
+            });
+    }
+    
+    private void ProcessMessage(string message)
+    {
+        var ipcPacket = JsonSerializer.Deserialize<IpcPacket>(message);
+        switch (ipcPacket!.PacketType)
         {
-            _logger.LogInformation($"Device {v.Sender.Device.Name} changed status to {v.Value}");
-            //TODO: send pair request to UI
-        });
+            case IpcPacket.Type.AcceptIncomingPairRequest:
+            {
+                var deviceState = JsonSerializer.Deserialize<DeviceState>(ipcPacket.Data);
+                _deviceService.OnIncomingPairRequestAccepted(deviceState!.Device.Id);
+                break;
+            }
+            case IpcPacket.Type.RejectIncomingPairRequest:
+                break;
+        }
+        
     }
 
-    private async void Send(string message, CancellationToken cancellationToken)
+    private async void Send(IpcPacket ipcPacket, CancellationToken cancellationToken)
     {
         try
         {
             if (!_pipeServer.IsConnected) return;
-            var messageLength = Encoding.UTF8.GetByteCount(message);
+            var payload = JsonSerializer.Serialize(ipcPacket);
+            var messageLength = Encoding.UTF8.GetByteCount(payload);
             var buffer = new byte[4 + messageLength];
-            Encoding.UTF8.GetBytes(message, buffer.AsSpan()[4..]);
+            Encoding.UTF8.GetBytes(payload, buffer.AsSpan()[4..]);
             BinaryPrimitives.WriteInt32LittleEndian(buffer.AsSpan()[..4], messageLength);
             await _pipeServer.WriteAsync(buffer, cancellationToken);
         }
@@ -97,4 +145,19 @@ public class IpcService
         
     }
     
+    
+}
+
+public class IpcPacket
+{
+    public Type PacketType { get; set; }
+    public string Data { get; set; } = string.Empty;
+    public enum Type
+    {
+        DeviceList,
+        IncomingPairRequest,
+        CancelIncomingPairRequest,
+        AcceptIncomingPairRequest,
+        RejectIncomingPairRequest
+    }
 }

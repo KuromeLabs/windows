@@ -1,7 +1,4 @@
-﻿using System.Configuration;
-using System.Data;
-using System.Windows;
-using Kurome.Network;
+﻿using System.Windows;
 using Kurome.Ui.Pages.Devices;
 using Kurome.Ui.Services;
 using Kurome.Ui.ViewModels;
@@ -32,6 +29,7 @@ public partial class App : System.Windows.Application
                 services.AddSingleton<PipeService>();
                 services.AddSingleton<INavigationService, NavigationService>();
                 services.AddSingleton<DevicesViewModel>();
+                services.AddSingleton<DialogViewModel>();
                 services.AddSingleton<Devices>();
                 services.AddSingleton<DeviceDetails>();
                 

@@ -43,7 +43,7 @@ builder.ConfigureServices(services =>
         {
             opt.ServiceName = "Kurome";
         });
-        services.AddDbContext<DataContext>(ServiceLifetime.Singleton);
+        services.AddDbContext<DataContext>(ServiceLifetime.Transient);
         services.AddSingleton<IIdentityProvider, IdentityProvider>();
         services.AddSingleton<IDeviceRepository, DeviceRepository>();
         services.AddNetworkServices();

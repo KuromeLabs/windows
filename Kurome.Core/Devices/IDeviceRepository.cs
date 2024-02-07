@@ -5,5 +5,5 @@ public interface IDeviceRepository
     public Task<List<Device>> GetSavedDevices();
     public Task<Device?> GetSavedDevice(Guid id);
     
-    public Task SaveDevice(Device device);
+    public int SaveDevice(Device device);
 }
