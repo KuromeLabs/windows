@@ -43,7 +43,8 @@ public class NetworkService
                 _logger.LogInformation("Waiting for incoming TCP connection");
                 var client = await tcpListener.AcceptTcpClientAsync(cancellationToken);
                 _logger.LogInformation("Accepted connection from {Ip}", client.Client.RemoteEndPoint as IPEndPoint);
-                _ = _deviceService.HandleIncomingTcp(client, cancellationToken);
+                
+                _deviceService.HandleIncomingTcp(client, cancellationToken);
             }
             catch (Exception e)
             {

@@ -40,6 +40,16 @@ public class PipeService : IHostedService
         };
         Send(ipcPacket, CancellationToken.None);
     }
+    
+    public void RejectPairingRequest(DeviceState deviceState)
+    {
+        var ipcPacket = new IpcPacket
+        {
+            PacketType = IpcPacket.Type.RejectIncomingPairRequest,
+            Data = JsonSerializer.Serialize(deviceState)
+        };
+        Send(ipcPacket, CancellationToken.None);
+    }
 
     private async void Send(IpcPacket ipcPacket, CancellationToken cancellationToken)
     {

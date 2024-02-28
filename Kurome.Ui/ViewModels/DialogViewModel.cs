@@ -43,6 +43,10 @@ public partial class DialogViewModel : ReactiveObject
                     {
                         _pipeService.AcceptPairingRequest(state);
                     }
+                    else
+                    {
+                        _pipeService.RejectPairingRequest(state);
+                    }
                 }
                 catch (Exception e)
                 {

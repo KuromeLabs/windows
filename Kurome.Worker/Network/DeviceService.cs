@@ -132,6 +132,23 @@ public class DeviceService(
         StartDeviceServices(state.Value);
     }
 
+    public void OnIncomingPairRequestRejected(Guid id)
+    {
+        var state = _deviceStates.Lookup(id);
+        if (!state.HasValue) return;
+        state.Value.IncomingPairTimer?.Dispose();
+        if (state.Value.State != DeviceState.PairState.PairRequestedByPeer) return;
+        _deviceStates.AddOrUpdate(state.Value.UpdatePairState(DeviceState.PairState.Unpaired));
+        var packet = new Packet { Component = new Component(new Pair { Value = false }), Id = -1 };
+        var maxSize = Packet.Serializer.GetMaxSize(packet);
+        var buffer = ArrayPool<byte>.Shared.Rent(maxSize + 4);
+        var span = buffer.AsSpan();
+        var length = Packet.Serializer.Write(span[4..], packet);
+        BinaryPrimitives.WriteInt32LittleEndian(span[..4], length);
+        state.Value.Link?.Send(buffer, length + 4);
+        ArrayPool<byte>.Shared.Return(buffer);
+    }
+
     private void HandleIncomingPairPacket(Pair pair, Guid id)
     {
         var state = _deviceStates.Lookup(id);

@@ -121,6 +121,8 @@ public class IpcService
                 break;
             }
             case IpcPacket.Type.RejectIncomingPairRequest:
+                var deviceState1 = JsonSerializer.Deserialize<DeviceState>(ipcPacket.Data);
+                _deviceService.OnIncomingPairRequestRejected(deviceState1!.Device.Id);
                 break;
         }
         
