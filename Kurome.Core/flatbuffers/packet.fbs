@@ -1,7 +1,7 @@
 namespace Kurome.Fbs.Device;
 attribute "fs_serializer";
 attribute "fs_vector";
-union Component { DeviceQuery, DeviceQueryResponse, 
+union Component { DeviceIdentityQuery, DeviceIdentityResponse,
 GetFileInfoQuery, GetDirectoryQuery, ReadFileQuery, 
 ReadFileResponse, GetFileInfoResponse, GetDirectoryResponse,
 CreateFileCommand, CreateDirectoryCommand, WriteFileCommand, SetFileInfoCommand, DeleteFileCommand, RenameFileCommand, Node, FailResponse, Pair }
@@ -20,14 +20,20 @@ table FailResponse (fs_serializer:"lazy") {
     message:string;
 }
 
-table DeviceQuery (fs_serializer:"lazy") {}
+table DeviceIdentityQuery (fs_serializer:"lazy") { }
 
-table DeviceQueryResponse (fs_serializer:"lazy") {
+enum Platform: short {
+    Windows,
+    Android
+}
+
+table DeviceIdentityResponse (fs_serializer:"lazy") {
     total_bytes:long;
     free_bytes:long;
     name:string;
     id:string;
     local_ip:string;
+    platform: Platform;
 }
 
 table GetFileInfoQuery (fs_serializer:"lazy") {

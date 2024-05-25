@@ -229,7 +229,7 @@ public class DeviceService(
             var size = BinaryPrimitives.ReadInt32LittleEndian(sizeBuffer);
             var readBuffer = ArrayPool<byte>.Shared.Rent(size);
             await client.GetStream().ReadExactlyAsync(readBuffer, 0, size, cancellationToken);
-            var info = Packet.Serializer.Parse(readBuffer).Component?.DeviceQueryResponse;
+            var info = Packet.Serializer.Parse(readBuffer).Component?.DeviceIdentityResponse;
             ArrayPool<byte>.Shared.Return(readBuffer);
             return new Tuple<Guid, string>(Guid.Parse(info!.Id!), info.Name!);
         }

@@ -120,18 +120,18 @@ public class DeviceAccessor(Link link, Device device)
         if (_totalSpace == -1 || _freeSpace == -1)
         {
             var id = Interlocked.Increment(ref _packetId);
-            SendPacket(new Component(new DeviceQuery()), id);
+            SendPacket(new Component(new DeviceIdentityQuery()), id);
 
             var data = _link?.GetBufferBlocking(id, 5000);
             if (data == null) return false;
             var response = Packet.Serializer.Parse(data.Data);
-            if (response.Component?.Kind != Component.ItemKind.DeviceQueryResponse)
+            if (response.Component?.Kind != Component.ItemKind.DeviceIdentityResponse)
             {
                 data.Free();
                 return false;
             }
 
-            var deviceInfo = response.Component.Value.DeviceQueryResponse;
+            var deviceInfo = response.Component.Value.DeviceIdentityResponse;
             _totalSpace = deviceInfo.TotalBytes;
             _freeSpace = deviceInfo.FreeBytes;
             _lastSpaceUpdate = DateTimeOffset.Now.ToUnixTimeMilliseconds();

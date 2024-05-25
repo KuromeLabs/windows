@@ -1,4 +1,5 @@
 using System;
+using System.Buffers;
 using System.Buffers.Binary;
 using System.Collections.Concurrent;
 using System.Net;
@@ -8,7 +9,9 @@ using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using FlatSharp;
 using Kurome.Core.Interfaces;
+using Kurome.Fbs.Device;
 using Microsoft.Extensions.Logging;
 
 namespace Kurome.Network;
@@ -78,12 +81,26 @@ public class NetworkService
         var id = _identityProvider.GetEnvironmentId();
         foreach (var (ip, udpClient) in _udpClients)
         {
-            var message = "kurome:" + ip + ":" + _identityProvider.GetEnvironmentName() + ":" + id;
-            var data = Encoding.Default.GetBytes(message);
             try
             {
-                udpClient.Send(data, data.Length, new IPEndPoint(IPAddress.Parse("255.255.255.255"), 33586));
-                // _logger.LogInformation("UDP Broadcast: \"{0}\" to {1}", message, ip);
+                var component = new Component(new DeviceIdentityResponse
+                {
+                    FreeBytes = 0,
+                    TotalBytes = 0,
+                    Name = _identityProvider.GetEnvironmentName(),
+                    Id = _identityProvider.GetEnvironmentId(),
+                    LocalIp = ip,
+                    Platform = Platform.Windows
+                });
+                var packet = new Packet { Component = component, Id = -1 };
+                var size = Packet.Serializer.GetMaxSize(packet);
+                var buffer = ArrayPool<byte>.Shared.Rent(size);
+                var length = Packet.Serializer.Write(buffer, packet);
+                var parsedPacket = Packet.Serializer.Parse(buffer);
+                // BinaryPrimitives.WriteInt32LittleEndian(buffer.AsSpan()[..4], length);
+                udpClient.Send(buffer, length, new IPEndPoint(IPAddress.Parse("255.255.255.255"), 33586));
+                ArrayPool<byte>.Shared.Return(buffer);
+                _logger.LogInformation("UDP Broadcast of FlatBuffer identity packet of size: \"{0}\" to {1}", length, ip);
             }
             catch (Exception e)
             {
