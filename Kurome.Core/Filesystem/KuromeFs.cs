@@ -48,7 +48,7 @@ public class KuromeFs : IDokanOperationsUnsafe
 
 
         if (_cache == null) return DokanResult.Error;
-        CacheNode? node = null;
+        CacheNode? node;
         CacheNode? parentNode;
         if (fileName == "\\")
         {
@@ -57,8 +57,8 @@ public class KuromeFs : IDokanOperationsUnsafe
         }
         else
         {
-            parentNode = _cache?.GetNode(Path.GetDirectoryName(fileName)!);
-            parentNode?.Children.TryGetValue(Path.GetFileName(fileName), out node);
+            node = _cache.GetNode(fileName);
+            parentNode = node == null ? _cache.GetNode(Path.GetDirectoryName(fileName)!) : node.Parent!;
         }
 
         info.Context = node;
@@ -134,7 +134,12 @@ public class KuromeFs : IDokanOperationsUnsafe
                             $"Mode: {mode}, Attributes: {attributes}, Options: {options}, Share: {share}, Access: {access}");
                     if (nodeExists)
                     {
-                        node!.FileAttributes = (uint)(attributes | FileAttributes.Archive & ~FileAttributes.Normal);
+                        lock (node!.NodeLock)
+                        {
+                            node.FileAttributes = (uint)(attributes | FileAttributes.Archive & ~FileAttributes.Normal);
+                            _cache!.SetLength(node, 0);
+                        }
+                        
                         return Trace(_mountPoint, nameof(CreateFile), fileName, node, DokanResult.AlreadyExists,
                             $"Mode: {mode}, Attributes: {attributes}, Options: {options}, Share: {share}, Access: {access}");
                     }
@@ -166,6 +171,9 @@ public class KuromeFs : IDokanOperationsUnsafe
                     if (!nodeExists)
                         return Trace(_mountPoint, nameof(CreateFile), fileName, node, DokanResult.FileNotFound,
                             $"Mode: {mode}, Attributes: {attributes}, Options: {options}, Share: {share}, Access: {access}");
+                    lock (node!.NodeLock)
+                        _cache!.SetLength(node, 0);
+                    
                     break;
             }
 
