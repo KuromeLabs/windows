@@ -457,10 +457,16 @@ public class KuromeFs : IDokanOperationsUnsafe
         var node = info.Context as CacheNode;
         lock (node!.NodeLock)
         {
-            _deviceAccessor.WriteFileBufferUnsafe(buffer, fileName, offset, (int)bufferLength);
+            var bytesToWrite = (int) bufferLength;
+            if (info.PagingIo)
+            {
+                if ((int)(node.Length - offset) < bufferLength) 
+                    bytesToWrite = (int)(node.Length - offset);
+            }
+            _deviceAccessor.WriteFileBufferUnsafe(buffer, fileName, offset, bytesToWrite);
             if (offset + bufferLength > node.Length)
                 node.Length = offset + bufferLength;
-            bytesWritten = (int)bufferLength;
+            bytesWritten = bytesToWrite;
             return Trace(_mountPoint, nameof(WriteFile), fileName, node, DokanResult.Success,
                 $"W:{bytesWritten}, O:{offset}");
         }
