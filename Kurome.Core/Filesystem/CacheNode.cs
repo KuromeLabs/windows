@@ -18,7 +18,7 @@ public class CacheNode
     public uint FileAttributes { get; set; }
     public bool ChildrenRefreshed = false;
     public DateTime LastChildrenRefresh = DateTime.Now;
-    public readonly ConcurrentDictionary<string, CacheNode> Children = new();
+    public readonly ConcurrentDictionary<string, CacheNode> Children = new(StringComparer.OrdinalIgnoreCase);
     public readonly object NodeLock = new();
 
     public FileInformation ToFileInfo()
