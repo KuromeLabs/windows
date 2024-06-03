@@ -350,8 +350,7 @@ public class KuromeFs : IDokanOperationsUnsafe
         var node = (info.Context as CacheNode)!;
         lock (node.NodeLock)
         {
-            if (length < node.Length)
-                _cache!.SetLength(node, length);
+            _cache!.SetLength(node, length);
             return Trace(_mountPoint, nameof(SetAllocationSize), fileName, node, DokanResult.Success);
         }
     }
@@ -379,18 +378,18 @@ public class KuromeFs : IDokanOperationsUnsafe
             freeBytesAvailable = free;
             totalNumberOfFreeBytes = free;
             return Trace(_mountPoint, nameof(GetDiskFreeSpace), null, null, DokanResult.Success,
-                $"Label: {_deviceAccessor.Device.Name}, Total: {total}, Free: {free}");
+                $"Label: {_deviceAccessor.Name}, Total: {total}, Free: {free}");
         }
 
         return Trace(_mountPoint, nameof(GetDiskFreeSpace), null, null, DokanResult.Unsuccessful,
-            $"Label: {_deviceAccessor.Device.Name}, Total: {total}, Free: {free}");
+            $"Label: {_deviceAccessor.Name}, Total: {total}, Free: {free}");
     }
 
     public NtStatus GetVolumeInformation([UnscopedRef] out string volumeLabel,
         [UnscopedRef] out FileSystemFeatures features,
         [UnscopedRef] out string fileSystemName, [UnscopedRef] out uint maximumComponentLength, IDokanFileInfo info)
     {
-        volumeLabel = _deviceAccessor.Device.Name;
+        volumeLabel = _deviceAccessor.Name;
         features = FileSystemFeatures.CasePreservedNames | FileSystemFeatures.CaseSensitiveSearch |
                    FileSystemFeatures.UnicodeOnDisk;
         fileSystemName = "Kurome";

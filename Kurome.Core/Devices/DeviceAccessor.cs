@@ -1,6 +1,5 @@
 using System.Buffers;
 using System.Buffers.Binary;
-using System.Reactive.Linq;
 using System.Runtime.InteropServices;
 using FlatSharp;
 using Kurome.Core.Filesystem;
@@ -10,9 +9,10 @@ using Serilog;
 
 namespace Kurome.Core.Devices;
 
-public class DeviceAccessor(Link link, Device device)
+public class DeviceAccessor(Link link, string name, Guid id)
 {
-    public readonly Device Device = device;
+    public readonly Guid Id = id;
+    public readonly string Name = name;
     private readonly Link? _link = link;
     private readonly ILogger _logger = Log.ForContext(typeof(DeviceAccessor));
     private long _totalSpace = -1;

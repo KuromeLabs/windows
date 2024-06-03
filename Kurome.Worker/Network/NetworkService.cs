@@ -96,8 +96,6 @@ public class NetworkService
                 var size = Packet.Serializer.GetMaxSize(packet);
                 var buffer = ArrayPool<byte>.Shared.Rent(size);
                 var length = Packet.Serializer.Write(buffer, packet);
-                var parsedPacket = Packet.Serializer.Parse(buffer);
-                // BinaryPrimitives.WriteInt32LittleEndian(buffer.AsSpan()[..4], length);
                 udpClient.Send(buffer, length, new IPEndPoint(IPAddress.Parse("255.255.255.255"), 33586));
                 ArrayPool<byte>.Shared.Return(buffer);
                 _logger.LogInformation("UDP Broadcast of FlatBuffer identity packet of size: \"{0}\" to {1}", length, ip);

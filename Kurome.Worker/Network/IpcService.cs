@@ -8,6 +8,7 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using DynamicData;
+using Kurome.Core.Devices;
 using Microsoft.Extensions.Logging;
 
 namespace Kurome.Network;
@@ -84,10 +85,10 @@ public class IpcService
             .ObserveOn(Scheduler.Default)
             .Subscribe(v =>
             {
-                _logger.LogInformation($"Device {v.Sender.Device.Name} changed status to {v.Value}");
+                _logger.LogInformation($"Device {v.Sender.Name} changed status to {v.Value}");
                 switch (v.Value)
                 {
-                    case DeviceState.PairState.PairRequestedByPeer:
+                    case PairState.PairRequestedByPeer:
                     {
                         var pairRequestPacket = new IpcPacket
                         {
@@ -97,7 +98,7 @@ public class IpcService
                         Send(pairRequestPacket, cancellationToken);
                         break;
                     }
-                    case DeviceState.PairState.Unpaired:
+                    case PairState.Unpaired:
                         var cancelPairRequestPacket = new IpcPacket
                         {
                             PacketType = IpcPacket.Type.CancelIncomingPairRequest,
@@ -117,12 +118,12 @@ public class IpcService
             case IpcPacket.Type.AcceptIncomingPairRequest:
             {
                 var deviceState = JsonSerializer.Deserialize<DeviceState>(ipcPacket.Data);
-                _deviceService.OnIncomingPairRequestAccepted(deviceState!.Device.Id);
+                _deviceService.OnIncomingPairRequestAccepted(deviceState!.Id);
                 break;
             }
             case IpcPacket.Type.RejectIncomingPairRequest:
                 var deviceState1 = JsonSerializer.Deserialize<DeviceState>(ipcPacket.Data);
-                _deviceService.OnIncomingPairRequestRejected(deviceState1!.Device.Id);
+                _deviceService.OnIncomingPairRequestRejected(deviceState1!.Id);
                 break;
         }
         
