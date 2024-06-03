@@ -147,7 +147,7 @@ public class FileSystemTree
         node.FileAttributes = attributes;
         _deviceAccessor.SetFileAttributes(node.FullName, ucTime, ulaTime, ulwTime, attributes, node.Length);
         node.CreationTime = cTime ?? node.CreationTime;
-        node.LastAccessTime = laTime ?? node.CreationTime;
-        node.LastWriteTime = lwTime ?? node.CreationTime;
+        node.LastAccessTime = laTime ?? node.LastAccessTime;
+        node.LastWriteTime = lwTime ?? node.LastWriteTime;
     }
 }
