@@ -31,7 +31,7 @@
                     Foreground="{DynamicResource TextFillColorPrimaryBrush}" 
                     FontTypography="Title"
                     />
-                <ui:TextBlock Text="{Binding ViewModel.SelectedDevice.Device.Id, Mode=OneWay}"
+                <ui:TextBlock Text="{Binding ViewModel.SelectedDevice.Id, Mode=OneWay}"
                               Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
                 <ui:TextBlock Text="{Binding ViewModel.SelectedDevice.StatusMessage, Mode=OneWay}"
                               Foreground="{DynamicResource TextFillColorPrimaryBrush}" />

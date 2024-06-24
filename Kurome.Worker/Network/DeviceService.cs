@@ -6,6 +6,8 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Net.Security;
 using System.Net.Sockets;
+using System.Reactive.Concurrency;
+using System.Reactive.Linq;
 using System.Runtime.CompilerServices;
 using System.Security.Authentication;
 using System.Security.Cryptography.X509Certificates;
@@ -43,25 +45,29 @@ public class DeviceService(
         var name = info.Item2;
         logger.LogInformation("Checking existing active devices");
         var hasExistingHandler = _deviceHandlers.TryRemove(id, out var existingDeviceHandler);
-        if (hasExistingHandler && existingDeviceHandler!.IsConnected)
+        if (hasExistingHandler)
         {
             logger.LogInformation("Device {Name} ({Id}) is already active, disconnecting", name, id);
-            existingDeviceHandler.Stop();
+            existingDeviceHandler!.Stop();
         }
+
         var device = deviceRepository.GetSavedDevice(id).Result;
         var deviceTrusted = false;
         Link? link;
+        X509Certificate2? currentCertificate = null;
         try
         {
             var stream = new SslStream(client.GetStream(), false, (sender, certificate, chain, policyErrors) =>
             {
                 if (policyErrors == SslPolicyErrors.RemoteCertificateNameMismatch) return false;
                 if (certificate == null) return false;
+                currentCertificate = (X509Certificate2) certificate;
                 if (device != null && certificate.Equals(device.Certificate))
                 {
                     deviceTrusted = true;
                     return true;
                 }
+
                 device = new Device(id, name, (X509Certificate2)certificate);
                 return true;
             });
@@ -75,11 +81,24 @@ public class DeviceService(
         }
 
         logger.LogInformation("Link established with {Name} ({Id})", info.Item2, id);
-        var deviceHandler = new DeviceHandler(link, id, name, deviceTrusted)
-        {
-            IsConnected = true
-        };
+        var deviceHandler = new DeviceHandler(link, id, name, deviceTrusted);
         _deviceHandlers.TryAdd(id, deviceHandler);
+        _deviceStates.AddOrUpdate(new DeviceState(name, id, deviceTrusted ? PairState.Paired : PairState.Unpaired, true));
+        deviceHandler.State
+            .SubscribeOn(NewThreadScheduler.Default)
+            .Subscribe(
+                state =>
+                {
+                    if (_deviceStates.Lookup(id).HasValue)
+                    {
+                        _deviceStates.AddOrUpdate(new DeviceState(name, id, state, true));
+                        if (state == PairState.Paired)
+                            deviceRepository.SaveDevice(new Device(id, name, currentCertificate!));
+                    }
+                },
+                _ => { },
+                () => { _deviceStates.RemoveKey(id); }
+            );
 
         new Thread(() => link.Start(cancellationToken))
         {
@@ -87,7 +106,7 @@ public class DeviceService(
         }.Start();
         deviceHandler.Start();
     }
-    
+
 
     private Tuple<Guid, string>? ReadIdentity(TcpClient client)
     {
@@ -114,7 +133,7 @@ public class DeviceService(
         if (_deviceHandlers.TryGetValue(id, out var deviceHandler))
             deviceHandler.OnIncomingPairRequestRejected();
     }
-    
+
     public void OnIncomingPairRequestAccepted(Guid id)
     {
         if (_deviceHandlers.TryGetValue(id, out var deviceHandler))
@@ -122,14 +141,13 @@ public class DeviceService(
     }
 }
 
-public sealed class DeviceState(string name, Guid id) : INotifyPropertyChanged
+public sealed class DeviceState(string name, Guid id, PairState state, bool isConnected) : INotifyPropertyChanged
 {
     public Guid Id { get; set; } = id;
     public string Name { get; set; } = name;
 
-    public bool IsConnected;
-    public PairState State { get; set; } = PairState.Unpaired;
-    
+    public bool IsConnected { get; set; } = isConnected;
+    public PairState State { get; set; } = state;
 
 
     public event PropertyChangedEventHandler? PropertyChanged;

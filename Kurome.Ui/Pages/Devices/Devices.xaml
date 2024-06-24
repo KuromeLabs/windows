@@ -6,11 +6,14 @@
       xmlns:local="clr-namespace:Kurome.Ui.Pages.Devices"
       xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
       xmlns:network="clr-namespace:Kurome.Network;assembly=Kurome"
+      xmlns:converters="clr-namespace:Kurome.Ui.Converters"
       mc:Ignorable="d"
       d:DataContext="{d:DesignInstance local:Devices,IsDesignTimeCreatable=False}"
       ui:NavigationView.HeaderContent="Devices"
       Title="Devices">
-
+    <Page.Resources>
+        <converters:PairStateToStringConverter x:Key="PairStateToStringConverter"/>
+    </Page.Resources>
     <Grid Margin="8">
         <Grid.RowDefinitions>
             <RowDefinition Height="*" />
@@ -42,13 +45,13 @@
                                 Foreground="{DynamicResource TextFillColorPrimaryBrush}"
                                 Margin="12,4,0,0"
                                 FontTypography="BodyStrong"
-                                Text="{Binding Device.Name}" />
+                                Text="{Binding Name}" />
                             <ui:TextBlock
                                 Grid.Row="1"
                                 Grid.Column="1"
                                 Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                                 Margin="12,0,0,4"
-                                Text="{Binding StatusMessage}" />
+                                Text="{Binding State, Converter={StaticResource PairStateToStringConverter}}" />
                         </Grid>
                     </ui:CardAction>
                 </DataTemplate>

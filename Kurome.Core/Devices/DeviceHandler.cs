@@ -25,9 +25,8 @@ public class DeviceHandler(Link link, Guid id, string name, bool isDeviceTrusted
     private DokanInstance? _dokanInstance;
     private string? _mountPoint;
 
-    public bool IsConnected;
     private readonly BehaviorSubject<PairState> _state = new(isDeviceTrusted ? PairState.Paired : PairState.Unpaired);
-    // public ISubject<PairState> State = _state;
+    public IObservable<PairState> State => _state.AsObservable();
 
     public void OnIncomingPairRequestAccepted()
     {
@@ -41,9 +40,10 @@ public class DeviceHandler(Link link, Guid id, string name, bool isDeviceTrusted
         var span = buffer.AsSpan();
         var length = Packet.Serializer.Write(span[4..], packet);
         BinaryPrimitives.WriteInt32LittleEndian(span[..4], length);
-        Link?.Send(buffer, length + 4);
+        Link.Send(buffer, length + 4);
         ArrayPool<byte>.Shared.Return(buffer);
-
+        var deviceAccessor = new DeviceAccessor(Link, Name, Id);
+        MountToAvailableMountPoint(deviceAccessor);
     }
 
     public void OnIncomingPairRequestRejected()
@@ -81,6 +81,7 @@ public class DeviceHandler(Link link, Guid id, string name, bool isDeviceTrusted
                     {
                         _logger.Information("Pair request timed out for {Id}", Id);
                         if (_state.Value != PairState.PairRequestedByPeer) return;
+                        _state.OnNext(PairState.Unpaired);
                         IncomingPairTimer?.Dispose();
                     }, null, 25000, Timeout.Infinite);
                     _state.OnNext(PairState.PairRequestedByPeer);
@@ -148,7 +149,7 @@ public class DeviceHandler(Link link, Guid id, string name, bool isDeviceTrusted
     {
         if (_state.Value == PairState.Paired)
         {
-            var deviceAccessor = new DeviceAccessor(Link!, Name, Id);
+            var deviceAccessor = new DeviceAccessor(Link, Name, Id);
             MountToAvailableMountPoint(deviceAccessor);
         }
 
@@ -169,6 +170,8 @@ public class DeviceHandler(Link link, Guid id, string name, bool isDeviceTrusted
 
     public void Stop()
     {
+        _state.OnCompleted();
+        IncomingPairTimer?.Dispose();
         Unmount();
         Link.Dispose();
     }

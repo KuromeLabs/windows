@@ -19,6 +19,6 @@
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="*" />
         </Grid.ColumnDefinitions>
-        <ui:TextBlock Text="{Binding DeviceState.Device.Name, StringFormat='Device {0} wants to pair'}"/>
+        <ui:TextBlock Text="{Binding DeviceState.Name, StringFormat='Device {0} wants to pair'}"/>
     </Grid>
 </ui:ContentDialog>
