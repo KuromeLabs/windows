@@ -11,9 +11,9 @@
     <ItemGroup>
       <PackageReference Include="Microsoft.Extensions.Configuration.Ini" Version="8.0.0" />
       <PackageReference Include="Microsoft.Extensions.Hosting" Version="8.0.0" />
-      <PackageReference Include="ReactiveUI.Fody" Version="19.5.39" />
-      <PackageReference Include="ReactiveUI.WPF" Version="19.5.39" />
-      <PackageReference Include="WPF-UI" Version="3.0.0-preview.13" />
+      <PackageReference Include="ReactiveUI.Fody" Version="19.5.41" />
+      <PackageReference Include="ReactiveUI.WPF" Version="20.1.1" />
+      <PackageReference Include="WPF-UI" Version="3.0.5" />
     </ItemGroup>
 
     <ItemGroup>

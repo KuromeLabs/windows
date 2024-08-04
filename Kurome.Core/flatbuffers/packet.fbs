@@ -27,7 +27,7 @@ enum Platform: short {
     Android
 }
 
-table DeviceIdentityResponse (fs_serializer:"lazy") {
+table DeviceIdentityResponse (fs_serializer:"greedy") {
     total_bytes:long;
     free_bytes:long;
     name:string;

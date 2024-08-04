@@ -1,8 +1,6 @@
 using System.Windows.Controls;
-using Kurome.Network;
-using Kurome.Ui.ViewModels;
+using Kurome.Fbs.Ipc;
 using Wpf.Ui.Controls;
-using Wpf.Ui.Markup;
 
 namespace Kurome.Ui.Pages.Devices;
 

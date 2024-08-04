@@ -5,8 +5,8 @@
       xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
       xmlns:local="clr-namespace:Kurome.Ui.Pages.Devices"
       xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
-      xmlns:network="clr-namespace:Kurome.Network;assembly=Kurome"
       xmlns:converters="clr-namespace:Kurome.Ui.Converters"
+      xmlns:ipc="clr-namespace:Kurome.Fbs.Ipc;assembly=Kurome.Core"
       mc:Ignorable="d"
       d:DataContext="{d:DesignInstance local:Devices,IsDesignTimeCreatable=False}"
       ui:NavigationView.HeaderContent="Devices"
@@ -28,7 +28,7 @@
                 </ItemsPanelTemplate>
             </ItemsControl.ItemsPanel>
             <ItemsControl.Resources>
-                <DataTemplate DataType="{x:Type network:DeviceState}">
+                <DataTemplate DataType="{x:Type ipc:DeviceState}">
                     <ui:CardAction Icon="{ui:SymbolIcon Phone32}" Click="OnDeviceSelected" Margin="8,8,8,8">
                         <Grid>
                             <Grid.RowDefinitions>

@@ -1,5 +1,6 @@
 ﻿using System.Windows;
 using Kurome.Ui.Pages.Devices;
+using Kurome.Ui.Services;
 using Kurome.Ui.ViewModels;
 using Wpf.Ui;
 using Wpf.Ui.Controls;
@@ -9,25 +10,28 @@ namespace Kurome.Ui;
 public partial class MainWindow 
 {
     private readonly DialogViewModel _dialogViewModel;
+    private readonly PipeService _pipeService;
 
     public MainWindow(
         MainWindowViewModel viewModel,
         DialogViewModel dialogViewModel,
         INavigationService navigationService,
         IServiceProvider serviceProvider,
-        IContentDialogService contentDialogService
+        IContentDialogService contentDialogService,
+        PipeService pipeService
     )
     {
         _dialogViewModel = dialogViewModel;
+        _pipeService = pipeService;
         // Appearance.SystemThemeWatcher.Watch(this);
-
+        
         ViewModel = viewModel;
         DataContext = this;
 
         InitializeComponent();
 
         navigationService.SetNavigationControl(RootNavigation);
-        contentDialogService.SetContentPresenter(RootContentDialog);
+        contentDialogService.SetDialogHost(RootContentDialog);
         RootNavigation.SetServiceProvider(serviceProvider);
     }
 
@@ -77,6 +81,12 @@ public partial class MainWindow
         }
 
         _isUserClosedPane = true;
+    }
+
+    private void NavigationView_OnNavigated(NavigationView sender, NavigatedEventArgs args)
+    {
+        if (args.Page.GetType() == typeof(Devices))
+            _pipeService.RequestDeviceStateList();
     }
     
     private void MainWindow_Loaded(object sender, RoutedEventArgs e)

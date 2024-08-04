@@ -1,8 +1,8 @@
 using System.Reactive.Linq;
+using Kurome.Fbs.Ipc;
 using Kurome.Ui.Pages.Devices;
 using Kurome.Ui.Services;
 using ReactiveUI;
-using Serilog;
 using Wpf.Ui;
 using Wpf.Ui.Controls;
 
@@ -19,17 +19,20 @@ public partial class DialogViewModel : ReactiveObject
         _contentDialogService = contentDialogService;
         _pipeService = pipeService;
         
-        _pipeService.PairingDeviceState
+        _pipeService.IpcEventStreamObservable
+            .Where(x => x.Component!.Value.Kind == Component.ItemKind.PairEvent)
             .ObserveOn(RxApp.MainThreadScheduler)
-            .Subscribe(async state =>
+            .Subscribe(async packet =>
             {
-                if (state == null)
+                var pairEvent = packet.Component!.Value.PairEvent;
+                var state = pairEvent.DeviceState!;
+                if (pairEvent.Value == PairEventType.PairRequestCancel)
                 {
                     _cts.Cancel();
                     _cts = new CancellationTokenSource();
                     return;
                 }
-                var dialog = new IncomingPairDialog(_contentDialogService.GetContentPresenter(), state)
+                var dialog = new IncomingPairDialog(_contentDialogService.GetDialogHost()!, state)
                 {
                     Title = "Incoming Pair Request",
                     PrimaryButtonText = "Accept",

@@ -3,21 +3,21 @@ using System.Buffers;
 using System.Buffers.Binary;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.ComponentModel;
+using System.Linq;
 using System.Net.Security;
 using System.Net.Sockets;
 using System.Reactive.Concurrency;
 using System.Reactive.Linq;
-using System.Runtime.CompilerServices;
+using System.Reactive.Subjects;
 using System.Security.Authentication;
 using System.Security.Cryptography.X509Certificates;
 using System.Threading;
-using DynamicData;
 using FlatSharp;
 using Kurome.Core.Devices;
 using Kurome.Core.Interfaces;
 using Kurome.Core.Network;
 using Kurome.Fbs.Device;
+using Kurome.Fbs.Ipc;
 using Microsoft.Extensions.Logging;
 
 namespace Kurome.Network;
@@ -28,9 +28,10 @@ public class DeviceService(
     IDeviceRepository deviceRepository
 )
 {
-    private readonly SourceCache<DeviceState, Guid> _deviceStates = new(t => t.Id);
-    private readonly ConcurrentDictionary<Guid, DeviceHandler> _deviceHandlers = new();
-    public IObservableCache<DeviceState, Guid> DeviceStates => _deviceStates.AsObservableCache();
+    private readonly ConcurrentDictionary<Guid, DeviceHandle> _deviceHandles = new();
+    private readonly Subject<IpcPacket> _ipcEventStream = new();
+    public IObservable<IpcPacket> IpcEventStreamObservable => _ipcEventStream.AsObservable();
+
 
     public void HandleIncomingTcp(TcpClient client, CancellationToken cancellationToken)
     {
@@ -44,31 +45,33 @@ public class DeviceService(
         var id = info.Item1;
         var name = info.Item2;
         logger.LogInformation("Checking existing active devices");
-        var hasExistingHandler = _deviceHandlers.TryRemove(id, out var existingDeviceHandler);
+        var hasExistingHandler = _deviceHandles.TryRemove(id, out var existingDeviceHandle);
         if (hasExistingHandler)
         {
             logger.LogInformation("Device {Name} ({Id}) is already active, disconnecting", name, id);
-            existingDeviceHandler!.Stop();
+            existingDeviceHandle!.Dispose();
+            _ipcEventStream.OnNext(new IpcPacket { Component = existingDeviceHandle.ToDeviceState() });
         }
 
         var device = deviceRepository.GetSavedDevice(id).Result;
         var deviceTrusted = false;
+        X509Certificate2? activeCertificate = null;
         Link? link;
-        X509Certificate2? currentCertificate = null;
         try
         {
             var stream = new SslStream(client.GetStream(), false, (sender, certificate, chain, policyErrors) =>
             {
                 if (policyErrors == SslPolicyErrors.RemoteCertificateNameMismatch) return false;
                 if (certificate == null) return false;
-                currentCertificate = (X509Certificate2) certificate;
-                if (device != null && certificate.Equals(device.Certificate))
+                if (device == null)
                 {
-                    deviceTrusted = true;
+                    device = new Device(id, name, (X509Certificate2)certificate);
+                    activeCertificate = (X509Certificate2)certificate;
                     return true;
                 }
 
-                device = new Device(id, name, (X509Certificate2)certificate);
+                if (!certificate.Equals(device.Certificate)) return false;
+                deviceTrusted = true;
                 return true;
             });
             stream.AuthenticateAsServer(sslService.GetSecurityContext(), true, SslProtocols.None, true);
@@ -81,30 +84,67 @@ public class DeviceService(
         }
 
         logger.LogInformation("Link established with {Name} ({Id})", info.Item2, id);
-        var deviceHandler = new DeviceHandler(link, id, name, deviceTrusted);
-        _deviceHandlers.TryAdd(id, deviceHandler);
-        _deviceStates.AddOrUpdate(new DeviceState(name, id, deviceTrusted ? PairState.Paired : PairState.Unpaired, true));
-        deviceHandler.State
-            .SubscribeOn(NewThreadScheduler.Default)
-            .Subscribe(
-                state =>
-                {
-                    if (_deviceStates.Lookup(id).HasValue)
-                    {
-                        _deviceStates.AddOrUpdate(new DeviceState(name, id, state, true));
-                        if (state == PairState.Paired)
-                            deviceRepository.SaveDevice(new Device(id, name, currentCertificate!));
-                    }
-                },
-                _ => { },
-                () => { _deviceStates.RemoveKey(id); }
-            );
+        var deviceHandle = new DeviceHandle(link, id, name, deviceTrusted, activeCertificate!);
+        _ipcEventStream.OnNext(new IpcPacket { Component = deviceHandle.ToDeviceState() });
+        _deviceHandles.TryAdd(id, deviceHandle);
 
+        link.DataReceived
+            .Where(x => Packet.Serializer.Parse(x.Data).Component?.Kind == Kurome.Fbs.Device.Component.ItemKind.Pair)
+            .ObserveOn(NewThreadScheduler.Default)
+            .Subscribe(buffer =>
+            {
+                var pair = Packet.Serializer.Parse(buffer.Data).Component?.Pair!;
+                HandleIncomingPairPacket(pair, deviceHandle);
+            }, _ => deviceHandle.Dispose(), () => deviceHandle.Dispose(), cancellationToken);
         new Thread(() => link.Start(cancellationToken))
         {
             IsBackground = true,
         }.Start();
-        deviceHandler.Start();
+        if (deviceTrusted)
+            deviceHandle.MountToAvailableMountPoint();
+    }
+
+
+    private void HandleIncomingPairPacket(Pair pair, DeviceHandle deviceHandle)
+    {
+        if (pair.Value)
+        {
+            switch (deviceHandle.PairState)
+            {
+                case PairState.Paired:
+                    //pair request but we are already paired, ignore
+                    break;
+                case PairState.PairRequested:
+                    //we requested pair and it's accepted
+                    break;
+                case PairState.Unpaired:
+                    //incoming pair request from peer
+                    deviceHandle.PairState = PairState.PairRequestedByPeer;
+                    deviceHandle.IncomingPairTimer?.Dispose();
+                    deviceHandle.IncomingPairTimer = new Timer(t =>
+                    {
+                        logger.LogInformation("Pair request timed out for {Id}", deviceHandle.Id);
+                        if (deviceHandle.PairState != PairState.PairRequestedByPeer) return;
+                        deviceHandle.PairState = PairState.Unpaired;
+                        SendIpcPairEvent(PairEventType.PairRequestCancel, deviceHandle);
+                        deviceHandle.IncomingPairTimer?.Dispose();
+                    }, null, 25000, Timeout.Infinite);
+                    SendIpcPairEvent(PairEventType.PairRequest, deviceHandle);
+                    break;
+            }
+        }
+        else
+        {
+            switch (deviceHandle.PairState)
+            {
+                case PairState.Paired:
+                    //unpair request
+                    break;
+                case PairState.PairRequested:
+                    //we requested pair and it's rejected
+                    break;
+            }
+        }
     }
 
 
@@ -128,40 +168,56 @@ public class DeviceService(
         }
     }
 
+    private void SendIpcPairEvent(PairEventType type, DeviceHandle handle)
+    {
+        _ipcEventStream.OnNext(new IpcPacket
+        {
+            Component = new PairEvent { DeviceState = handle.ToDeviceState(), Value = type }
+        });
+    }
+
     public void OnIncomingPairRequestRejected(Guid id)
     {
-        if (_deviceHandlers.TryGetValue(id, out var deviceHandler))
-            deviceHandler.OnIncomingPairRequestRejected();
+        if (_deviceHandles.TryGetValue(id, out var deviceHandle))
+        {
+            deviceHandle.IncomingPairTimer?.Dispose();
+            if (deviceHandle.PairState != PairState.PairRequestedByPeer) return;
+            deviceHandle.PairState = PairState.Unpaired;
+            _ipcEventStream.OnNext(new IpcPacket { Component = deviceHandle.ToDeviceState() });
+            var packet = new Packet
+                { Component = new Kurome.Fbs.Device.Component(new Pair { Value = false }), Id = -1 };
+            var maxSize = Packet.Serializer.GetMaxSize(packet);
+            var buffer = ArrayPool<byte>.Shared.Rent(maxSize + 4);
+            var span = buffer.AsSpan();
+            var length = Packet.Serializer.Write(span[4..], packet);
+            BinaryPrimitives.WriteInt32LittleEndian(span[..4], length);
+            deviceHandle.Link.Send(buffer, length + 4);
+            ArrayPool<byte>.Shared.Return(buffer);
+        }
     }
 
     public void OnIncomingPairRequestAccepted(Guid id)
     {
-        if (_deviceHandlers.TryGetValue(id, out var deviceHandler))
-            deviceHandler.OnIncomingPairRequestAccepted();
-    }
-}
-
-public sealed class DeviceState(string name, Guid id, PairState state, bool isConnected) : INotifyPropertyChanged
-{
-    public Guid Id { get; set; } = id;
-    public string Name { get; set; } = name;
-
-    public bool IsConnected { get; set; } = isConnected;
-    public PairState State { get; set; } = state;
-
-
-    public event PropertyChangedEventHandler? PropertyChanged;
-
-    private void OnPropertyChanged([CallerMemberName] string? propertyName = null)
-    {
-        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+        if (_deviceHandles.TryGetValue(id, out var deviceHandle))
+        {
+            if (deviceHandle.PairState != PairState.PairRequestedByPeer) return;
+            deviceHandle.PairState = PairState.Paired;
+            _ipcEventStream.OnNext(new IpcPacket { Component = deviceHandle.ToDeviceState() });
+            deviceRepository.SaveDevice(new Device(id, deviceHandle.Name, deviceHandle.Certificate));
+            var packet = new Packet { Component = new Kurome.Fbs.Device.Component(new Pair { Value = true }), Id = -1 };
+            var maxSize = Packet.Serializer.GetMaxSize(packet);
+            var buffer = ArrayPool<byte>.Shared.Rent(maxSize + 4);
+            var span = buffer.AsSpan();
+            var length = Packet.Serializer.Write(span[4..], packet);
+            BinaryPrimitives.WriteInt32LittleEndian(span[..4], length);
+            deviceHandle.Link.Send(buffer, length + 4);
+            ArrayPool<byte>.Shared.Return(buffer);
+            deviceHandle.MountToAvailableMountPoint();
+        }
     }
 
-    private bool SetField<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)
+    public IList<DeviceState> GetCurrentDeviceStates()
     {
-        if (EqualityComparer<T>.Default.Equals(field, value)) return false;
-        field = value;
-        OnPropertyChanged(propertyName);
-        return true;
+        return _deviceHandles.Select(x => x.Value.ToDeviceState()).ToList();
     }
 }

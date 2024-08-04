@@ -1,6 +1,6 @@
 using System.Globalization;
 using System.Windows.Data;
-using Kurome.Core.Devices;
+using Kurome.Fbs.Ipc;
 
 namespace Kurome.Ui.Converters;
 

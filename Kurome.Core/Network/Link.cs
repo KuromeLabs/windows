@@ -71,11 +71,11 @@ public class Link : IDisposable
 
     public void Start(CancellationToken cancellationToken)
     {
+        var sizeBuffer = new byte[4];
         while (!cancellationToken.IsCancellationRequested)
         {
             try
             {
-                var sizeBuffer = new byte[4];
                 _stream.ReadExactly(sizeBuffer, 0, 4);
                 var size = BinaryPrimitives.ReadInt32LittleEndian(sizeBuffer);
                 var buffer = ArrayPool<byte>.Shared.Rent(size);

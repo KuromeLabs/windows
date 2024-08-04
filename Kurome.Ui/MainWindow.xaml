@@ -37,6 +37,7 @@
                            MenuItemsSource="{Binding ViewModel.MenuItems}"
                            PaneClosed="NavigationView_OnPaneClosed"
                            PaneDisplayMode="Left"
+                           Navigated="NavigationView_OnNavigated"
                            PaneOpened="NavigationView_OnPaneOpened"
                            SelectionChanged="OnNavigationSelectionChanged">
 

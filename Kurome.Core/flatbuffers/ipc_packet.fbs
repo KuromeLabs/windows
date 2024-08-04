@@ -1,0 +1,42 @@
+namespace Kurome.Fbs.Ipc;
+attribute "fs_serializer";
+attribute "fs_vector";
+union Component { DeviceStateList, PairEvent, DeviceState, DeviceStateListRequest }
+
+table IpcPacket (fs_serializer:"greedy") {
+    component:Component;
+}
+
+enum PairState: byte {
+    Paired,
+    Unpaired,
+    PairRequested,
+    PairRequestedByPeer
+}
+
+enum PairEventType: byte {
+    PairRequest,
+    PairRequestCancel,
+    PairRequestAccept,
+    PairRequestReject,
+}
+
+table DeviceStateList (fs_serializer: "greedy") {
+    states: [DeviceState];
+}
+
+table DeviceStateListRequest (fs_serializer: "greedy") {}
+
+table DeviceState (fs_serializer:"greedy") {
+    name: string;
+    id: string;
+    state: PairState;
+    is_connected: bool;
+    is_mounted: bool;
+    mount_point: string;
+}
+
+table PairEvent (fs_serializer:"greedy") {
+    deviceState: DeviceState;
+    value: PairEventType;
+}

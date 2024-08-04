@@ -1,12 +1,10 @@
+using System.Buffers;
 using System.Buffers.Binary;
 using System.IO.Pipes;
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
-using System.Text;
-using System.Text.Json;
-using DynamicData;
-using Kurome.Core.Devices;
-using Kurome.Network;
+using FlatSharp;
+using Kurome.Fbs.Ipc;
 using Microsoft.Extensions.Hosting;
 using Serilog;
 
@@ -14,59 +12,56 @@ namespace Kurome.Ui.Services;
 
 public class PipeService : IHostedService
 {
-
-
     private NamedPipeClientStream _pipeClient = new(".", "KuromePipe", PipeDirection.InOut,
         PipeOptions.Asynchronous);
 
 
     private readonly ILogger _logger = Log.ForContext<PipeService>();
+    private readonly Subject<IpcPacket> _ipcEventStream = new();
+    private readonly object _lock = new();
+    public IObservable<IpcPacket> IpcEventStreamObservable => _ipcEventStream.AsObservable();
 
-    public readonly SourceList<DeviceState> ActiveDevices = new();
-    
-    private readonly Subject<DeviceState?> _pairingDeviceState = new();
-    public IObservable<DeviceState?> PairingDeviceState => _pairingDeviceState.AsObservable();
-
-    public PipeService()
-    {
-    }
-    
     public void AcceptPairingRequest(DeviceState deviceState)
     {
         var ipcPacket = new IpcPacket
         {
-            PacketType = IpcPacket.Type.AcceptIncomingPairRequest,
-            Data = JsonSerializer.Serialize(deviceState)
+            Component = new PairEvent { Value = PairEventType.PairRequestAccept, DeviceState = deviceState },
         };
-        Send(ipcPacket, CancellationToken.None);
+        Send(ipcPacket);
     }
-    
+
     public void RejectPairingRequest(DeviceState deviceState)
     {
         var ipcPacket = new IpcPacket
         {
-            PacketType = IpcPacket.Type.RejectIncomingPairRequest,
-            Data = JsonSerializer.Serialize(deviceState)
+            Component = new PairEvent { Value = PairEventType.PairRequestReject, DeviceState = deviceState },
         };
-        Send(ipcPacket, CancellationToken.None);
+        Send(ipcPacket);
     }
 
-    private async void Send(IpcPacket ipcPacket, CancellationToken cancellationToken)
+    private void Send(IpcPacket ipcPacket)
     {
-        try
-        {
-            if (!_pipeClient.IsConnected) return;
-            var payload = JsonSerializer.Serialize(ipcPacket);
-            var messageLength = Encoding.UTF8.GetByteCount(payload);
-            var buffer = new byte[4 + messageLength];
-            Encoding.UTF8.GetBytes(payload, buffer.AsSpan()[4..]);
-            BinaryPrimitives.WriteInt32LittleEndian(buffer.AsSpan()[..4], messageLength);
-            await _pipeClient.WriteAsync(buffer, cancellationToken);
-        }
-        catch (Exception e)
-        {
-            _logger.Error(e, "Error while writing to pipe");
-        }
+        lock (_lock)
+            try
+            {
+                var size = IpcPacket.Serializer.GetMaxSize(ipcPacket);
+                var buffer = ArrayPool<byte>.Shared.Rent(4 + size);
+                var length = IpcPacket.Serializer.Write(buffer.AsSpan()[4..], ipcPacket);
+                BinaryPrimitives.WriteInt32LittleEndian(buffer.AsSpan()[..4], length);
+                _pipeClient.Write(buffer, 0, length + 4);
+                ArrayPool<byte>.Shared.Return(buffer);
+            }
+            catch (Exception e)
+            {
+                _logger.Error(e, "Error while writing to pipe. If you closed the client, this is expected.");
+            }
+    }
+
+    public void RequestDeviceStateList()
+    {
+        _logger.Information("Requesting Device State List");
+        var packet = new IpcPacket { Component = new DeviceStateListRequest() };
+        Send(packet);
     }
 
     public Task StartAsync(CancellationToken stoppingToken)
@@ -89,14 +84,12 @@ public class PipeService : IHostedService
                     var length = BinaryPrimitives.ReadInt32LittleEndian(buffer);
                     buffer = new byte[length];
                     await _pipeClient.ReadExactlyAsync(buffer, stoppingToken);
-                    var msg = Encoding.UTF8.GetString(buffer);
-                    _logger.Information($"Received: {msg}");
-                    ProcessMessage(msg);
+                    var packet = IpcPacket.Serializer.Parse(buffer);
+                    ProcessIncomingIpcPacket(packet);
                 }
                 catch (Exception e)
                 {
                     await _pipeClient.DisposeAsync();
-                    ActiveDevices.Clear();
                     _logger.Error(e, "Error while reading from pipe");
                 }
             }
@@ -105,30 +98,9 @@ public class PipeService : IHostedService
         return Task.CompletedTask;
     }
 
-    private void ProcessMessage(string message)
+    private void ProcessIncomingIpcPacket(IpcPacket packet)
     {
-        var ipcPacket = JsonSerializer.Deserialize<IpcPacket>(message);
-        switch (ipcPacket!.PacketType)
-        {
-            case IpcPacket.Type.DeviceList:
-                var devices = JsonSerializer.Deserialize<DeviceState[]>(ipcPacket.Data);
-                ActiveDevices.Edit(action =>
-                {
-                    action.Clear();
-                    action.AddRange(devices!);
-                });
-                break;
-            case IpcPacket.Type.IncomingPairRequest:
-            {
-                var deviceState = JsonSerializer.Deserialize<DeviceState>(ipcPacket.Data);
-                _pairingDeviceState.OnNext(deviceState);
-                break;
-            }
-            case IpcPacket.Type.CancelIncomingPairRequest:
-                _pairingDeviceState.OnNext(null);
-                break;
-        }
-        
+        _ipcEventStream.OnNext(packet);
     }
 
     public Task StopAsync(CancellationToken cancellationToken)

@@ -1,5 +1,5 @@
 using System.Windows;
-using Kurome.Network;
+using Kurome.Fbs.Ipc;
 using Kurome.Ui.ViewModels;
 using Wpf.Ui.Controls;
 
