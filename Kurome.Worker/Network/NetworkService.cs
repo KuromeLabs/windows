@@ -12,6 +12,7 @@ using System.Threading.Tasks;
 using FlatSharp;
 using Kurome.Core.Interfaces;
 using Kurome.Fbs.Device;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 
 namespace Kurome.Network;
@@ -21,14 +22,17 @@ public class NetworkService
     private readonly IIdentityProvider _identityProvider;
     private readonly ILogger<NetworkService> _logger;
     private readonly DeviceService _deviceService;
+    private readonly IConfiguration _configuration;
     private readonly ConcurrentDictionary<string, UdpClient> _udpClients = new();
+    private ushort _tcpListeningPort = 0;
 
     public NetworkService(IIdentityProvider identityProvider, ISecurityService<X509Certificate2> sslService,
-        ILogger<NetworkService> logger,  DeviceService deviceService)
+        ILogger<NetworkService> logger,  DeviceService deviceService, IConfiguration configuration)
     {
         _identityProvider = identityProvider;
         _logger = logger;
         _deviceService = deviceService;
+        _configuration = configuration;
     }
 
     private async void StartUdpListener()
@@ -37,9 +41,11 @@ public class NetworkService
 
     public async Task<int> StartTcpListener(CancellationToken cancellationToken)
     {
-        var tcpListener = TcpListener.Create(33587);
+        
+        _tcpListeningPort = ushort.Parse(_configuration["Connection:TcpListeningPort"]!);
+        var tcpListener = TcpListener.Create(_tcpListeningPort);
         tcpListener.Start();
-        _logger.LogInformation("Started TCP Listener on port {Port}", 33587);
+        _logger.LogInformation("Started TCP Listener on port {Port}", _tcpListeningPort);
         while (!cancellationToken.IsCancellationRequested)
             try
             {
@@ -90,7 +96,8 @@ public class NetworkService
                     Name = _identityProvider.GetEnvironmentName(),
                     Id = _identityProvider.GetEnvironmentId(),
                     LocalIp = ip,
-                    Platform = Platform.Windows
+                    Platform = Platform.Windows,
+                    TcpListeningPort = _tcpListeningPort
                 });
                 var packet = new Packet { Component = component, Id = -1 };
                 var size = Packet.Serializer.GetMaxSize(packet);

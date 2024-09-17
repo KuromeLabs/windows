@@ -34,6 +34,7 @@ table DeviceIdentityResponse (fs_serializer:"greedy") {
     id:string;
     local_ip:string;
     platform: Platform;
+    tcp_listening_port: ushort;
 }
 
 table GetFileInfoQuery (fs_serializer:"lazy") {
