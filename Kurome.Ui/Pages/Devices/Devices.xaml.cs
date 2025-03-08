@@ -1,6 +1,7 @@
 using System.Windows;
 using Kurome.Fbs.Ipc;
 using Kurome.Ui.ViewModels;
+using Wpf.Ui.Abstractions.Controls;
 using Wpf.Ui.Controls;
 
 namespace Kurome.Ui.Pages.Devices;

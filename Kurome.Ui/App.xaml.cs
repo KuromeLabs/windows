@@ -7,6 +7,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Serilog;
 using Wpf.Ui;
+using Wpf.Ui.DependencyInjection;
 
 namespace Kurome.Ui;
 
@@ -24,8 +25,8 @@ public partial class App : System.Windows.Application
         .ConfigureServices(
             (context, services) =>
             {
-                
-                
+
+                services.AddNavigationViewPageProvider();
                 services.AddSingleton<PipeService>();
                 services.AddSingleton<INavigationService, NavigationService>();
                 services.AddSingleton<DevicesViewModel>();
