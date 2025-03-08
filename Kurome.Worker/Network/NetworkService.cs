@@ -93,8 +93,8 @@ public class NetworkService
                 {
                     FreeBytes = 0,
                     TotalBytes = 0,
-                    Name = _identityProvider.GetEnvironmentName(),
-                    Id = _identityProvider.GetEnvironmentId(),
+                    Name = "",
+                    Id = id,
                     LocalIp = ip,
                     Platform = Platform.Windows,
                     TcpListeningPort = _tcpListeningPort
@@ -105,7 +105,7 @@ public class NetworkService
                 var length = Packet.Serializer.Write(buffer, packet);
                 udpClient.Send(buffer, length, new IPEndPoint(IPAddress.Parse("255.255.255.255"), 33586));
                 ArrayPool<byte>.Shared.Return(buffer);
-                _logger.LogInformation("UDP Broadcast of FlatBuffer identity packet of size: \"{0}\" to {1}", length, ip);
+                // _logger.LogInformation("UDP Broadcast of FlatBuffer identity packet of size: \"{0}\" to {1}", length, ip);
             }
             catch (Exception e)
             {

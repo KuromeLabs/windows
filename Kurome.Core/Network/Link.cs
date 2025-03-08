@@ -63,23 +63,23 @@ public class Link : IDisposable
         }
         catch (Exception e)
         {
-            Log.Debug("Exception at Link: {@Exception}", e.ToString());
+            Log.ForContext<Link>().Debug("Exception at Send: {@Exception}", e.ToString());
             _dataReceived.OnError(e);
         }
     }
     
 
-    public void Start(CancellationToken cancellationToken)
+    public async void Start(CancellationToken cancellationToken)
     {
         var sizeBuffer = new byte[4];
         while (!cancellationToken.IsCancellationRequested)
         {
             try
             {
-                _stream.ReadExactly(sizeBuffer, 0, 4);
+                await _stream.ReadExactlyAsync(sizeBuffer, 0, 4, cancellationToken);
                 var size = BinaryPrimitives.ReadInt32LittleEndian(sizeBuffer);
                 var buffer = ArrayPool<byte>.Shared.Rent(size);
-                _stream.ReadExactly(buffer, 0, size);
+                await _stream.ReadExactlyAsync(buffer, 0, size, cancellationToken);
                 var id = Packet.Serializer.Parse(buffer).Id;
                 _dataReceived.OnNext(new Buffer { Data = buffer, Size = size, Id = id });
             }

@@ -25,7 +25,8 @@ namespace Kurome.Network;
 public class DeviceService(
     ILogger<DeviceService> logger,
     ISecurityService<X509Certificate2> sslService,
-    IDeviceRepository deviceRepository
+    IDeviceRepository deviceRepository,
+    IIdentityProvider identityProvider
 )
 {
     private readonly ConcurrentDictionary<Guid, DeviceHandle> _deviceHandles = new();
@@ -84,24 +85,27 @@ public class DeviceService(
         }
 
         logger.LogInformation("Link established with {Name} ({Id})", info.Item2, id);
-        var deviceHandle = new DeviceHandle(link, id, name, deviceTrusted, activeCertificate!);
+        var deviceHandle = new DeviceHandle(link, id, name, deviceTrusted, activeCertificate!, identityProvider);
         _ipcEventStream.OnNext(new IpcPacket { Component = deviceHandle.ToDeviceState() });
         _deviceHandles.TryAdd(id, deviceHandle);
 
         link.DataReceived
-            .Where(x => Packet.Serializer.Parse(x.Data).Component?.Kind == Kurome.Fbs.Device.Component.ItemKind.Pair)
+            .Where(x => Packet.Serializer.Parse(x.Data).Component?.Kind == Fbs.Device.Component.ItemKind.Pair)
             .ObserveOn(NewThreadScheduler.Default)
             .Subscribe(buffer =>
             {
                 var pair = Packet.Serializer.Parse(buffer.Data).Component?.Pair!;
                 HandleIncomingPairPacket(pair, deviceHandle);
-            }, _ => deviceHandle.Dispose(), () => deviceHandle.Dispose(), cancellationToken);
+            }, e =>
+            {
+                logger.LogDebug("Error in DataReceived subscriber: {0}", e);
+                deviceHandle.Dispose();
+            }, () => deviceHandle.Dispose(), cancellationToken);
         new Thread(() => link.Start(cancellationToken))
         {
             IsBackground = true,
         }.Start();
-        if (deviceTrusted)
-            deviceHandle.MountToAvailableMountPoint();
+        deviceHandle.ReloadPlugins();
     }
 
 
@@ -202,9 +206,10 @@ public class DeviceService(
         {
             if (deviceHandle.PairState != PairState.PairRequestedByPeer) return;
             deviceHandle.PairState = PairState.Paired;
+            deviceHandle.IncomingPairTimer?.Dispose();
             _ipcEventStream.OnNext(new IpcPacket { Component = deviceHandle.ToDeviceState() });
             deviceRepository.SaveDevice(new Device(id, deviceHandle.Name, deviceHandle.Certificate));
-            var packet = new Packet { Component = new Kurome.Fbs.Device.Component(new Pair { Value = true }), Id = -1 };
+            var packet = new Packet { Component = new Kurome.Fbs.Device.Component(new Pair { Value = true }), Id = -126 };
             var maxSize = Packet.Serializer.GetMaxSize(packet);
             var buffer = ArrayPool<byte>.Shared.Rent(maxSize + 4);
             var span = buffer.AsSpan();
@@ -212,7 +217,7 @@ public class DeviceService(
             BinaryPrimitives.WriteInt32LittleEndian(span[..4], length);
             deviceHandle.Link.Send(buffer, length + 4);
             ArrayPool<byte>.Shared.Return(buffer);
-            deviceHandle.MountToAvailableMountPoint();
+            deviceHandle.ReloadPlugins();
         }
     }
 

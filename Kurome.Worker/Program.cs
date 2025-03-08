@@ -60,7 +60,7 @@ using (var scope = host.Services.CreateScope())
     var context = scope.ServiceProvider.GetRequiredService<DataContext>();
     if (!context.Database.CanConnect()) logger.LogInformation("Database not found. Will be created.");
     
-    await context.Database.MigrateAsync();
+    await context.Database.EnsureCreatedAsync();
 }
 
 
