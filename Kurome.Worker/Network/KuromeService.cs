@@ -18,8 +18,15 @@ public class KuromeService : BackgroundService
     protected override Task ExecuteAsync(CancellationToken stoppingToken)
     {
         var tcpListenTask = _networkService.StartTcpListener(stoppingToken);
-        var udpCastTask = _networkService.StartUdpCaster(stoppingToken);
+        // var udpCastTask = _networkService.StartUdpCaster(stoppingToken);
         var ipcTask = _ipcService.StartAsync(stoppingToken);
-        return Task.WhenAll(tcpListenTask, udpCastTask, ipcTask);
+        _networkService.StartMdnsAdvertiser();
+        return Task.WhenAll(tcpListenTask, ipcTask);
+    }
+
+    public override Task StopAsync(CancellationToken cancellationToken)
+    {
+        _networkService.StopMdnsAdvertiser();
+        return base.StopAsync(cancellationToken);
     }
 }
