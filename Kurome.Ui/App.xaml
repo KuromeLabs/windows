@@ -4,12 +4,14 @@
              xmlns:local="clr-namespace:Kurome.Ui"
              xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
              Exit="OnExit"
-             Startup="OnStartup">
+             Startup="OnStartup"
+             DispatcherUnhandledException="OnDispatcherUnhandledException">
     <Application.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
                 <ui:ThemesDictionary Theme="Dark" />
                 <ui:ControlsDictionary />
+                <ResourceDictionary Source="Resources/DeviceStyles.xaml" />
             </ResourceDictionary.MergedDictionaries>
         </ResourceDictionary>
     </Application.Resources>

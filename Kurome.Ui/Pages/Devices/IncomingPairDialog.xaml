@@ -8,17 +8,42 @@
                   ui:Design.Background="{ui:ThemeResource ApplicationBackgroundBrush}"
                   ui:Design.Foreground="{ui:ThemeResource TextFillColorPrimaryBrush}"
                   mc:Ignorable="d"
-                  Title="IncomingPairDialog">
+                  Title="Pair with this device?">
     <ui:ContentDialog.Resources>
         <Style BasedOn="{StaticResource {x:Type ui:ContentDialog}}" TargetType="{x:Type local:IncomingPairDialog}" />
     </ui:ContentDialog.Resources>
-    <Grid>
-        <Grid.RowDefinitions>
-            <RowDefinition Height="*" />
-        </Grid.RowDefinitions>
-        <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="*" />
-        </Grid.ColumnDefinitions>
-        <ui:TextBlock Text="{Binding DeviceState.Name, StringFormat='Device {0} wants to pair'}"/>
-    </Grid>
+
+    <StackPanel MaxWidth="420">
+        <StackPanel Orientation="Horizontal">
+            <Border Width="48" Height="48" CornerRadius="24"
+                    Background="{DynamicResource CardBackgroundFillColorSecondaryBrush}"
+                    BorderThickness="1"
+                    BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}">
+                <ui:SymbolIcon Symbol="Phone24" FontSize="24"
+                               Foreground="{DynamicResource AccentFillColorDefaultBrush}" />
+            </Border>
+            <StackPanel Margin="14,0,0,0" VerticalAlignment="Center">
+                <ui:TextBlock FontTypography="BodyStrong"
+                              TextTrimming="CharacterEllipsis"
+                              Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+                              Text="{Binding DeviceState.Name}" />
+                <ui:TextBlock FontTypography="Caption"
+                              TextTrimming="CharacterEllipsis"
+                              Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                              Text="{Binding DeviceState.Id}" />
+            </StackPanel>
+        </StackPanel>
+
+        <ui:TextBlock Margin="0,18,0,0"
+                      TextWrapping="Wrap"
+                      Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+                      Text="This device is asking to pair with this computer. Once paired, its storage is mounted as a drive here and it can be browsed like any other folder." />
+
+        <ui:InfoBar Margin="0,18,0,0"
+                    IsOpen="True"
+                    IsClosable="False"
+                    Severity="Warning"
+                    Title="Only accept devices you recognise"
+                    Message="Check that the name above matches the device in your hand." />
+    </StackPanel>
 </ui:ContentDialog>

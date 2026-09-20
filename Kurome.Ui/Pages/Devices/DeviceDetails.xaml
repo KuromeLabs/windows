@@ -5,39 +5,160 @@
       xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
       xmlns:local="clr-namespace:Kurome.Ui.Pages.Devices"
       xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+      xmlns:converters="clr-namespace:Kurome.Ui.Converters"
       mc:Ignorable="d"
       Title="DeviceDetails"
       d:DataContext="{d:DesignInstance local:DeviceDetails, IsDesignTimeCreatable=False}"
       ui:Design.Background="{DynamicResource ApplicationBackgroundBrush}"
       ui:Design.Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+      ui:NavigationView.HeaderContent="{Binding ViewModel.Device.Name, Mode=OneWay}">
 
-      ui:NavigationView.HeaderContent="{Binding ViewModel.SelectedDevice.Name, Mode=OneWay}">
-    <Grid>
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="*" />
-        </Grid.RowDefinitions>
-        <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="Auto" />
-            <ColumnDefinition Width="*" />
-        </Grid.ColumnDefinitions>
-        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-            <Viewbox MaxHeight="100" MaxWidth="100">
-                <ui:SymbolIcon Symbol="Phone48" Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
-            </Viewbox>
-            <StackPanel Margin="12,0,0,0" VerticalAlignment="Center">
-                <ui:TextBlock
-                    Text="{Binding ViewModel.SelectedDevice.Name, Mode=OneWay}"
-                    Foreground="{DynamicResource TextFillColorPrimaryBrush}" 
-                    FontTypography="Title"
-                    />
-                <ui:TextBlock Text="{Binding ViewModel.SelectedDevice.Id, Mode=OneWay}"
-                              Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
-                <ui:TextBlock Text="{Binding ViewModel.SelectedDevice.StatusMessage, Mode=OneWay}"
-                              Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+    <Page.Resources>
+        <converters:BooleanToVisibilityConverter x:Key="BoolToVisibility" />
+        <converters:InverseBooleanToVisibilityConverter x:Key="InverseBoolToVisibility" />
+        
+        <Style x:Key="DetailLabelStyle" TargetType="ui:TextBlock">
+            <Setter Property="FontTypography" Value="Body" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+        </Style>
+        <Style x:Key="DetailValueStyle" TargetType="ui:TextBlock">
+            <Setter Property="FontTypography" Value="Body" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+        </Style>
+        <Style x:Key="DetailRowStyle" TargetType="Grid">
+            <Setter Property="Margin" Value="16,13" />
+        </Style>
+        <Style x:Key="DetailDividerStyle" TargetType="Border">
+            <Setter Property="Height" Value="1" />
+            <Setter Property="Margin" Value="16,0" />
+            <Setter Property="Background" Value="{DynamicResource CardStrokeColorDefaultBrush}" />
+        </Style>
+    </Page.Resources>
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto"
+                  Visibility="{Binding ViewModel.HasDevice, Converter={StaticResource BoolToVisibility}}">
+        <Grid Margin="42,0,42,32">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" MaxWidth="820" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <StackPanel Grid.Column="0" DataContext="{Binding ViewModel.Device}">
+
+                <StackPanel Orientation="Horizontal">
+                    <Border Width="72" Height="72" CornerRadius="36"
+                            Background="{DynamicResource CardBackgroundFillColorSecondaryBrush}"
+                            BorderThickness="1"
+                            BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}">
+                        <ui:SymbolIcon Symbol="Phone24" FontSize="32"
+                                       Style="{StaticResource StatusGlyphStyle}" />
+                    </Border>
+
+                    <StackPanel Margin="18,0,0,0" VerticalAlignment="Center">
+                        <ui:TextBlock FontTypography="Subtitle"
+                                      TextTrimming="CharacterEllipsis"
+                                      Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+                                      Text="{Binding Name}" />
+                        <Border Margin="0,8,0,0"
+                                HorizontalAlignment="Left"
+                                Padding="10,4"
+                                CornerRadius="12"
+                                Background="{DynamicResource CardBackgroundFillColorSecondaryBrush}"
+                                BorderThickness="1"
+                                BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}">
+                            <StackPanel Orientation="Horizontal">
+                                <Ellipse Style="{StaticResource StatusDotStyle}" />
+                                <ui:TextBlock Margin="8,0,0,0"
+                                              FontTypography="Caption"
+                                              VerticalAlignment="Center"
+                                              Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+                                              Text="{Binding StatusLabel}" />
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </StackPanel>
+
+                <ui:TextBlock Text="Details" Style="{StaticResource SectionHeaderStyle}" Margin="4,28,0,8" />
+
+                <Border CornerRadius="8"
+                        Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+                        BorderThickness="1"
+                        BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}">
+                    <StackPanel>
+                        <Grid Style="{StaticResource DetailRowStyle}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <ui:TextBlock Grid.Column="0" Text="Connection" Style="{StaticResource DetailLabelStyle}" />
+                            <ui:TextBlock Grid.Column="1" Margin="16,0,0,0" HorizontalAlignment="Right"
+                                          Text="{Binding StatusLabel}" Style="{StaticResource DetailValueStyle}" />
+                        </Grid>
+
+                        <Border Style="{StaticResource DetailDividerStyle}" />
+
+                        <Grid Style="{StaticResource DetailRowStyle}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <ui:TextBlock Grid.Column="0" Text="Trust" Style="{StaticResource DetailLabelStyle}" />
+                            <ui:TextBlock Grid.Column="1" Margin="16,0,0,0" HorizontalAlignment="Right"
+                                          Text="{Binding TrustDescription}" Style="{StaticResource DetailValueStyle}" />
+                        </Grid>
+
+                        <Border Style="{StaticResource DetailDividerStyle}" />
+
+                        <Grid Style="{StaticResource DetailRowStyle}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <ui:TextBlock Grid.Column="0" Text="Mounted as" Style="{StaticResource DetailLabelStyle}" />
+                            <ui:TextBlock Grid.Column="1" Margin="16,0,0,0" HorizontalAlignment="Right"
+                                          Text="{Binding MountDescription}" Style="{StaticResource DetailValueStyle}" />
+                        </Grid>
+
+                        <Border Style="{StaticResource DetailDividerStyle}" />
+
+                        <Grid Margin="16,8,8,8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <ui:TextBlock Grid.Column="0" Text="Device ID" Style="{StaticResource DetailLabelStyle}" />
+                            <ui:TextBlock Grid.Column="1" Margin="16,0,8,0" HorizontalAlignment="Right"
+                                          Text="{Binding Id}" Style="{StaticResource DetailValueStyle}" />
+                            <ui:Button Grid.Column="2"
+                                       VerticalAlignment="Center"
+                                       Appearance="Secondary"
+                                       Icon="{ui:SymbolIcon Copy24}"
+                                       ToolTip="Copy device ID"
+                                       Click="OnCopyIdClicked" />
+                        </Grid>
+                    </StackPanel>
+                </Border>
+                <ui:Button Margin="0,24,0,0"
+                           HorizontalAlignment="Left"
+                           Appearance="Secondary"
+                           Foreground="{DynamicResource SystemFillColorCriticalBrush}"
+                           Icon="{ui:SymbolIcon PlugDisconnected24}"
+                           Content="Unpair this device"
+                           Click="OnUnpairClicked"
+                           Visibility="{Binding IsPaired, Converter={StaticResource BoolToVisibility}}" />
+
+                <ui:InfoBar Margin="0,24,0,0"
+                            Title="Not paired"
+                            Message="Open Kurome on this device and choose this computer to pair. The request will appear here."
+                            IsOpen="True"
+                            IsClosable="False"
+                            Severity="Informational"
+                            Visibility="{Binding IsPaired, Converter={StaticResource InverseBoolToVisibility}}" />
             </StackPanel>
-        </StackPanel>
-
-
-    </Grid>
+        </Grid>
+    </ScrollViewer>
 </Page>

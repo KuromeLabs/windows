@@ -2,23 +2,38 @@
 
     <PropertyGroup>
         <OutputType>WinExe</OutputType>
-        <TargetFramework>net9.0-windows</TargetFramework>
+        <TargetFramework>net10.0-windows10.0.19041</TargetFramework>
         <Nullable>enable</Nullable>
         <ImplicitUsings>enable</ImplicitUsings>
         <UseWPF>true</UseWPF>
+        <ApplicationIcon></ApplicationIcon>
     </PropertyGroup>
 
     <ItemGroup>
-      <PackageReference Include="Microsoft.Extensions.Configuration.Ini" Version="9.0.2" />
-      <PackageReference Include="Microsoft.Extensions.Hosting" Version="9.0.2" />
-      <PackageReference Include="ReactiveUI.Fody" Version="19.5.41" />
-      <PackageReference Include="ReactiveUI.WPF" Version="20.1.63" />
-      <PackageReference Include="WPF-UI" Version="4.0.2" />
-      <PackageReference Include="WPF-UI.DependencyInjection" Version="4.0.2" />
+      <PackageReference Include="Microsoft.Extensions.Configuration.Ini" Version="10.0.12" />
+      <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.12" />
+      <PackageReference Include="ReactiveUI.SourceGenerators" Version="3.2.0">
+        <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+        <PrivateAssets>all</PrivateAssets>
+      </PackageReference>
+      <PackageReference Include="ReactiveUI.WPF" Version="24.2.0" />
+      <PackageReference Include="Serilog" Version="4.4.0" />
+      <PackageReference Include="Serilog.Extensions.Hosting" Version="10.0.0" />
+      <PackageReference Include="Serilog.Sinks.Console" Version="6.1.1" />
+      <PackageReference Include="WPF-UI" Version="4.3.0" />
+      <PackageReference Include="WPF-UI.DependencyInjection" Version="4.3.0" />
     </ItemGroup>
 
     <ItemGroup>
-        <ProjectReference Include="../Kurome.Worker/Kurome.Worker.csproj" />
+        <ProjectReference Include="../Kurome.Core/Kurome.Core.csproj" />
     </ItemGroup>
-    
+
+    <ItemGroup>
+        <Content Include="appsettings.ini">
+            <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+            <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+        </Content>
+    </ItemGroup>
+
 </Project>

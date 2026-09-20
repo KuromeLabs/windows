@@ -1,0 +1,93 @@
+<Page x:Class="Kurome.Ui.Pages.Settings.SettingsPage"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+      xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+      xmlns:local="clr-namespace:Kurome.Ui.Pages.Settings"
+      xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+      mc:Ignorable="d"
+      d:DataContext="{d:DesignInstance local:SettingsPage, IsDesignTimeCreatable=False}"
+      ui:Design.Background="{DynamicResource ApplicationBackgroundBrush}"
+      ui:Design.Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+      ui:NavigationView.HeaderContent="Settings"
+      Title="Settings">
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="42,0,42,32" MaxWidth="720" HorizontalAlignment="Left">
+
+            <ui:TextBlock Text="Appearance" Style="{StaticResource SectionHeaderStyle}" Margin="4,0,0,8" />
+
+            <ui:CardControl Icon="{ui:SymbolIcon Color24}">
+                <ui:CardControl.Header>
+                    <StackPanel>
+                        <ui:TextBlock FontTypography="Body" Text="App theme"
+                                      Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                        <ui:TextBlock FontTypography="Caption" Text="System follows your Windows setting."
+                                      Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                    </StackPanel>
+                </ui:CardControl.Header>
+                <ComboBox MinWidth="140"
+                          ItemsSource="{Binding ViewModel.Themes}"
+                          SelectedItem="{Binding ViewModel.SelectedTheme, Mode=TwoWay}" />
+            </ui:CardControl>
+
+            <ui:TextBlock Text="Background service" Style="{StaticResource SectionHeaderStyle}" />
+
+            <ui:CardControl Icon="{ui:SymbolIcon Server24}">
+                <ui:CardControl.Header>
+                    <StackPanel>
+                        <ui:TextBlock FontTypography="Body" Text="Status"
+                                      Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                        <ui:TextBlock FontTypography="Caption" Text="Kurome runs as a Windows service and keeps listening when this window is closed."
+                                      TextWrapping="Wrap"
+                                      Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                    </StackPanel>
+                </ui:CardControl.Header>
+                <ui:TextBlock FontTypography="BodyStrong" Text="{Binding ViewModel.ServiceStatus}"
+                              Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+            </ui:CardControl>
+
+            <ui:CardControl Margin="0,8,0,0" Icon="{ui:SymbolIcon PlugConnected24}">
+                <ui:CardControl.Header>
+                    <ui:TextBlock FontTypography="Body" Text="Listening port"
+                                  Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                </ui:CardControl.Header>
+                <ui:TextBlock FontTypography="BodyStrong" Text="{Binding ViewModel.ListeningPort}"
+                              Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+            </ui:CardControl>
+
+            <ui:CardControl Margin="0,8,0,0" Icon="{ui:SymbolIcon Box24}">
+                <ui:CardControl.Header>
+                    <ui:TextBlock FontTypography="Body" Text="Service version"
+                                  Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                </ui:CardControl.Header>
+                <ui:TextBlock FontTypography="BodyStrong" Text="{Binding ViewModel.ServiceVersion}"
+                              Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+            </ui:CardControl>
+
+            <ui:CardControl Margin="0,8,0,0" Icon="{ui:SymbolIcon Desktop24}">
+                <ui:CardControl.Header>
+                    <ui:TextBlock FontTypography="Body" Text="This computer"
+                                  Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                </ui:CardControl.Header>
+                <ui:TextBlock FontTypography="BodyStrong" Text="{Binding ViewModel.MachineName}"
+                              Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+            </ui:CardControl>
+
+            <ui:TextBlock Text="About" Style="{StaticResource SectionHeaderStyle}" />
+
+            <ui:CardControl Icon="{ui:SymbolIcon Info24}">
+                <ui:CardControl.Header>
+                    <StackPanel>
+                        <ui:TextBlock FontTypography="Body" Text="Kurome"
+                                      Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                        <ui:TextBlock FontTypography="Caption" Text="Desktop application"
+                                      Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                    </StackPanel>
+                </ui:CardControl.Header>
+                <ui:TextBlock FontTypography="BodyStrong" Text="{Binding ViewModel.AppVersion}"
+                              Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+            </ui:CardControl>
+        </StackPanel>
+    </ScrollViewer>
+</Page>

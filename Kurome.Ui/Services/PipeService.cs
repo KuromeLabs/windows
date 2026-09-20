@@ -1,110 +1,165 @@
 using System.Buffers;
 using System.Buffers.Binary;
+using System.IO;
 using System.IO.Pipes;
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
 using FlatSharp;
 using Kurome.Fbs.Ipc;
-using Microsoft.Extensions.Hosting;
 using Serilog;
 
 namespace Kurome.Ui.Services;
 
-public class PipeService : IHostedService
+public enum PipeConnectionState
 {
-    private NamedPipeClientStream _pipeClient = new(".", "KuromePipe", PipeDirection.InOut,
-        PipeOptions.Asynchronous);
+    Connecting,
+    Connected,
+    Disconnected
+}
 
+public class PipeService
+{
+    private const string PipeName = "KuromePipe";
+    private const int MaxPacketSize = 1024 * 1024;
+    private static readonly TimeSpan RetryDelay = TimeSpan.FromSeconds(2);
+    private const int ConnectTimeoutMs = 3000;
 
     private readonly ILogger _logger = Log.ForContext<PipeService>();
-    private readonly Subject<IpcPacket> _ipcEventStream = new();
-    private readonly object _lock = new();
-    public IObservable<IpcPacket> IpcEventStreamObservable => _ipcEventStream.AsObservable();
+    private readonly Subject<IpcPacket> _packets = new();
+    private readonly BehaviorSubject<PipeConnectionState> _connectionState =
+        new(PipeConnectionState.Connecting);
+    private readonly object _sendLock = new();
+    private readonly object _stateLock = new();
 
-    public void AcceptPairingRequest(DeviceState deviceState)
+    private NamedPipeClientStream? _pipe;
+    private PipeConnectionState _currentState = PipeConnectionState.Connecting;
+
+    public IObservable<IpcPacket> Packets => _packets.AsObservable();
+
+    public IObservable<PipeConnectionState> ConnectionState => _connectionState.AsObservable();
+
+    public bool IsConnected => _currentState == PipeConnectionState.Connected;
+
+    public async Task RunAsync(CancellationToken cancellationToken)
     {
-        var ipcPacket = new IpcPacket
+        SetState(PipeConnectionState.Connecting);
+
+        while (!cancellationToken.IsCancellationRequested)
         {
-            Component = new PairEvent { Value = PairEventType.PairRequestAccept, DeviceState = deviceState },
-        };
-        Send(ipcPacket);
-    }
-
-    public void RejectPairingRequest(DeviceState deviceState)
-    {
-        var ipcPacket = new IpcPacket
-        {
-            Component = new PairEvent { Value = PairEventType.PairRequestReject, DeviceState = deviceState },
-        };
-        Send(ipcPacket);
-    }
-
-    private void Send(IpcPacket ipcPacket)
-    {
-        lock (_lock)
+            var pipe = new NamedPipeClientStream(".", PipeName, PipeDirection.InOut,
+                PipeOptions.Asynchronous);
             try
             {
-                var size = IpcPacket.Serializer.GetMaxSize(ipcPacket);
-                var buffer = ArrayPool<byte>.Shared.Rent(4 + size);
-                var length = IpcPacket.Serializer.Write(buffer.AsSpan()[4..], ipcPacket);
-                BinaryPrimitives.WriteInt32LittleEndian(buffer.AsSpan()[..4], length);
-                _pipeClient.Write(buffer, 0, length + 4);
-                ArrayPool<byte>.Shared.Return(buffer);
+                await pipe.ConnectAsync(ConnectTimeoutMs, cancellationToken);
+
+                lock (_sendLock) _pipe = pipe;
+                _logger.Information("Connected to the Kurome service");
+                SetState(PipeConnectionState.Connected);
+
+                await ReadLoopAsync(pipe, cancellationToken);
+            }
+            catch (OperationCanceledException)
+            {
+                break;
+            }
+            catch (TimeoutException)
+            {
             }
             catch (Exception e)
             {
-                _logger.Error(e, "Error while writing to pipe. If you closed the client, this is expected.");
+                _logger.Debug(e, "Pipe connection dropped");
             }
-    }
-
-    public void RequestDeviceStateList()
-    {
-        _logger.Information("Requesting Device State List");
-        var packet = new IpcPacket { Component = new DeviceStateListRequest() };
-        Send(packet);
-    }
-
-    public Task StartAsync(CancellationToken stoppingToken)
-    {
-        Task.Run(async () =>
-        {
-            while (!stoppingToken.IsCancellationRequested)
+            finally
             {
-                try
+                lock (_sendLock)
                 {
-                    if (!_pipeClient.IsConnected)
-                    {
-                        _pipeClient = new NamedPipeClientStream(".", "KuromePipe", PipeDirection.InOut,
-                            PipeOptions.Asynchronous);
-                        await _pipeClient.ConnectAsync(stoppingToken);
-                    }
+                    if (ReferenceEquals(_pipe, pipe)) _pipe = null;
+                }
 
-                    var buffer = new byte[4];
-                    await _pipeClient.ReadExactlyAsync(buffer, stoppingToken);
-                    var length = BinaryPrimitives.ReadInt32LittleEndian(buffer);
-                    buffer = new byte[length];
-                    await _pipeClient.ReadExactlyAsync(buffer, stoppingToken);
-                    var packet = IpcPacket.Serializer.Parse(buffer);
-                    ProcessIncomingIpcPacket(packet);
-                }
-                catch (Exception e)
-                {
-                    await _pipeClient.DisposeAsync();
-                    _logger.Error(e, "Error while reading from pipe");
-                }
+                await pipe.DisposeAsync();
+                SetState(PipeConnectionState.Disconnected);
             }
-        }, stoppingToken);
 
-        return Task.CompletedTask;
+            try
+            {
+                await Task.Delay(RetryDelay, cancellationToken);
+            }
+            catch (OperationCanceledException)
+            {
+                break;
+            }
+        }
+
+        SetState(PipeConnectionState.Disconnected);
     }
 
-    private void ProcessIncomingIpcPacket(IpcPacket packet)
+    private void SetState(PipeConnectionState state)
     {
-        _ipcEventStream.OnNext(packet);
+        lock (_stateLock)
+        {
+            if (_currentState == state) return;
+            _logger.Information("Pipe state: {Previous} -> {State}", _currentState, state);
+            _currentState = state;
+        }
+
+        UiDispatch.Post(() => _connectionState.OnNext(state));
     }
 
-    public Task StopAsync(CancellationToken cancellationToken)
+    private async Task ReadLoopAsync(PipeStream pipe, CancellationToken cancellationToken)
     {
-        return Task.CompletedTask;
+        var lengthBuffer = new byte[4];
+        while (!cancellationToken.IsCancellationRequested && pipe.IsConnected)
+        {
+            await pipe.ReadExactlyAsync(lengthBuffer, cancellationToken);
+            var length = BinaryPrimitives.ReadInt32LittleEndian(lengthBuffer);
+            if (length is <= 0 or > MaxPacketSize)
+                throw new InvalidDataException($"Refusing a {length} byte IPC packet");
+
+            var buffer = new byte[length];
+            await pipe.ReadExactlyAsync(buffer, cancellationToken);
+
+            IpcPacket packet;
+            try
+            {
+                packet = IpcPacket.Serializer.Parse(buffer);
+            }
+            catch (Exception e)
+            {
+                _logger.Error(e, "Discarding an unparseable IPC packet");
+                continue;
+            }
+
+            UiDispatch.Post(() => _packets.OnNext(packet));
+        }
+    }
+
+    public void Send(IpcPacket ipcPacket)
+    {
+        lock (_sendLock)
+        {
+            var pipe = _pipe;
+            if (pipe is not { IsConnected: true })
+            {
+                _logger.Debug("Dropping an IPC message: the service is not connected");
+                return;
+            }
+
+            var buffer = ArrayPool<byte>.Shared.Rent(4 + IpcPacket.Serializer.GetMaxSize(ipcPacket));
+            try
+            {
+                var length = IpcPacket.Serializer.Write(buffer.AsSpan()[4..], ipcPacket);
+                BinaryPrimitives.WriteInt32LittleEndian(buffer.AsSpan()[..4], length);
+                pipe.Write(buffer, 0, length + 4);
+                pipe.Flush();
+            }
+            catch (Exception e)
+            {
+                _logger.Error(e, "Error while writing to the pipe");
+            }
+            finally
+            {
+                ArrayPool<byte>.Shared.Return(buffer);
+            }
+        }
     }
 }

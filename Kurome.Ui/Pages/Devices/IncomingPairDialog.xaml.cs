@@ -6,9 +6,10 @@ namespace Kurome.Ui.Pages.Devices;
 
 public partial class IncomingPairDialog : ContentDialog
 {
-    public DeviceState DeviceState { get; set; }
+    public DeviceState DeviceState { get; }
 
-    public IncomingPairDialog(ContentPresenter contentPresenter, DeviceState deviceState) : base(contentPresenter)
+    public IncomingPairDialog(ContentPresenter contentPresenter, DeviceState deviceState)
+        : base(contentPresenter)
     {
         DeviceState = deviceState;
         DataContext = this;

@@ -6,70 +6,116 @@
       xmlns:local="clr-namespace:Kurome.Ui.Pages.Devices"
       xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
       xmlns:converters="clr-namespace:Kurome.Ui.Converters"
-      xmlns:ipc="clr-namespace:Kurome.Fbs.Ipc;assembly=Kurome.Core"
+      xmlns:models="clr-namespace:Kurome.Ui.Models"
       mc:Ignorable="d"
       d:DataContext="{d:DesignInstance local:Devices,IsDesignTimeCreatable=False}"
       ui:NavigationView.HeaderContent="Devices"
       Title="Devices">
-    <Page.Resources>
-        <converters:PairStateToStringConverter x:Key="PairStateToStringConverter"/>
-    </Page.Resources>
-    <Grid Margin="8">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="*" />
-        </Grid.RowDefinitions>
-        <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="*" />
-        </Grid.ColumnDefinitions>
-        <ItemsControl ItemsSource="{Binding ViewModel.ActiveDevices }">
-            <ItemsControl.ItemsPanel>
-                <ItemsPanelTemplate>
-                    <StackPanel Margin="0" IsItemsHost="True" />
-                </ItemsPanelTemplate>
-            </ItemsControl.ItemsPanel>
-            <ItemsControl.Resources>
-                <DataTemplate DataType="{x:Type ipc:DeviceState}">
-                    <ui:CardAction Icon="{ui:SymbolIcon Phone32}" Click="OnDeviceSelected" Margin="8,8,8,8">
-                        <Grid>
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="*" />
-                                <RowDefinition Height="*" />
-                            </Grid.RowDefinitions>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="*" />
-                            </Grid.ColumnDefinitions>
-                            <ui:TextBlock
-                                Grid.Row="0"
-                                Grid.Column="1"
-                                Foreground="{DynamicResource TextFillColorPrimaryBrush}"
-                                Margin="12,4,0,0"
-                                FontTypography="BodyStrong"
-                                Text="{Binding Name}" />
-                            <ui:TextBlock
-                                Grid.Row="1"
-                                Grid.Column="1"
-                                Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                                Margin="12,0,0,4"
-                                Text="{Binding State, Converter={StaticResource PairStateToStringConverter}}" />
-                        </Grid>
-                    </ui:CardAction>
-                </DataTemplate>
-            </ItemsControl.Resources>
 
-        </ItemsControl>
-        <ui:TextBlock Margin="4" FontTypography="Display" Text="No devices detected"
-                      Foreground="{DynamicResource TextFillColorPrimaryBrush}">
-            <ui:TextBlock.Style>
-                <Style TargetType="TextBlock">
-                    <Setter Property="Visibility" Value="Collapsed" />
-                    <Style.Triggers>
-                        <DataTrigger Binding="{Binding ViewModel.ActiveDevices.Count}" Value="0">
-                            <Setter Property="Visibility" Value="Visible" />
-                        </DataTrigger>
-                    </Style.Triggers>
-                </Style>
-            </ui:TextBlock.Style>
-        </ui:TextBlock>
+    <Page.Resources>
+        <converters:BooleanToVisibilityConverter x:Key="BoolToVisibility" />
+        <converters:InverseBooleanToVisibilityConverter x:Key="InverseBoolToVisibility" />
+
+        <DataTemplate x:Key="DeviceCardTemplate" DataType="{x:Type models:DeviceItem}">
+            <ui:CardAction Click="OnDeviceSelected" Margin="0,0,0,8" IsChevronVisible="True">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <Border Grid.Column="0" Style="{StaticResource DeviceAvatarStyle}">
+                        <ui:SymbolIcon Symbol="Phone24" FontSize="22"
+                                       Style="{StaticResource StatusGlyphStyle}" />
+                    </Border>
+
+                    <StackPanel Grid.Column="1" Margin="14,0,12,0" VerticalAlignment="Center">
+                        <ui:TextBlock FontTypography="BodyStrong"
+                                      TextTrimming="CharacterEllipsis"
+                                      Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+                                      Text="{Binding Name}" />
+                        <StackPanel Orientation="Horizontal" Margin="0,3,0,0">
+                            <Ellipse Style="{StaticResource StatusDotStyle}" />
+                            <ui:TextBlock Margin="7,0,0,0"
+                                          FontTypography="Caption"
+                                          VerticalAlignment="Center"
+                                          Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                          Text="{Binding StatusLabel}" />
+                        </StackPanel>
+                    </StackPanel>
+
+                    <Border Grid.Column="2"
+                            VerticalAlignment="Center"
+                            Padding="10,4"
+                            CornerRadius="4"
+                            Background="{DynamicResource CardBackgroundFillColorSecondaryBrush}"
+                            BorderThickness="1"
+                            BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                            Visibility="{Binding IsMounted, Converter={StaticResource BoolToVisibility}}">
+                        <ui:TextBlock FontTypography="Caption"
+                                      Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                      Text="{Binding MountPoint}" />
+                    </Border>
+                </Grid>
+            </ui:CardAction>
+        </DataTemplate>
+    </Page.Resources>
+
+    <Grid Margin="42,0,42,24">
+
+        <ScrollViewer VerticalScrollBarVisibility="Auto"
+                      Visibility="{Binding ViewModel.IsEmpty, Converter={StaticResource InverseBoolToVisibility}}">
+            <StackPanel>
+                <ui:TextBlock Text="Paired"
+                              Style="{StaticResource SectionHeaderStyle}"
+                              Visibility="{Binding ViewModel.HasPairedDevices, Converter={StaticResource BoolToVisibility}}" />
+                <ItemsControl ItemsSource="{Binding ViewModel.PairedDevices}"
+                              ItemTemplate="{StaticResource DeviceCardTemplate}" />
+
+                <ui:TextBlock Text="On this network"
+                              Style="{StaticResource SectionHeaderStyle}"
+                              Visibility="{Binding ViewModel.HasAvailableDevices, Converter={StaticResource BoolToVisibility}}" />
+                <ItemsControl ItemsSource="{Binding ViewModel.AvailableDevices}"
+                              ItemTemplate="{StaticResource DeviceCardTemplate}" />
+
+                <ui:TextBlock Margin="4,16,0,0"
+                              FontTypography="Caption"
+                              TextWrapping="Wrap"
+                              Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                              Text="Devices appear here automatically. To pair, open Kurome on the phone and choose this computer." />
+            </StackPanel>
+        </ScrollViewer>
+
+        <StackPanel HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    MaxWidth="420"
+                    Visibility="{Binding ViewModel.IsEmpty, Converter={StaticResource BoolToVisibility}}">
+            <Border Width="96" Height="96" CornerRadius="48"
+                    HorizontalAlignment="Center"
+                    Background="{DynamicResource CardBackgroundFillColorSecondaryBrush}"
+                    BorderThickness="1"
+                    BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}">
+                <ui:SymbolIcon Symbol="Wifi124" FontSize="40"
+                               Foreground="{DynamicResource AccentFillColorDefaultBrush}" />
+            </Border>
+            <ui:TextBlock Margin="0,24,0,0"
+                          HorizontalAlignment="Center"
+                          FontTypography="Subtitle"
+                          Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+                          Text="Looking for devices" />
+            <ui:TextBlock Margin="0,8,0,0"
+                          HorizontalAlignment="Center"
+                          TextAlignment="Center"
+                          TextWrapping="Wrap"
+                          Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                          Text="This computer waits to be contacted. Open Kurome on the phone, make sure it is on the same Wi-Fi network, and it will appear here on its own." />
+            <ui:Button Margin="0,24,0,0"
+                       HorizontalAlignment="Center"
+                       Icon="{ui:SymbolIcon ArrowClockwise24}"
+                       Content="Refresh list"
+                       ToolTip="Re-reads the device list from the Kurome service"
+                       Click="OnRefreshClicked" />
+        </StackPanel>
     </Grid>
 </Page>

@@ -1,17 +1,21 @@
+using System.Windows;
 using Kurome.Ui.ViewModels;
 using Wpf.Ui.Abstractions.Controls;
-using Wpf.Ui.Controls;
 
 namespace Kurome.Ui.Pages.Devices;
 
-public partial class DeviceDetails : INavigableView<DevicesViewModel>
+public partial class DeviceDetails : INavigableView<DeviceDetailsViewModel>
 {
-    public DeviceDetails(DevicesViewModel viewModel)
+    public DeviceDetails(DeviceDetailsViewModel viewModel)
     {
         ViewModel = viewModel;
         DataContext = this;
         InitializeComponent();
     }
 
-    public DevicesViewModel ViewModel { get; }
+    public DeviceDetailsViewModel ViewModel { get; }
+
+    private void OnCopyIdClicked(object sender, RoutedEventArgs e) => ViewModel.CopyId();
+
+    private async void OnUnpairClicked(object sender, RoutedEventArgs e) => await ViewModel.UnpairAsync();
 }
