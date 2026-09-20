@@ -54,7 +54,6 @@ public class Link : IDisposable
         GC.SuppressFinalize(this);
     }
     
-
     public void Send(ReadOnlySpan<byte> data, int length)
     {
         try
@@ -68,7 +67,6 @@ public class Link : IDisposable
         }
     }
     
-
     public async void Start(CancellationToken cancellationToken)
     {
         var sizeBuffer = new byte[4];
@@ -102,13 +100,16 @@ public class Link : IDisposable
                 .Timeout(TimeSpan.FromMilliseconds(ms))
                 .Wait();
         }
-        catch (Exception e)
+        catch (TimeoutException)
         {
-            Log.Debug("Exception at Link: {@Exception}", e.ToString());
-            _dataReceived.OnError(e);
+            _logger.Warning("Timed out after {Timeout}ms waiting for a reply to packet {Id}", ms, id);
             return null;
         }
-        
+        catch (Exception e)
+        {
+            _logger.Debug("Exception at Link.GetBufferBlocking: {@Exception}", e.ToString());
+            return null;
+        }
     }
     
 }
