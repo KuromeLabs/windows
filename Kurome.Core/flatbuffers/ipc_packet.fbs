@@ -1,7 +1,8 @@
 namespace Kurome.Fbs.Ipc;
 attribute "fs_serializer";
 attribute "fs_vector";
-union Component { DeviceStateList, PairEvent, DeviceState, DeviceStateListRequest }
+
+union Component { DeviceStateList, PairEvent, DeviceState, DeviceStateListRequest, ServiceInfo, ServiceInfoRequest }
 
 table IpcPacket (fs_serializer:"greedy") {
     component:Component;
@@ -19,6 +20,7 @@ enum PairEventType: byte {
     PairRequestCancel,
     PairRequestAccept,
     PairRequestReject,
+    Unpair,
 }
 
 table DeviceStateList (fs_serializer: "greedy") {
@@ -39,4 +41,12 @@ table DeviceState (fs_serializer:"greedy") {
 table PairEvent (fs_serializer:"greedy") {
     deviceState: DeviceState;
     value: PairEventType;
+}
+
+table ServiceInfoRequest (fs_serializer: "greedy") {}
+
+table ServiceInfo (fs_serializer: "greedy") {
+    version: string;
+    machine_name: string;
+    tcp_port: ushort;
 }
