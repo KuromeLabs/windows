@@ -68,7 +68,7 @@ public class DialogViewModel : ReactiveObject
         {
             if (cts.IsCancellationRequested) return;
 
-            var dialog = new IncomingPairDialog(_contentDialogService.GetDialogHost()!, state)
+            var dialog = new IncomingPairDialog(_contentDialogService.GetDialogHostEx()!, state)
             {
                 Title = "Pair with this device?",
                 PrimaryButtonText = "Pair",

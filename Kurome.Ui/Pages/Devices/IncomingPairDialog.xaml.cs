@@ -1,4 +1,3 @@
-using System.Windows.Controls;
 using Kurome.Fbs.Ipc;
 using Wpf.Ui.Controls;
 
@@ -8,8 +7,8 @@ public partial class IncomingPairDialog : ContentDialog
 {
     public DeviceState DeviceState { get; }
 
-    public IncomingPairDialog(ContentPresenter contentPresenter, DeviceState deviceState)
-        : base(contentPresenter)
+    public IncomingPairDialog(ContentDialogHost contentDialogHost, DeviceState deviceState)
+        : base(contentDialogHost)
     {
         DeviceState = deviceState;
         DataContext = this;

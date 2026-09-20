@@ -65,8 +65,8 @@ public class DeviceDetailsViewModel : ReactiveObject
     {
         var device = Device;
         if (device == null) return;
-
-        var dialog = new ContentDialog(_contentDialogService.GetDialogHost())
+        
+        var dialog = new ContentDialog(_contentDialogService.GetDialogHostEx())
         {
             Title = "Unpair this device?",
             Content = $"Kurome will forget {device.Name} and stop sharing its storage. " +
