@@ -25,7 +25,9 @@ public class NetworkService
     private readonly DeviceService _deviceService;
     private readonly IConfiguration _configuration;
     private ushort _tcpListeningPort = 0;
-    private ServiceDiscovery _serviceDiscovery;
+    private ServiceDiscovery? _serviceDiscovery;
+
+    public ushort TcpListeningPort => _tcpListeningPort;
 
     public NetworkService(IIdentityProvider identityProvider, ISecurityService<X509Certificate2> sslService,
         ILogger<NetworkService> logger,  DeviceService deviceService, IConfiguration configuration)
@@ -36,16 +38,13 @@ public class NetworkService
         _configuration = configuration;
     }
 
-    private async void StartUdpListener()
-    {
-    }
-
     public async Task<int> StartTcpListener(CancellationToken cancellationToken)
     {
         
-        _tcpListeningPort = ushort.Parse(_configuration["Connection:TcpListeningPort"]!);
-        var tcpListener = TcpListener.Create(_tcpListeningPort);
+        var configuredPort = ushort.Parse(_configuration["Connection:TcpListeningPort"]!);
+        var tcpListener = TcpListener.Create(configuredPort);
         tcpListener.Start();
+        _tcpListeningPort = (ushort)((IPEndPoint)tcpListener.LocalEndpoint).Port;
         _logger.LogInformation("Started TCP Listener on port {Port}", _tcpListeningPort);
         while (!cancellationToken.IsCancellationRequested)
             try
@@ -80,7 +79,10 @@ public class NetworkService
 
     public void StopMdnsAdvertiser()
     {
+        if (_serviceDiscovery is null) return;
         _serviceDiscovery.Unadvertise();
+        _serviceDiscovery.Dispose();
+        _serviceDiscovery = null;
         _logger.LogDebug("mDNS Goodbye");
     }
 

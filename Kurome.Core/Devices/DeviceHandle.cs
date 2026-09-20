@@ -33,13 +33,24 @@ public class  DeviceHandle(Link link, Guid id, string name, bool isDeviceTrusted
         _plugins.ForEach(p => p.Dispose());
         _plugins.Clear();
     }
-
-    public void ReloadPlugins()
+    
+    public void SubscribePlugins()
     {
         ClearPlugins();
         _plugins.Add(new IdentityPlugin(identityProvider, this));
         _plugins.Add(new KuromeFsPlugin(this));
+        _plugins.ForEach(p => p.Subscribe());
+    }
+    
+    public void ActivatePlugins()
+    {
         _plugins.ForEach(p => p.Start());
+    }
+    
+    public void ReloadPlugins()
+    {
+        SubscribePlugins();
+        ActivatePlugins();
     }
     
     protected virtual void Dispose(bool disposing)
@@ -58,14 +69,19 @@ public class  DeviceHandle(Link link, Guid id, string name, bool isDeviceTrusted
         GC.SuppressFinalize(this);
     }
 
+    private KuromeFsPlugin? FilesystemPlugin => _plugins.OfType<KuromeFsPlugin>().FirstOrDefault();
+
     public DeviceState ToDeviceState()
     {
+        var fs = FilesystemPlugin;
         return new DeviceState
         {
             Id = Id.ToString(),
             IsConnected = !Disposed,
             Name = Name,
-            State = PairState
+            State = PairState,
+            IsMounted = fs?.IsMounted ?? false,
+            MountPoint = fs?.MountPoint
         };
     }
 }

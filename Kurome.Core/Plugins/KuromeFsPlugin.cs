@@ -18,6 +18,10 @@ public class KuromeFsPlugin(DeviceHandle handle) : IPlugin
     private string? _mountPoint;
     private readonly ILogger _logger = Log.ForContext<KuromeFsPlugin>();
 
+    public string? MountPoint => _dokanInstance == null ? null : _mountPoint;
+
+    public bool IsMounted => _dokanInstance != null;
+
     protected virtual void Dispose(bool disposing)
     {
         if (Disposed) return;
@@ -64,10 +68,25 @@ public class KuromeFsPlugin(DeviceHandle handle) : IPlugin
     
     private bool Unmount()
     {
-        if (!_dokan.RemoveMountPoint(_mountPoint!)) return false;
-        _dokanInstance!.WaitForFileSystemClosed(uint.MaxValue);
-        _dokanInstance!.Dispose();
-        return true;
+        if (_dokanInstance == null || _mountPoint == null) return false;
+        try
+        {
+            if (!_dokan.RemoveMountPoint(_mountPoint)) return false;
+            _dokanInstance.WaitForFileSystemClosed(uint.MaxValue);
+            _dokanInstance.Dispose();
+            _logger.Information("Unmounted filesystem at {MountPoint}", _mountPoint);
+            return true;
+        }
+        catch (Exception e)
+        {
+            _logger.Error(e, "Could not unmount filesystem at {MountPoint}", _mountPoint);
+            return false;
+        }
+        finally
+        {
+            _dokanInstance = null;
+            _mountPoint = null;
+        }
     }
     
     private bool MountToAvailableMountPoint()
@@ -75,8 +94,18 @@ public class KuromeFsPlugin(DeviceHandle handle) : IPlugin
         var deviceAccessor = new DeviceAccessor(handle.Link, handle.Name, handle.Id);
         var list = Enumerable.Range('C', 'Z' - 'C').Select(i => (char)i + ":")
             .Except(DriveInfo.GetDrives().Select(s => s.Name.Replace("\\", ""))).ToList();
+        if (list.Count == 0)
+        {
+            _logger.Error("No free drive letter available to mount {Name}", handle.Name);
+            return false;
+        }
+
         _mountPoint = list[0];
         return Mount(_mountPoint, deviceAccessor);
+    }
+
+    public void Subscribe()
+    {
     }
 
     public void Start()
