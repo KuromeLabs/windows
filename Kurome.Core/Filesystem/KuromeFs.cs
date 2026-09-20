@@ -1,4 +1,4 @@
-using System.Diagnostics.CodeAnalysis;
+﻿using System.Diagnostics.CodeAnalysis;
 using System.Security.AccessControl;
 using DokanNet;
 using Kurome.Core.Devices;
@@ -187,11 +187,11 @@ public class KuromeFs : IDokanOperationsUnsafe
         if (node != null)
             lock (node.NodeLock)
             {
-                if (info.DeleteOnClose && (!info.IsDirectory || node.Children.Count == 0))
+                if (info.DeletePending && (!info.IsDirectory || node.Children.Count == 0))
                     _cache!.Delete(node);
             }
 
-        Trace(_mountPoint, nameof(Cleanup), fileName, node, DokanResult.Success, $"deleteOnClose:{info.DeleteOnClose}");
+        Trace(_mountPoint, nameof(Cleanup), fileName, node, DokanResult.Success, $"deleteOnClose:{info.DeletePending}");
     }
 
     public void CloseFile(string fileName, IDokanFileInfo info)

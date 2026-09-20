@@ -34,6 +34,11 @@ public class IdentityPlugin(IIdentityProvider identityProvider, DeviceHandle han
 
     public void Start()
     {
+        // Purely reactive - everything this plugin does happens in the Subscribe() subscription.
+    }
+
+    public void Subscribe()
+    {
         _subscription = handle.Link.DataReceived
             .Where(x => Packet.Serializer.Parse(x.Data).Component!.Value.Kind == Component.ItemKind.DeviceIdentityQuery)
             .ObserveOn(NewThreadScheduler.Default)
