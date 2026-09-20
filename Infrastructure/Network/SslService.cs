@@ -47,7 +47,7 @@ public class SslService : ISecurityService<X509Certificate2>
             new DateTimeOffset(DateTime.UtcNow.AddYears(20)));
         certificate.FriendlyName = $"Kurome self-signed certificate for {Environment.MachineName}";
 
-        return new X509Certificate2(certificate.Export(X509ContentType.Pfx, ""),
+        return X509CertificateLoader.LoadPkcs12(certificate.Export(X509ContentType.Pfx, ""),
             "", X509KeyStorageFlags.MachineKeySet);
     }
 

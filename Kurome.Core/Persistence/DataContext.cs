@@ -29,7 +29,7 @@ public class DataContext : DbContext
         modelBuilder.Entity<Device>().Property(x => x.Name);
         modelBuilder.Entity<Device>().Property(x => x.Certificate)
             .HasConversion(
-                x => x.RawData,
-                x => new X509Certificate2(x));
+                x => x!.RawData,
+                x => X509CertificateLoader.LoadCertificate(x));
     }
 }

@@ -21,7 +21,7 @@ public class Link : IDisposable
     
     public sealed class Buffer 
     {
-        public byte[] Data { get; set; }
+        public required byte[] Data { get; set; }
         public int Size { get; set; }
         public long Id { get; set; }
         
