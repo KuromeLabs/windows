@@ -27,7 +27,7 @@ var builder = Host.CreateDefaultBuilder(args);
 builder.ConfigureAppConfiguration(c =>
 {
     c.Sources.Clear();
-    c.AddIniFile("appsettings.ini", optional: false, reloadOnChange: true);
+    c.AddIniFile("appsettings.ini", optional: false, reloadOnChange: false);
 });
 
 
@@ -43,7 +43,7 @@ builder.ConfigureServices(services =>
         {
             opt.ServiceName = "Kurome";
         });
-        services.AddDbContext<DataContext>(ServiceLifetime.Transient);
+        services.AddDbContext<DataContext>();
         services.AddSingleton<IIdentityProvider, IdentityProvider>();
         services.AddSingleton<IDeviceRepository, DeviceRepository>();
         services.AddNetworkServices();

@@ -1,33 +1,61 @@
-using DynamicData;
 using Kurome.Core.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Kurome.Core.Devices;
 
 public class DeviceRepository : IDeviceRepository
 {
-    private readonly DataContext _context;
+    private readonly IServiceScopeFactory _scopeFactory;
 
-    public DeviceRepository(DataContext context)
+    public DeviceRepository(IServiceScopeFactory scopeFactory)
     {
-        _context = context;
+        _scopeFactory = scopeFactory;
     }
 
     public async Task<List<Device>> GetSavedDevices()
     {
-        return await _context.Devices
-            .ToListAsync();
+        using var scope = _scopeFactory.CreateScope();
+        var context = scope.ServiceProvider.GetRequiredService<DataContext>();
+        return await context.Devices.AsNoTracking().ToListAsync();
     }
 
     public async Task<Device?> GetSavedDevice(Guid id)
     {
-        return await _context.Devices
-            .FirstOrDefaultAsync(x => x.Id == id);
+        using var scope = _scopeFactory.CreateScope();
+        var context = scope.ServiceProvider.GetRequiredService<DataContext>();
+        return await context.Devices.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id);
     }
 
     public int SaveDevice(Device device)
     {
-        _context.Devices.Add(device);
-        return _context.SaveChanges();
+        using var scope = _scopeFactory.CreateScope();
+        var context = scope.ServiceProvider.GetRequiredService<DataContext>();
+
+        var existing = context.Devices.FirstOrDefault(x => x.Id == device.Id);
+        if (existing == null)
+        {
+            context.Devices.Add(device);
+        }
+        else
+        {
+            existing.Name = device.Name;
+            existing.Certificate = device.Certificate;
+        }
+
+        return context.SaveChanges();
+    }
+
+    public async Task<bool> DeleteDevice(Guid id)
+    {
+        using var scope = _scopeFactory.CreateScope();
+        var context = scope.ServiceProvider.GetRequiredService<DataContext>();
+
+        var device = await context.Devices.FirstOrDefaultAsync(x => x.Id == id);
+        if (device == null) return false;
+
+        context.Devices.Remove(device);
+        await context.SaveChangesAsync();
+        return true;
     }
 }

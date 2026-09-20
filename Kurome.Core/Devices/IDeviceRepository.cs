@@ -6,4 +6,6 @@ public interface IDeviceRepository
     public Task<Device?> GetSavedDevice(Guid id);
     
     public int SaveDevice(Device device);
+
+    public Task<bool> DeleteDevice(Guid id);
 }
