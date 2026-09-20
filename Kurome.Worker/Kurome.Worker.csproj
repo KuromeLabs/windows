@@ -7,6 +7,8 @@
         <AssemblyName>Kurome</AssemblyName>
         <Nullable>enable</Nullable>
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+        <EnableWindowsTargeting>true</EnableWindowsTargeting>
+        <RollForward>LatestMajor</RollForward>
     </PropertyGroup>
 
     <PropertyGroup>

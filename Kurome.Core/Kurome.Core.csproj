@@ -5,6 +5,8 @@
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+        <EnableWindowsTargeting>true</EnableWindowsTargeting>
+        <RollForward>LatestMajor</RollForward>
     </PropertyGroup>
 
     <ItemGroup>
